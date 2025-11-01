@@ -459,12 +459,14 @@
 
         <!-- API Configuration Section -->
         <div class="section">
-            <h3><span class="status-indicator status-ready" id="apiStatus"></span>API Connection Status</h3>
+            <h3><span class="status-indicator" id="apiStatus"></span>API Connection Status</h3>
             <div class="form-group">
-                <p>OpenAI API is configured with your default key. <a href="#" onclick="showSettings()">⚙️ Manage API settings</a></p>
-                <input type="password" id="apiKey" style="display: none;">
+                <p id="apiStatusText">Loading API configuration...</p>
             </div>
-            <button class="btn" onclick="testApiConnection()">🔗 Test Connection</button>
+            <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                <button class="btn btn-test" id="testConnectionBtn" onclick="testApiConnection()">🔗 Test Connection</button>
+                <span id="testStatusDisplay" style="font-weight: 500; padding: 8px 16px; border-radius: 6px; display: none;"></span>
+            </div>
         </div>
 
         <!-- File Upload Section -->
@@ -541,8 +543,11 @@
             <button class="close-btn" onclick="hideSettings()">&times;</button>
             <h2>⚙️ Application Settings</h2>
             <div class="form-group">
-                <label for="settingsApiKey">OpenAI API Key:</label>
-                <input type="password" id="settingsApiKey" placeholder="sk-...">
+                <p style="padding: 15px; background: #e7f3ff; border-left: 4px solid #2196F3; border-radius: 4px;">
+                    <strong>ℹ️ API Key Configuration</strong><br>
+                    The OpenAI API key is configured via environment variables on the server.
+                    Contact your system administrator to update the API key.
+                </p>
             </div>
             <div class="form-group">
                 <label for="gptModel">GPT Model:</label>
@@ -1199,7 +1204,7 @@ ${text}
 
             async checkPdfService() {
                 try {
-                    const response = await fetch('http://localhost:5000/health', {
+                    const response = await fetch('/cipp-analyzer/api/service-status', {
                         method: 'GET',
                         signal: AbortSignal.timeout(3000)
                     });
@@ -1208,27 +1213,65 @@ ${text}
                         const data = await response.json();
                         const serviceStatus = document.getElementById('serviceStatus');
                         const serviceStatusText = document.getElementById('serviceStatusText');
-                        serviceStatus.className = 'service-status service-running';
-                        serviceStatusText.textContent = `🐍 PDF Service: Running (${data.pdf_library})`;
-                        Logger.success(`✅ PDF extraction service is running using ${data.pdf_library}`);
+
+                        if (data.available) {
+                            serviceStatus.className = 'service-status service-running';
+                            const libraries = data.libraries.join(', ');
+                            serviceStatusText.textContent = `✅ PDF Service: Running (${libraries})`;
+                            Logger.success(`✅ PDF extraction service is running using ${libraries}`);
+                        } else {
+                            throw new Error('Service not available');
+                        }
                     } else {
                         throw new Error('Service not responding');
                     }
                 } catch (error) {
+                    const serviceStatus = document.getElementById('serviceStatus');
                     const serviceStatusText = document.getElementById('serviceStatusText');
-                    serviceStatusText.textContent = '🚨 PDF Service: Not Running - Please start start_pdf_service.bat';
+                    serviceStatus.className = 'service-status service-stopped';
+                    serviceStatusText.textContent = '⚠️ PDF Service: Unavailable - Check server logs';
                     Logger.warning(`⚠️ PDF service not available: ${error.message}`);
-                    Logger.info(`💡 To start: Double-click 'start_pdf_service.bat' in the application folder`);
                 }
             }
 
-            initializeWithApiKey() {
-                const apiKey = this.settingsManager.get('apiKey');
-                if (apiKey) {
-                    document.getElementById('apiKey').value = apiKey;
-                    this.configureApi(apiKey);
+            async initializeWithApiKey() {
+                try {
+                    // Fetch API key from backend environment
+                    const response = await fetch('/api/config/apikey', {
+                        method: 'GET',
+                        signal: AbortSignal.timeout(5000)
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success && data.key) {
+                            // Configure API with the fetched key
+                            await this.configureApi(data.key);
+
+                            // Update UI
+                            const apiStatusText = document.getElementById('apiStatusText');
+                            apiStatusText.textContent = `✅ API Key Configured (${data.masked})`;
+                            apiStatusText.style.color = '#28a745';
+
+                            Logger.success(`✅ API key loaded from environment: ${data.masked}`);
+                        } else {
+                            throw new Error(data.error || 'Failed to load API key');
+                        }
+                    } else {
+                        throw new Error('Failed to fetch API key from server');
+                    }
+                } catch (error) {
+                    const apiStatusText = document.getElementById('apiStatusText');
+                    apiStatusText.textContent = `⚠️ API Key Not Configured - ${error.message}`;
+                    apiStatusText.style.color = '#dc3545';
+                    Logger.error(`❌ Failed to load API key: ${error.message}`);
                 }
-                document.getElementById('chunkSize').value = this.settingsManager.get('defaultChunkSize');
+
+                // Set default chunk size
+                const chunkSizeInput = document.getElementById('chunkSize');
+                if (chunkSizeInput) {
+                    chunkSizeInput.value = this.settingsManager.get('defaultChunkSize');
+                }
             }
 
             initializeEventListeners() {
@@ -2116,14 +2159,50 @@ ${text}
         });
 
         // Global functions for HTML event handlers
-        function testApiConnection() {
-            const apiKey = document.getElementById('apiKey').value || app.settingsManager.get('apiKey');
-            if (!apiKey) {
-                Logger.error("Please enter an OpenAI API key or configure it in settings");
+        async function testApiConnection() {
+            const testBtn = document.getElementById('testConnectionBtn');
+            const testStatus = document.getElementById('testStatusDisplay');
+
+            if (!app.apiClient) {
+                testStatus.textContent = '❌ API not configured';
+                testStatus.style.backgroundColor = '#f8d7da';
+                testStatus.style.color = '#721c24';
+                testStatus.style.border = '1px solid #f5c6cb';
+                testStatus.style.display = 'inline-block';
+                Logger.error("API client not initialized");
                 return;
             }
-            app.configureApi(apiKey);
-            app.settingsManager.set('apiKey', apiKey);
+
+            // Disable button and show testing status
+            testBtn.disabled = true;
+            testStatus.textContent = '🔄 Testing connection...';
+            testStatus.style.backgroundColor = '#fff3cd';
+            testStatus.style.color = '#856404';
+            testStatus.style.border = '1px solid #ffeaa7';
+            testStatus.style.display = 'inline-block';
+
+            try {
+                const isConnected = await app.apiClient.testConnection();
+
+                if (isConnected) {
+                    testStatus.textContent = '✅ Connection successful!';
+                    testStatus.style.backgroundColor = '#d4edda';
+                    testStatus.style.color = '#155724';
+                    testStatus.style.border = '1px solid #c3e6cb';
+                } else {
+                    testStatus.textContent = '❌ Connection failed';
+                    testStatus.style.backgroundColor = '#f8d7da';
+                    testStatus.style.color = '#721c24';
+                    testStatus.style.border = '1px solid #f5c6cb';
+                }
+            } catch (error) {
+                testStatus.textContent = `❌ Error: ${error.message}`;
+                testStatus.style.backgroundColor = '#f8d7da';
+                testStatus.style.color = '#721c24';
+                testStatus.style.border = '1px solid #f5c6cb';
+            } finally {
+                testBtn.disabled = false;
+            }
         }
 
         function handleFileSelect(event) {

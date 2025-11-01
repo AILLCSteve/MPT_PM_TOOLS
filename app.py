@@ -13,8 +13,13 @@ import os
 import sys
 import logging
 from pathlib import Path
-from flask import Flask, render_template, send_from_directory, jsonify
+from flask import Flask, render_template, send_from_directory, jsonify, request
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
+import tempfile
+
+# Import PDF extraction service
+from services.pdf_extractor import PDFExtractorService
 
 # Configure logging
 logging.basicConfig(
@@ -74,6 +79,14 @@ def create_app(config=Config) -> Flask:
 def register_routes(app: Flask, config: Config):
     """Register all application routes."""
 
+    # Initialize PDF extractor service
+    try:
+        pdf_extractor = PDFExtractorService()
+        logger.info(f"PDF extractor initialized with libraries: {pdf_extractor.get_available_libraries()}")
+    except Exception as e:
+        logger.error(f"Failed to initialize PDF extractor: {e}")
+        pdf_extractor = None
+
     @app.route('/')
     def index():
         """Serve the main landing page."""
@@ -89,7 +102,34 @@ def register_routes(app: Flask, config: Config):
             'tools': {
                 'cipp_analyzer': 'available',
                 'progress_estimator': 'available'
+            },
+            'pdf_service': {
+                'available': pdf_extractor is not None,
+                'libraries': pdf_extractor.get_available_libraries() if pdf_extractor else []
             }
+        })
+
+    # API Configuration endpoints
+    @app.route('/api/config/apikey', methods=['GET'])
+    def get_api_key():
+        """
+        Get OpenAI API key from environment variables.
+        This endpoint allows the frontend to retrieve the API key securely.
+        """
+        api_key = os.getenv('OPENAI_API_KEY', '')
+
+        if not api_key:
+            return jsonify({
+                'success': False,
+                'error': 'OPENAI_API_KEY not configured in environment variables'
+            }), 500
+
+        # Return only a masked version for security, but indicate it exists
+        # The frontend will know to use this for API calls
+        return jsonify({
+            'success': True,
+            'key': api_key,  # Frontend needs full key for API calls
+            'masked': api_key[:10] + '...' + api_key[-4:] if len(api_key) > 14 else 'configured'
         })
 
     # CIPP Analyzer routes
@@ -107,14 +147,88 @@ def register_routes(app: Flask, config: Config):
     def cipp_extract_pdf():
         """
         CIPP Analyzer PDF extraction endpoint.
-        For now, returns a placeholder. Implement actual extraction logic.
+        Extracts text from uploaded PDF with page numbers preserved.
         """
-        from flask import request
-        # TODO: Import and use the refactored PDF extraction service
-        # from services.pdf_extractor import PDFExtractorService
+        if not pdf_extractor:
+            return jsonify({
+                'success': False,
+                'error': 'PDF extraction service not available. Please check server logs.'
+            }), 503
+
+        # Check if file was uploaded
+        if 'file' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No file provided. Please upload a PDF file.'
+            }), 400
+
+        file = request.files['file']
+
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'No file selected.'
+            }), 400
+
+        if not file.filename.lower().endswith('.pdf'):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid file type. Only PDF files are supported.'
+            }), 400
+
+        # Save uploaded file to temporary location
+        try:
+            # Create temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                temp_path = temp_file.name
+                file.save(temp_path)
+
+            logger.info(f"Processing PDF: {file.filename} (saved to {temp_path})")
+
+            # Extract text with page numbers
+            pages = pdf_extractor.extract_text_with_pages(temp_path)
+
+            # Also get combined text with markers
+            combined_text = pdf_extractor.extract_text_combined(temp_path)
+
+            # Clean up temporary file
+            os.unlink(temp_path)
+
+            logger.info(f"Successfully extracted {len(pages)} pages from {file.filename}")
+
+            return jsonify({
+                'success': True,
+                'filename': file.filename,
+                'pages': [{'page': page_num, 'text': text} for page_num, text in pages],
+                'combined_text': combined_text,
+                'page_count': len(pages),
+                'total_chars': sum(len(text) for _, text in pages)
+            })
+
+        except Exception as e:
+            # Clean up temporary file on error
+            try:
+                if 'temp_path' in locals():
+                    os.unlink(temp_path)
+            except:
+                pass
+
+            logger.error(f"PDF extraction failed for {file.filename}: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'PDF extraction failed: {str(e)}'
+            }), 500
+
+    @app.route('/cipp-analyzer/api/service-status', methods=['GET'])
+    def cipp_service_status():
+        """
+        Check if PDF extraction service is available.
+        """
         return jsonify({
-            'error': 'PDF extraction service not yet integrated. Use refactored version in /Bid-Spec Analysis for CIPP/refactored/'
-        }), 501
+            'available': pdf_extractor is not None,
+            'libraries': pdf_extractor.get_available_libraries() if pdf_extractor else [],
+            'status': 'running' if pdf_extractor else 'unavailable'
+        })
 
     # Progress Estimator routes
     @app.route('/progress-estimator')
