@@ -1027,36 +1027,36 @@ ${text}
             }
 
             async parsePDF(file) {
-                Logger.api(`🐍 Using Python service to extract text from PDF: ${file.name}`);
+                Logger.api(`📄 Using server-side PDF extraction service for: ${file.name}`);
 
                 try {
-                    // Check if Python service is running
-                    const healthCheck = await fetch('http://localhost:5000/health', {
+                    // Check if PDF service is available
+                    const statusCheck = await fetch('/cipp-analyzer/api/service-status', {
                         method: 'GET',
                         signal: AbortSignal.timeout(5000)
                     });
 
-                    if (!healthCheck.ok) {
+                    if (!statusCheck.ok) {
                         throw new Error('PDF extraction service not available');
                     }
 
-                    Logger.success('✅ Python PDF service is running');
+                    const statusData = await statusCheck.json();
+                    if (!statusData.available) {
+                        throw new Error('PDF extraction service is not running');
+                    }
 
-                    // Convert PDF to base64
-                    const base64 = await this.fileToBase64(file);
-                    Logger.debug(`PDF converted to base64: ${(base64.length/1024).toFixed(1)}KB`);
+                    Logger.success(`✅ PDF service available (${statusData.libraries.join(', ')})`);
 
-                    Logger.request(`📤 Sending PDF to Python extraction service...`);
+                    // Create FormData and upload file
+                    const formData = new FormData();
+                    formData.append('file', file);
 
-                    const response = await fetch('http://localhost:5000/extract_pdf', {
+                    Logger.request(`📤 Uploading PDF to server for extraction (${(file.size/1024).toFixed(1)}KB)...`);
+
+                    const response = await fetch('/cipp-analyzer/api/extract_pdf', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            pdf_data: base64
-                        }),
-                        signal: AbortSignal.timeout(60000)
+                        body: formData,
+                        signal: AbortSignal.timeout(120000) // 2 minute timeout for large PDFs
                     });
 
                     if (!response.ok) {
@@ -1078,7 +1078,8 @@ ${text}
                         throw new Error(`PDF extraction failed: ${data.error || 'Service reported failure'}`);
                     }
 
-                    const extractedText = data.text;
+                    // Use combined_text which includes <PDF pg #> markers
+                    const extractedText = data.combined_text || data.pages.map(p => p.text).join('\n\n');
 
                     if (!extractedText || extractedText.length < 10) {
                         Logger.error(`❌ Extracted text is too short: ${extractedText ? extractedText.length : 0} characters`);
@@ -1086,33 +1087,34 @@ ${text}
                         throw new Error('PDF extraction returned insufficient text. The PDF may be image-based or corrupted.');
                     }
 
-                    Logger.success(`✅ Python service extracted ${extractedText.length} characters from PDF using ${data.method}`);
+                    Logger.success(`✅ Server extracted ${extractedText.length} characters from ${data.page_count} pages`);
+                    Logger.success(`📊 Extraction stats: ${data.total_chars} total characters, ${data.page_count} pages`);
                     Logger.debug(`Text preview (first 300 chars): "${extractedText.substring(0, 300)}..."`);
 
                     // Additional validation
                     const wordCount = extractedText.split(/\s+/).filter(w => w.length > 0).length;
-                    Logger.debug(`📊 Extraction stats: ${extractedText.length} characters, ~${wordCount} words`);
+                    Logger.debug(`📊 Word count: ~${wordCount} words`);
 
                     const chunkSize = parseInt(document.getElementById('chunkSize').value) || app.settingsManager.get('defaultChunkSize');
                     Logger.info(`📏 Using chunk size: ${chunkSize} characters`);
-                    Logger.debug(`Total text length: ${extractedText.length} characters`);
 
                     const chunks = this.chunkText(extractedText, chunkSize);
 
                     Logger.success(`✂️ Text successfully chunked into ${chunks.length} pieces (target: ${chunkSize} chars per chunk)`);
 
-                    // Log each chunk size for debugging
-                    chunks.forEach((chunk, i) => {
-                        Logger.debug(`Chunk ${i + 1}: ${chunk.length} characters`);
-                    });
+                    // Log chunk statistics
+                    const avgChunkSize = chunks.reduce((sum, chunk) => sum + chunk.length, 0) / chunks.length;
+                    Logger.debug(`Chunk stats: ${chunks.length} chunks, avg size: ${avgChunkSize.toFixed(0)} chars`);
 
                     return chunks;
 
                 } catch (error) {
-                    Logger.error(`❌ Python PDF extraction failed: ${error.message}`);
-                    if (error.message.includes('PDF extraction service not available')) {
-                        Logger.error(`🚨 PDF Service Required: Please start the PDF extraction service first!`);
-                        Logger.info(`🚀 To start the service: Double-click 'start_pdf_service.bat' in the application folder`);
+                    Logger.error(`❌ PDF extraction failed: ${error.message}`);
+                    if (error.name === 'AbortError') {
+                        Logger.error(`⏰ PDF extraction timed out - file may be too large or complex`);
+                    } else if (error.message.includes('service not available')) {
+                        Logger.error(`🚨 PDF Service Error: Server-side PDF extraction is not available`);
+                        Logger.info(`💡 Please check server logs or contact administrator`);
                     }
                     throw error;
                 }
@@ -1571,7 +1573,7 @@ ${text}
 
                 if (extension === 'pdf') {
                     Logger.success(`📄 PDF file selected: ${file.name}`);
-                    Logger.info(`🔍 Will use Python service for text extraction`);
+                    Logger.info(`🔍 Will use server-side PDF extraction service`);
                 } else {
                     Logger.success(`📄 ${extension.toUpperCase()} file selected: ${file.name}`);
                 }
