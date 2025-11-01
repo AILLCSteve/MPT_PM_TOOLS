@@ -27,7 +27,8 @@
             height: 100%;
             background-image: url('/shared/assets/images/bg3.jpg');
             background-size: cover;
-            background-position: center;
+            background-position: center center;
+            background-repeat: no-repeat;
             background-attachment: fixed;
             filter: brightness(0.75);
             z-index: -2;
@@ -390,11 +391,46 @@
             color: #1E3A8A;
         }
 
-        /* Mobile responsive for navbar */
+        /* Mobile responsive for navbar and background */
         @media (max-width: 768px) {
+            body::before {
+                background-attachment: scroll;
+                background-size: cover;
+                background-position: center center;
+            }
+
             .mpt-navbar {
                 flex-direction: column;
                 gap: 15px;
+                padding: 15px;
+            }
+
+            .container {
+                padding: 20px;
+                width: calc(100% - 20px);
+                margin: 10px auto;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .header p {
+                font-size: 1em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body::before {
+                background-size: auto 100%;
+                background-position: center center;
+            }
+
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            .container {
                 padding: 15px;
             }
         }

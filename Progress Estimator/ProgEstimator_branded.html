@@ -30,7 +30,8 @@ body::before {
     height: 100%;
     background-image: url('/shared/assets/images/bg1.jpg');
     background-size: cover;
-    background-position: center;
+    background-position: center center;
+    background-repeat: no-repeat;
     background-attachment: fixed;
     filter: brightness(0.75);
     z-index: -2;
@@ -506,6 +507,12 @@ tr:nth-child(even) {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+    body::before {
+        background-attachment: scroll;
+        background-size: cover;
+        background-position: center center;
+    }
+
     .mpt-navbar {
         flex-direction: column;
         gap: 15px;
@@ -547,6 +554,11 @@ tr:nth-child(even) {
 }
 
 @media (max-width: 480px) {
+    body::before {
+        background-size: auto 100%;
+        background-position: center center;
+    }
+
     .container {
         padding: 15px;
     }
