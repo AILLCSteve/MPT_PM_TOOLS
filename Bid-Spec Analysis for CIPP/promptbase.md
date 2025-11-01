@@ -199,10 +199,12 @@ import ace_tools as tools; tools.display_dataframe_to_user(name="Full CIPP Check
         ○ Also display the fully appended doc_footnotes list.
         ○ Then continue to the next 3-page window.
     • Every 30 pages
-        ○ Export current doc_review_glocom to CSV and display it.
-            § Filename: cipp_table_checkpoint_pg<page_number>.csv
-        ○ Export current doc_footnotes similarly.
+        ○ Display current doc_review_glocom as complete unitary log table (all 105 questions with current state).
+        ○ Display current doc_footnotes list.
+        ○ Update progress indicator showing pages processed.
+        ○ No export - just live display of current state in the application.
     • After every 50 pages
+        ○ Display current unitary log state (all 105 questions).
         ○ Pause and ask the user whether to continue the 3-page review loop.
 
 ✅ Checklist Evaluation Schema (per question)

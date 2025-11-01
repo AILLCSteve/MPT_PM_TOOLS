@@ -1200,6 +1200,272 @@ ${text}
             }
         }
 
+        // LAYER 3: Answer Accumulator - Manages the 105-question master list
+        class AnswerAccumulator {
+            constructor() {
+                this.doc_review_glocom = [];  // Master list of all 105 questions
+                this.doc_footnotes = [];       // Accumulated footnotes
+                this.initialized = false;
+            }
+
+            initialize(questionSections) {
+                // Build complete 105-question list from sections
+                this.doc_review_glocom = [];
+                let questionNumber = 1;
+
+                Object.entries(questionSections).forEach(([sectionName, section]) => {
+                    if (section.enabled && section.questions) {
+                        section.questions.forEach(questionText => {
+                            this.doc_review_glocom.push({
+                                section_header: sectionName,
+                                number: questionNumber++,
+                                question: questionText,
+                                answer: "Not yet found",
+                                pdf_pages: [],
+                                inline_citations: [],
+                                footnotes: [],
+                                confidence: "pending"
+                            });
+                        });
+                    }
+                });
+
+                this.initialized = true;
+                Logger.success(`✅ Initialized answer accumulator with ${this.doc_review_glocom.length} questions`);
+                return this.doc_review_glocom.length;
+            }
+
+            accumulateFindings(findings) {
+                // findings is an array of answers from Layer 2
+                if (!findings || !Array.isArray(findings)) {
+                    Logger.warning("No findings to accumulate");
+                    return;
+                }
+
+                let accumulated = 0;
+                findings.forEach(finding => {
+                    const questionNum = finding.question_number;
+                    if (!questionNum || questionNum < 1 || questionNum > this.doc_review_glocom.length) {
+                        Logger.warning(`Invalid question number: ${questionNum}`);
+                        return;
+                    }
+
+                    const question = this.doc_review_glocom[questionNum - 1];
+
+                    // Check if this is actually a new finding (not "not found")
+                    const isNotFound = finding.answer && (
+                        finding.answer.toLowerCase().includes("not found") ||
+                        finding.answer.toLowerCase().includes("not mentioned") ||
+                        finding.answer === "N/A"
+                    );
+
+                    if (!isNotFound && finding.answer) {
+                        // APPEND to existing answer (never overwrite)
+                        if (question.answer === "Not yet found" || question.answer === "") {
+                            question.answer = finding.answer;
+                        } else {
+                            // Append with page marker
+                            question.answer += `\n\n**[Additional finding]** ${finding.answer}`;
+                        }
+
+                        // Accumulate page numbers (avoid duplicates)
+                        if (finding.pdf_page) {
+                            const pages = Array.isArray(finding.pdf_page) ? finding.pdf_page : [finding.pdf_page];
+                            pages.forEach(page => {
+                                if (!question.pdf_pages.includes(page)) {
+                                    question.pdf_pages.push(page);
+                                }
+                            });
+                        }
+
+                        // Accumulate citations
+                        if (finding.citation || finding.inline_citation) {
+                            const citation = finding.citation || finding.inline_citation;
+                            if (!question.inline_citations.includes(citation)) {
+                                question.inline_citations.push(citation);
+                            }
+                        }
+
+                        // Add footnotes
+                        if (finding.footnote) {
+                            question.footnotes.push(finding.footnote);
+                            if (!this.doc_footnotes.includes(finding.footnote)) {
+                                this.doc_footnotes.push(finding.footnote);
+                            }
+                        }
+
+                        question.confidence = finding.confidence || "medium";
+                        accumulated++;
+                    }
+                });
+
+                if (accumulated > 0) {
+                    Logger.success(`📝 Accumulated ${accumulated} new findings`);
+                }
+
+                return accumulated;
+            }
+
+            getAnsweredCount() {
+                return this.doc_review_glocom.filter(q => q.answer !== "Not yet found").length;
+            }
+
+            getCompletionPercentage() {
+                return ((this.getAnsweredCount() / this.doc_review_glocom.length) * 100).toFixed(1);
+            }
+
+            getCurrentState() {
+                return {
+                    questions: this.doc_review_glocom,
+                    footnotes: this.doc_footnotes,
+                    answered: this.getAnsweredCount(),
+                    total: this.doc_review_glocom.length,
+                    completion: this.getCompletionPercentage()
+                };
+            }
+        }
+
+        // LAYER 4: Unitary Log Compiler/Organizer - Displays and manages the 105-question table
+        class UnitaryLogCompiler {
+            constructor() {
+                this.lastDisplayedPage = 0;
+                this.checkpointInterval = 30; // Display every 30 pages
+                this.pauseInterval = 50;      // Pause every 50 pages
+            }
+
+            shouldDisplayCheckpoint(currentPage) {
+                return currentPage > 0 && currentPage % this.checkpointInterval === 0;
+            }
+
+            shouldPauseForUser(currentPage) {
+                return currentPage > 0 && currentPage % this.pauseInterval === 0;
+            }
+
+            displayCurrentState(accumulator, currentPage, totalPages) {
+                const state = accumulator.getCurrentState();
+
+                Logger.info(`\n═══════════════════════════════════════════════════════════`);
+                Logger.info(`📊 UNITARY LOG STATUS - Page ${currentPage}/${totalPages}`);
+                Logger.info(`═══════════════════════════════════════════════════════════`);
+                Logger.info(`✅ Answered: ${state.answered}/${state.total} questions (${state.completion}%)`);
+                Logger.info(`📄 Pages processed: ${currentPage}/${totalPages}`);
+                Logger.info(`📝 Footnotes collected: ${state.footnotes.length}`);
+                Logger.info(`═══════════════════════════════════════════════════════════\n`);
+
+                // Display table in results section
+                this.renderUnitaryTable(state.questions, state.footnotes, currentPage, totalPages);
+            }
+
+            displayCheckpoint(accumulator, currentPage, totalPages) {
+                Logger.api(`\n🎯 === CHECKPOINT: ${currentPage} PAGES PROCESSED ===\n`);
+                this.displayCurrentState(accumulator, currentPage, totalPages);
+
+                const state = accumulator.getCurrentState();
+                Logger.info(`\n📈 Progress Summary:`);
+                Logger.info(`   • ${state.answered} questions answered`);
+                Logger.info(`   • ${state.total - state.answered} questions pending`);
+                Logger.info(`   • ${state.completion}% complete`);
+                Logger.info(`\n🔄 Continuing analysis...`);
+            }
+
+            async pauseForUser(accumulator, currentPage, totalPages) {
+                Logger.warning(`\n⏸️  === PAUSE at ${currentPage} pages ===\n`);
+                this.displayCurrentState(accumulator, currentPage, totalPages);
+
+                // In the web version, we'll just log this and continue
+                // In future, could add a modal dialog
+                Logger.info(`ℹ️  Continuing automatically (pause feature for future enhancement)...`);
+
+                return true; // Continue
+            }
+
+            renderUnitaryTable(questions, footnotes, currentPage, totalPages) {
+                const resultsSection = document.getElementById('resultsSection');
+                const resultsContent = document.getElementById('resultsContent');
+
+                if (!resultsSection || !resultsContent) {
+                    Logger.warning("Results section not found in DOM");
+                    return;
+                }
+
+                let tableHTML = `
+                    <div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e7f3ff, #f0f7ff); border-radius: 8px; border-left: 4px solid #2196F3;">
+                        <h3 style="margin: 0 0 10px 0; color: #1E3A8A;">📊 Unitary Log - Live Analysis</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                            <div>
+                                <strong>Pages Processed:</strong><br>
+                                <span style="font-size: 1.5em; color: #5B7FCC;">${currentPage}/${totalPages}</span>
+                            </div>
+                            <div>
+                                <strong>Questions Answered:</strong><br>
+                                <span style="font-size: 1.5em; color: #28a745;">${questions.filter(q => q.answer !== "Not yet found").length}/${questions.length}</span>
+                            </div>
+                            <div>
+                                <strong>Completion:</strong><br>
+                                <span style="font-size: 1.5em; color: #5B7FCC;">${((questions.filter(q => q.answer !== "Not yet found").length / questions.length) * 100).toFixed(1)}%</span>
+                            </div>
+                            <div>
+                                <strong>Footnotes:</strong><br>
+                                <span style="font-size: 1.5em; color: #667eea;">${footnotes.length}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <thead style="background: linear-gradient(135deg, #1E3A8A, #5B7FCC); color: white;">
+                            <tr>
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd; width: 15%;">Section Header</th>
+                                <th style="padding: 12px; text-align: center; border: 1px solid #ddd; width: 5%;">#</th>
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd; width: 25%;">Question</th>
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd; width: 30%;">Answer</th>
+                                <th style="padding: 12px; text-align: center; border: 1px solid #ddd; width: 10%;">PDF Pages</th>
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd; width: 10%;">Citations</th>
+                                <th style="padding: 12px; text-align: center; border: 1px solid #ddd; width: 5%;">Footnote</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                questions.forEach((q, index) => {
+                    const isAnswered = q.answer !== "Not yet found";
+                    const rowStyle = index % 2 === 0 ? 'background: #f8f9fa;' : 'background: white;';
+                    const answerStyle = isAnswered ? 'color: #155724; font-weight: 500;' : 'color: #856404; font-style: italic;';
+
+                    tableHTML += `
+                        <tr style="${rowStyle}">
+                            <td style="padding: 12px; border: 1px solid #ddd; font-weight: 600; color: #1E3A8A;">${q.section_header}</td>
+                            <td style="padding: 12px; border: 1px solid #ddd; text-align: center; font-weight: 600; color: #5B7FCC;">${q.number}</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">${q.question}</td>
+                            <td style="padding: 12px; border: 1px solid #ddd; ${answerStyle}">${q.answer}</td>
+                            <td style="padding: 12px; border: 1px solid #ddd; text-align: center; font-family: monospace;">${q.pdf_pages.join(', ') || '-'}</td>
+                            <td style="padding: 12px; border: 1px solid #ddd; font-size: 0.9em;">${q.inline_citations.join('; ') || '-'}</td>
+                            <td style="padding: 12px; border: 1px solid #ddd; text-align: center;">${q.footnotes.length > 0 ? `^${q.footnotes.length}` : '-'}</td>
+                        </tr>
+                    `;
+                });
+
+                tableHTML += '</tbody></table>';
+
+                // Add footnotes if any
+                if (footnotes.length > 0) {
+                    tableHTML += `
+                        <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                            <h4 style="margin-top: 0; color: #1E3A8A;">📝 Footnotes</h4>
+                            <ol style="margin: 10px 0; padding-left: 20px;">
+                                ${footnotes.map(f => `<li style="margin: 5px 0;">${f}</li>`).join('')}
+                            </ol>
+                        </div>
+                    `;
+                }
+
+                resultsContent.innerHTML = tableHTML;
+                resultsSection.style.display = 'block';
+
+                // Enable export button
+                document.getElementById('exportBtn').disabled = false;
+            }
+        }
+
         // Main Application Controller
         class CIPPAnalyzer {
             constructor() {
@@ -1215,11 +1481,17 @@ ${text}
                 this.currentChunk = 0;
                 this.totalChunks = 0;
 
+                // NEW: Initialize multi-layer architecture
+                this.answerAccumulator = new AnswerAccumulator();  // Layer 3
+                this.unitaryLogCompiler = new UnitaryLogCompiler(); // Layer 4
+                this.pdfPages = [];  // Store PDF pages with numbers (Layer 1 output)
+                this.currentPageIndex = 0;
+
                 this.initializeEventListeners();
                 this.loadDefaultQuestions();
                 this.initializeWithApiKey();
                 this.checkPdfService();
-                Logger.success("🚀 CIPP Spec Analyzer Complete initialized");
+                Logger.success("🚀 CIPP Spec Analyzer with Multi-Layer AI Architecture initialized");
             }
 
             async checkPdfService() {
