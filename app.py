@@ -36,6 +36,10 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
+    # File upload configuration
+    MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', 100 * 1024 * 1024))  # 100MB default
+    UPLOAD_TIMEOUT = int(os.getenv('UPLOAD_TIMEOUT', 300))  # 5 minutes
+
     # Server configuration
     HOST = os.getenv('HOST', '0.0.0.0')
     PORT = int(os.getenv('PORT', 5000))
@@ -148,15 +152,21 @@ def register_routes(app: Flask, config: Config):
         """
         CIPP Analyzer PDF extraction endpoint.
         Extracts text from uploaded PDF with page numbers preserved.
+        Handles large files up to MAX_CONTENT_LENGTH.
         """
         if not pdf_extractor:
+            logger.error("PDF extraction service not initialized")
             return jsonify({
                 'success': False,
                 'error': 'PDF extraction service not available. Please check server logs.'
             }), 503
 
+        # Log request details
+        logger.info(f"PDF extraction request received - Content-Length: {request.content_length}")
+
         # Check if file was uploaded
         if 'file' not in request.files:
+            logger.warning("No file in request.files")
             return jsonify({
                 'success': False,
                 'error': 'No file provided. Please upload a PDF file.'
@@ -165,34 +175,58 @@ def register_routes(app: Flask, config: Config):
         file = request.files['file']
 
         if file.filename == '':
+            logger.warning("Empty filename in upload")
             return jsonify({
                 'success': False,
                 'error': 'No file selected.'
             }), 400
 
         if not file.filename.lower().endswith('.pdf'):
+            logger.warning(f"Invalid file type: {file.filename}")
             return jsonify({
                 'success': False,
                 'error': 'Invalid file type. Only PDF files are supported.'
             }), 400
 
         # Save uploaded file to temporary location
+        temp_path = None
         try:
-            # Create temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            # Create temporary file with binary mode
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf', mode='wb') as temp_file:
                 temp_path = temp_file.name
-                file.save(temp_path)
+                # Read file in chunks to handle large files
+                chunk_size = 8192
+                bytes_written = 0
+                while True:
+                    chunk = file.stream.read(chunk_size)
+                    if not chunk:
+                        break
+                    temp_file.write(chunk)
+                    bytes_written += len(chunk)
 
-            logger.info(f"Processing PDF: {file.filename} (saved to {temp_path})")
+            # Verify file was completely written
+            actual_size = os.path.getsize(temp_path)
+            logger.info(f"PDF saved: {file.filename}")
+            logger.info(f"  Temp path: {temp_path}")
+            logger.info(f"  Bytes written: {bytes_written}")
+            logger.info(f"  File size on disk: {actual_size} bytes ({actual_size / 1024 / 1024:.2f} MB)")
+
+            if actual_size < 100:
+                raise ValueError(f"File too small ({actual_size} bytes) - likely corrupted or truncated")
 
             # Extract text with page numbers
+            logger.info(f"Starting PDF extraction for {file.filename}")
             pages = pdf_extractor.extract_text_with_pages(temp_path)
+
+            if not pages:
+                raise ValueError("No pages extracted from PDF - file may be corrupted or encrypted")
 
             # Also get combined text with markers
             combined_text = pdf_extractor.extract_text_combined(temp_path)
 
             # Clean up temporary file
             os.unlink(temp_path)
+            temp_path = None
 
             logger.info(f"Successfully extracted {len(pages)} pages from {file.filename}")
 
@@ -202,21 +236,40 @@ def register_routes(app: Flask, config: Config):
                 'pages': [{'page': page_num, 'text': text} for page_num, text in pages],
                 'combined_text': combined_text,
                 'page_count': len(pages),
-                'total_chars': sum(len(text) for _, text in pages)
+                'total_chars': sum(len(text) for _, text in pages),
+                'file_size_bytes': actual_size
             })
 
         except Exception as e:
             # Clean up temporary file on error
-            try:
-                if 'temp_path' in locals():
-                    os.unlink(temp_path)
-            except:
-                pass
+            if temp_path:
+                try:
+                    if os.path.exists(temp_path):
+                        file_size = os.path.getsize(temp_path)
+                        logger.error(f"Temp file exists with size: {file_size} bytes")
+                        os.unlink(temp_path)
+                except Exception as cleanup_error:
+                    logger.error(f"Cleanup error: {cleanup_error}")
 
-            logger.error(f"PDF extraction failed for {file.filename}: {e}")
+            error_msg = str(e)
+            logger.error(f"PDF extraction failed for {file.filename}: {error_msg}")
+            logger.error(f"Error type: {type(e).__name__}")
+
+            # Provide more helpful error messages
+            if 'disturbed' in error_msg.lower() or 'locked' in error_msg.lower():
+                error_msg = f"PDF file appears corrupted or truncated. Original error: {error_msg}. This often happens with large files - check upload limits."
+            elif 'memory' in error_msg.lower():
+                error_msg = f"PDF too large to process in available memory. Try a smaller file or contact support."
+            elif 'encrypted' in error_msg.lower() or 'password' in error_msg.lower():
+                error_msg = "PDF is password-protected or encrypted. Please provide an unencrypted version."
+
             return jsonify({
                 'success': False,
-                'error': f'PDF extraction failed: {str(e)}'
+                'error': error_msg,
+                'debug_info': {
+                    'filename': file.filename,
+                    'error_type': type(e).__name__
+                }
             }), 500
 
     @app.route('/cipp-analyzer/api/service-status', methods=['GET'])
@@ -342,6 +395,19 @@ def register_error_handlers(app: Flask):
             'message': 'The requested resource was not found',
             'status': 404
         }), 404
+
+    @app.errorhandler(413)
+    def request_entity_too_large(error):
+        """Handle file upload size limit exceeded."""
+        max_size_mb = app.config.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024) / (1024 * 1024)
+        logger.warning(f"File upload exceeded size limit: {max_size_mb}MB")
+        return jsonify({
+            'success': False,
+            'error': f'File too large. Maximum upload size is {max_size_mb:.0f}MB.',
+            'message': 'Please try a smaller file or contact support for large file processing.',
+            'status': 413,
+            'max_size_mb': max_size_mb
+        }), 413
 
     @app.errorhandler(500)
     def internal_error(error):
