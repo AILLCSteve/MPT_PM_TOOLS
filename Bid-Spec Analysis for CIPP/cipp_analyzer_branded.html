@@ -859,6 +859,184 @@
                 }
             }
 
+            // LAYER 2: Question Answering Specialist for 3-page windows
+            async analyze3PageWindow(windowText, allQuestions, pageNumbers) {
+                const requestId = ++this.requestCount;
+                const pageRange = `${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`;
+                Logger.api(`🔬 Layer 2: Analyzing pages ${pageRange} against ALL ${allQuestions.length} questions`);
+
+                const controller = new AbortController();
+                const timeoutMs = 90000; // 90 seconds for comprehensive analysis
+                const timeoutId = setTimeout(() => {
+                    controller.abort();
+                    Logger.error(`⏰ Layer 2 request #${requestId} timed out after ${timeoutMs/1000} seconds`);
+                }, timeoutMs);
+
+                try {
+                    const prompt = this.build3PageWindowPrompt(windowText, allQuestions, pageNumbers);
+                    const model = app.settingsManager.get('gptModel');
+
+                    Logger.debug(`Layer 2 Request #${requestId}:`);
+                    Logger.debug(`- Pages: ${pageRange}`);
+                    Logger.debug(`- Model: ${model}`);
+                    Logger.debug(`- Text length: ${windowText.length} characters`);
+                    Logger.debug(`- Questions to analyze: ${allQuestions.length}`);
+
+                    const requestBody = {
+                        model: model,
+                        messages: [
+                            {
+                                role: 'system',
+                                content: `You are an expert CIPP (Cured-in-Place Pipe) contractor analyzing bid specifications.
+
+EXPERTISE: You understand sewer rehabilitation, pipe lining materials, installation methods, testing procedures, and project requirements from a contractor's bidding perspective.
+
+TASK: Analyze the provided 3-page window and answer ALL questions. Be thorough but concise.
+
+OUTPUT: Return ONLY valid JSON with the exact structure specified. No additional text.`
+                            },
+                            {
+                                role: 'user',
+                                content: prompt
+                            }
+                        ],
+                        max_tokens: 6000,
+                        temperature: 0.2
+                    };
+
+                    Logger.request(`📤 Layer 2 sending request #${requestId} to OpenAI`);
+
+                    const startTime = Date.now();
+                    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+                        method: 'POST',
+                        signal: controller.signal,
+                        headers: {
+                            'Authorization': `Bearer ${this.apiKey}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+
+                    const requestTime = Date.now() - startTime;
+                    Logger.response(`📥 Layer 2 request #${requestId} completed in ${requestTime}ms: ${response.status}`);
+
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        Logger.error(`❌ Layer 2 request #${requestId} failed: ${response.status} - ${errorText}`);
+                        throw new Error(`API request failed: ${response.status} - ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    Logger.success(`✅ Layer 2 request #${requestId} successful`);
+                    Logger.debug(`- Tokens used: ${data.usage?.total_tokens || 'N/A'}`);
+
+                    const analysis = data.choices[0].message.content;
+                    const parsed = this.parse3PageWindowResponse(analysis, requestId);
+
+                    if (parsed && parsed.findings && Array.isArray(parsed.findings)) {
+                        Logger.success(`🎯 Layer 2: Extracted ${parsed.findings.length} findings from pages ${pageRange}`);
+                        return parsed.findings;
+                    } else {
+                        Logger.warning(`⚠️ Layer 2: No findings extracted from pages ${pageRange}`);
+                        return [];
+                    }
+
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    if (error.name === 'AbortError') {
+                        Logger.error(`⏰ Layer 2 request #${requestId} timed out`);
+                    } else {
+                        Logger.error(`💥 Layer 2 request #${requestId} failed: ${error.message}`);
+                    }
+                    return []; // Return empty array on error, don't stop processing
+                }
+            }
+
+            build3PageWindowPrompt(windowText, allQuestions, pageNumbers) {
+                const pageRange = `${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`;
+
+                // Build question list with numbers
+                const questionList = allQuestions.map((q, i) =>
+                    `${q.number}. [${q.section_header}] ${q.question}`
+                ).join('\n');
+
+                return `📄 ANALYZING PAGES ${pageRange} OF CIPP BID SPECIFICATION
+
+🔍 YOUR TASK:
+Analyze the following 3-page window and answer ALL ${allQuestions.length} questions from a CIPP contractor's perspective.
+
+📋 ALL ${allQuestions.length} QUESTIONS:
+${questionList}
+
+📖 DOCUMENT TEXT (Pages ${pageRange}):
+${windowText}
+
+✅ CRITICAL INSTRUCTIONS:
+
+1. ANSWER FORMAT: For each question, provide:
+   - If answer found: Quote verbatim with <PDF pg #> marker
+   - If NOT found in pages ${pageRange}: "Not found in pages ${pageRange}"
+
+2. CITATION REQUIREMENTS:
+   - Include section titles or clause numbers as inline citations
+   - Bold critical terms (e.g., **6.5mm thickness**, **hot water curing**)
+   - Reference standards/laws if mentioned (e.g., ASTM F1216)
+
+3. CONTRACTOR PERSPECTIVE:
+   - Focus on requirements that affect bidding, costs, methods, timeline
+   - Identify specifications, tolerances, acceptance criteria
+   - Note payment terms, warranty requirements, testing procedures
+
+4. JSON OUTPUT STRUCTURE:
+{
+  "findings": [
+    {
+      "question_number": 1,
+      "answer": "The exact text from the document or 'Not found in pages ${pageRange}'",
+      "pdf_page": ${pageNumbers[0]} (or appropriate page number),
+      "citation": "Section 2.1 or clause reference",
+      "confidence": "high|medium|low",
+      "footnote": "Additional context if needed"
+    }
+    // ... repeat for ALL ${allQuestions.length} questions
+  ]
+}
+
+🚨 RETURN ONLY THE JSON. Include ALL ${allQuestions.length} questions in your response.`;
+            }
+
+            parse3PageWindowResponse(response, requestId = 'unknown') {
+                Logger.api(`🔍 Layer 2: Parsing response for request #${requestId}`);
+
+                try {
+                    // Clean the response
+                    let cleanResponse = response.trim();
+
+                    // Remove markdown code blocks if present
+                    if (cleanResponse.startsWith('```')) {
+                        cleanResponse = cleanResponse.replace(/```json\s*/gi, '').replace(/```\s*$/g, '').trim();
+                    }
+
+                    // Try to parse JSON
+                    const parsed = JSON.parse(cleanResponse);
+
+                    if (parsed.findings && Array.isArray(parsed.findings)) {
+                        Logger.success(`✅ Layer 2: Parsed ${parsed.findings.length} findings successfully`);
+                        return parsed;
+                    } else {
+                        Logger.warning(`⚠️ Layer 2: Response missing 'findings' array`);
+                        return { findings: [] };
+                    }
+
+                } catch (error) {
+                    Logger.error(`❌ Layer 2: JSON parse failed for request #${requestId}: ${error.message}`);
+                    Logger.debug(`Raw response: ${response.substring(0, 500)}...`);
+                    return { findings: [] };
+                }
+            }
+
             buildSectionPrompt(text, questions, sectionName, chunkNumber, totalChunks) {
                 const questionList = questions.map((q, i) => `${i + 1}. ${q}`).join('\\n');
 
@@ -1887,181 +2065,153 @@ ${text}
                 try {
                     this.isAnalyzing = true;
                     this.shouldStop = false;
-                    this.currentChunk = 0;
+                    this.currentPageIndex = 0;
 
                     document.getElementById('analyzeBtn').disabled = true;
                     document.getElementById('stopBtn').disabled = false;
                     ProgressTracker.show();
-                    ProgressTracker.update(0, "Starting analysis...");
+                    ProgressTracker.update(0, "Starting multi-layer AI analysis...");
 
-                    Logger.api(`🔍 Starting document parsing: ${this.currentFile.name}`);
-                    ProgressTracker.update(5, "Extracting text from document...");
+                    Logger.api(`\n🚀 ========== MULTI-LAYER AI PROCESSING INITIATED ==========`);
+                    Logger.api(`📄 Document: ${this.currentFile.name}`);
+                    Logger.api(`🏗️ Architecture: 4-Layer Specialized Processing`);
 
-                    const chunks = await this.fileParser.parse(this.currentFile);
+                    // STEP 1: Extract PDF with page numbers (Layer 1)
+                    Logger.api(`\n📄 LAYER 1: Extracting PDF with page number preservation...`);
+                    ProgressTracker.update(5, "Layer 1: Extracting PDF pages...");
 
-                    if (!chunks || chunks.length === 0) {
-                        throw new Error("No text content could be extracted from the document. Please ensure the file contains readable text.");
+                    // Get PDF data with page numbers from server
+                    const formData = new FormData();
+                    formData.append('file', this.currentFile);
+
+                    const pdfResponse = await fetch('/cipp-analyzer/api/extract_pdf', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!pdfResponse.ok) {
+                        throw new Error('PDF extraction failed');
                     }
 
-                    Logger.success(`✅ Document successfully parsed into ${chunks.length} chunks`);
+                    const pdfData = await pdfResponse.json();
+                    this.pdfPages = pdfData.pages; // Array of {page: num, text: string}
+                    const totalPages = this.pdfPages.length;
 
-                    if (chunks[0]) {
-                        Logger.debug(`First chunk preview (200 chars): "${chunks[0].substring(0, 200).trim()}..."`);
-                    }
+                    Logger.success(`✅ Layer 1: Extracted ${totalPages} pages successfully`);
+                    Logger.debug(`Total characters: ${pdfData.total_chars}`);
 
-                    this.results = [];
-                    this.totalChunks = chunks.length;
+                    // STEP 2: Initialize Answer Accumulator with ALL questions (Layer 3)
+                    Logger.api(`\n📋 LAYER 3: Initializing Answer Accumulator with ALL questions...`);
+                    ProgressTracker.update(10, "Layer 3: Initializing 105-question master list...");
 
-                    // Initialize live results display
-                    this.initializeLiveResults();
+                    const totalQuestions = this.answerAccumulator.initialize(this.questionSections);
+                    Logger.success(`✅ Layer 3: Initialized with ${totalQuestions} questions`);
 
-                    // Analyze each chunk with each enabled section (section-by-section approach)
-                    const sectionNames = Object.keys(activeSections);
-                    let totalOperations = chunks.length * sectionNames.length;
-                    let completedOperations = 0;
+                    // STEP 3: Process document in 3-page windows
+                    Logger.api(`\n🔬 LAYER 2: Starting 3-page window analysis...`);
+                    Logger.api(`📊 Processing: ${totalPages} pages in ${Math.ceil(totalPages / 3)} windows`);
+                    Logger.api(`❓ Questions per window: ${totalQuestions}`);
+                    Logger.api(`═══════════════════════════════════════════════════════════\n`);
 
-                    Logger.api(`🎯 Starting section-by-section analysis:`);
-                    Logger.info(`📊 Analysis scope: ${chunks.length} chunks × ${sectionNames.length} sections = ${totalOperations} operations`);
-                    Logger.info(`🔍 Active sections: ${sectionNames.join(', ')}`);
+                    let windowCount = 0;
+                    const totalWindows = Math.ceil(totalPages / 3);
 
-                    for (let chunkIndex = 0; chunkIndex < chunks.length && !this.shouldStop; chunkIndex++) {
-                        this.currentChunk = chunkIndex + 1;
-                        const chunk = chunks[chunkIndex];
+                    for (let pageIndex = 0; pageIndex < totalPages && !this.shouldStop; pageIndex += 3) {
+                        windowCount++;
+                        this.currentPageIndex = pageIndex;
 
-                        Logger.info(`\\n📄 === ANALYZING CHUNK ${chunkIndex + 1}/${chunks.length} ===`);
-                        Logger.debug(`Chunk ${chunkIndex + 1} length: ${chunk.length} characters`);
-                        Logger.debug(`Chunk ${chunkIndex + 1} preview: "${chunk.substring(0, 150)}..."`);
+                        // Get 3-page window
+                        const windowPages = this.pdfPages.slice(pageIndex, pageIndex + 3);
+                        const pageNumbers = windowPages.map(p => p.page);
+                        const windowText = windowPages.map(p => `<PDF pg ${p.page}>\n${p.text}`).join('\n\n');
 
-                        for (const [sectionName, questions] of Object.entries(activeSections)) {
-                            if (this.shouldStop) break;
+                        const pageRange = `${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`;
+                        Logger.info(`\n┌─── Window ${windowCount}/${totalWindows}: Pages ${pageRange} ───┐`);
 
-                            const baseProgress = (completedOperations / totalOperations) * 85;
-                            ProgressTracker.update(baseProgress, `Chunk ${chunkIndex + 1}/${chunks.length} - ${sectionName} (${questions.length} questions)`);
+                        // Update progress
+                        const progressPct = (pageIndex / totalPages) * 80;
+                        ProgressTracker.update(progressPct, `Window ${windowCount}/${totalWindows}: Analyzing pages ${pageRange}...`);
 
-                            Logger.api(`🔍 Analyzing section "${sectionName}" against chunk ${chunkIndex + 1}`);
-                            Logger.debug(`Section "${sectionName}" has ${questions.length} questions`);
+                        // LAYER 2: Analyze this 3-page window against ALL questions
+                        const findings = await this.apiClient.analyze3PageWindow(
+                            windowText,
+                            this.answerAccumulator.doc_review_glocom,
+                            pageNumbers
+                        );
 
-                            try {
-                                const analysisStart = Date.now();
-                                const sectionResult = await this.apiClient.analyzeSection(
-                                    chunk,
-                                    questions,
-                                    sectionName,
-                                    chunkIndex + 1,
-                                    chunks.length
-                                );
-                                const analysisTime = Date.now() - analysisStart;
+                        // LAYER 3: Accumulate findings (APPEND, never overwrite)
+                        const accumulated = this.answerAccumulator.accumulateFindings(findings);
 
-                                Logger.debug(`Analysis completed in ${analysisTime}ms`);
+                        const currentPage = pageIndex + windowPages.length;
+                        Logger.info(`└─── Accumulated ${accumulated} findings from pages ${pageRange} ───┘\n`);
 
-                                if (sectionResult && sectionResult.answers && Array.isArray(sectionResult.answers) && sectionResult.answers.length > 0) {
-                                    const enrichedAnswers = sectionResult.answers.map(answer => ({
-                                        ...answer,
-                                        chunk_number: chunkIndex + 1,
-                                        total_chunks: chunks.length,
-                                        section: sectionName,
-                                        analysis_timestamp: new Date().toISOString()
-                                    }));
+                        // LAYER 4: Display every 3 pages (after each window)
+                        this.unitaryLogCompiler.displayCurrentState(
+                            this.answerAccumulator,
+                            currentPage,
+                            totalPages
+                        );
 
-                                    this.results.push(...enrichedAnswers);
-                                    Logger.success(`✅ Section "${sectionName}": Added ${enrichedAnswers.length} answers from chunk ${chunkIndex + 1}`);
+                        // LAYER 4: Checkpoint display every 30 pages
+                        if (this.unitaryLogCompiler.shouldDisplayCheckpoint(currentPage)) {
+                            this.unitaryLogCompiler.displayCheckpoint(
+                                this.answerAccumulator,
+                                currentPage,
+                                totalPages
+                            );
+                        }
 
-                                    // Update live results display for each answer
-                                    enrichedAnswers.forEach(answer => {
-                                        this.updateQuestionAnswer(sectionName, answer.question, answer);
-                                        Logger.debug(`📝 Live update: ${answer.question?.substring(0, 50)}... -> ${answer.answer?.substring(0, 50)}...`);
-                                    });
-
-                                    // Log sample answers for debugging
-                                    enrichedAnswers.slice(0, 2).forEach((answer, i) => {
-                                        Logger.debug(`  Answer ${i + 1}: ${answer.question?.substring(0, 50)}... -> ${answer.answer?.substring(0, 80)}...`);
-                                    });
-                                } else {
-                                    Logger.warning(`⚠️ Section "${sectionName}" returned no valid answers for chunk ${chunkIndex + 1}`);
-                                    Logger.debug(`Raw section result: ${JSON.stringify(sectionResult)}`);
-
-                                    // If parsing failed but we have a raw response, show it
-                                    if (sectionResult && sectionResult.raw_response) {
-                                        Logger.warning(`📄 Displaying raw ChatGPT response for debugging:`);
-                                        Logger.warning(sectionResult.raw_response);
-
-                                        // Add this as a special answer for debugging
-                                        const debugAnswer = {
-                                            question_number: 0,
-                                            question: `RAW RESPONSE - ${sectionName} (Chunk ${chunkIndex + 1})`,
-                                            answer: `PARSING FAILED - Raw ChatGPT Response: ${sectionResult.raw_response}`,
-                                            citation: "Parse Error",
-                                            confidence: "error",
-                                            pdf_page: `Chunk ${chunkIndex + 1}`,
-                                            section: sectionName,
-                                            chunk_number: chunkIndex + 1,
-                                            total_chunks: chunks.length,
-                                            is_raw_response: true
-                                        };
-
-                                        this.results.push(debugAnswer);
-                                        Logger.info(`📋 Added raw response as debug answer for section "${sectionName}"`);
-                                    }
-                                }
-
-                                completedOperations++;
-                                Logger.debug(`Progress: ${completedOperations}/${totalOperations} operations completed`);
-
-                                // Small delay between section analyses to prevent rate limiting
-                                if (!this.shouldStop && completedOperations < totalOperations) {
-                                    await new Promise(resolve => setTimeout(resolve, 1000));
-                                }
-
-                            } catch (error) {
-                                Logger.error(`❌ Section "${sectionName}" analysis failed for chunk ${chunkIndex + 1}: ${error.message}`);
-                                Logger.debug(`Error stack: ${error.stack}`);
-                                completedOperations++;
-
-                                // Continue with other sections even if one fails
-                                continue;
+                        // LAYER 4: Pause every 50 pages
+                        if (this.unitaryLogCompiler.shouldPauseForUser(currentPage)) {
+                            const shouldContinue = await this.unitaryLogCompiler.pauseForUser(
+                                this.answerAccumulator,
+                                currentPage,
+                                totalPages
+                            );
+                            if (!shouldContinue) {
+                                this.shouldStop = true;
+                                break;
                             }
                         }
 
-                        // Longer delay between chunks to respect rate limits
-                        if (chunkIndex < chunks.length - 1 && !this.shouldStop) {
+                        // Rate limiting delay between windows
+                        if (pageIndex + 3 < totalPages && !this.shouldStop) {
                             const delay = this.settingsManager.get('rateLimitDelay') || 2000;
-                            Logger.debug(`⏳ Waiting ${delay}ms before analyzing next chunk...`);
+                            Logger.debug(`⏳ Rate limit delay: ${delay}ms`);
                             await new Promise(resolve => setTimeout(resolve, delay));
                         }
                     }
 
-                    Logger.info(`\\n📊 === ANALYSIS SUMMARY ===`);
-                    Logger.info(`Total operations completed: ${completedOperations}/${totalOperations}`);
-                    Logger.info(`Total answers collected: ${this.results.length}`);
+                    // FINAL: Display complete unitary log
+                    Logger.api(`\n\n🎉 ========== ANALYSIS COMPLETE ==========`);
+                    ProgressTracker.update(90, "Finalizing unitary log...");
 
-                    // Group results by section for summary
-                    const resultsBySection = {};
-                    this.results.forEach(result => {
-                        const section = result.section || 'Unknown';
-                        if (!resultsBySection[section]) resultsBySection[section] = 0;
-                        resultsBySection[section]++;
-                    });
+                    const finalState = this.answerAccumulator.getCurrentState();
+                    Logger.info(`\n📊 FINAL STATISTICS:`);
+                    Logger.info(`   • Total Questions: ${finalState.total}`);
+                    Logger.info(`   • Questions Answered: ${finalState.answered}`);
+                    Logger.info(`   • Completion: ${finalState.completion}%`);
+                    Logger.info(`   • Footnotes Collected: ${finalState.footnotes.length}`);
+                    Logger.info(`   • Pages Processed: ${this.pdfPages.length}`);
 
-                    Logger.info('Results by section:');
-                    Object.entries(resultsBySection).forEach(([section, count]) => {
-                        Logger.info(`  ${section}: ${count} answers`);
-                    });
+                    // Display final unitary log via Layer 4
+                    this.unitaryLogCompiler.displayCurrentState(
+                        this.answerAccumulator,
+                        this.pdfPages.length,
+                        this.pdfPages.length
+                    );
 
-                    if (this.shouldStop) {
-                        Logger.warning(`⏹️ Analysis stopped by user at chunk ${this.currentChunk}/${this.totalChunks}`);
-                        ProgressTracker.update(50, `Stopped at chunk ${this.currentChunk}/${this.totalChunks}`);
-                    } else {
-                        ProgressTracker.update(90, "Synthesizing results...");
-                        await this.synthesizeResults();
-                        ProgressTracker.update(100, "Analysis complete!");
-                        Logger.success(`🎉 Analysis completed! Found ${this.results.length} answers`);
-                    }
+                    ProgressTracker.update(100, "Analysis complete!");
+                    Logger.success(`\n✅ Multi-layer AI processing completed successfully!`);
+                    Logger.api(`═══════════════════════════════════════════════════════════\n`);
 
-                    this.displayResults();
+                    // Store results for export
+                    this.results = finalState.questions;
+                    this.totalChunks = totalWindows;
 
                     setTimeout(() => {
                         ProgressTracker.hide();
-                    }, 2000);
+                    }, 3000);
 
                 } catch (error) {
                     Logger.error(`Analysis failed: ${error.message}`);
