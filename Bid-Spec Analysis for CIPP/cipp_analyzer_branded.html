@@ -329,6 +329,16 @@
             box-shadow: 0 20px 40px rgba(0,0,0,0.3);
         }
 
+        /* Export menu button hover */
+        #exportMenu button:hover {
+            background: #f0f0f0 !important;
+            font-weight: 500;
+        }
+
+        #exportMenu button:active {
+            background: #e0e0e0 !important;
+        }
+
         .close-btn {
             position: absolute;
             top: 15px;
@@ -511,7 +521,15 @@
             <button class="btn" id="analyzeBtn" onclick="startAnalysis()" disabled>🚀 Start Analysis</button>
             <button class="btn btn-danger" id="stopBtn" onclick="stopAnalysis()" disabled>⏹️ Stop Analysis</button>
             <button class="btn btn-secondary" onclick="clearResults()">🗑️ Clear Results</button>
-            <button class="btn btn-secondary" onclick="exportResults()" id="exportBtn" disabled>📊 Export Results</button>
+            <div class="btn-group" style="display: inline-block; position: relative;">
+                <button class="btn btn-secondary" onclick="showExportMenu()" id="exportBtn" disabled>📊 Export Results ▼</button>
+                <div id="exportMenu" style="display: none; position: absolute; background: white; border: 2px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 200px; top: 100%; left: 0; margin-top: 5px;">
+                    <button onclick="exportResults('csv')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📄 CSV (Excel)</button>
+                    <button onclick="exportResults('markdown')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📝 Markdown Table</button>
+                    <button onclick="exportResults('html')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">🌐 HTML Report</button>
+                    <button onclick="exportResults('json')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer;">📋 JSON Data</button>
+                </div>
+            </div>
         </div>
 
         <!-- Progress Section -->
@@ -2060,36 +2078,353 @@ ${text}
                 Logger.success(`📋 Displayed ${this.results.length} results`);
             }
 
-            async exportResults() {
+            async exportResults(format = 'csv') {
                 if (this.results.length === 0) {
                     Logger.warning("No results to export");
                     return;
                 }
 
-                let csvContent = "Section,Question_Number,Question,Answer,Citation,Confidence,Chunk\\n";
+                // Hide export menu
+                document.getElementById('exportMenu').style.display = 'none';
 
-                this.results.forEach(result => {
-                    const row = [
-                        `"${(result.section || '').replace(/"/g, '""')}"`,
-                        `"${result.question_number || ''}"`,
-                        `"${(result.question || '').replace(/"/g, '""')}"`,
-                        `"${(result.answer || '').replace(/"/g, '""')}"`,
-                        `"${(result.citation || '').replace(/"/g, '""')}"`,
-                        `"${result.confidence || 'medium'}"`,
-                        `"${result.chunk_number || ''}"`
-                    ].join(',');
-                    csvContent += row + "\\n";
+                const timestamp = new Date().toISOString().split('T')[0];
+                const filename = `cipp_analysis_${timestamp}`;
+
+                // Sort results by section and question number
+                const sortedResults = [...this.results].sort((a, b) => {
+                    const sectionCompare = (a.section || '').localeCompare(b.section || '');
+                    if (sectionCompare !== 0) return sectionCompare;
+                    return (a.question_number || 0) - (b.question_number || 0);
                 });
 
-                const blob = new Blob([csvContent], { type: 'text/csv' });
+                let content, mimeType, extension;
+
+                switch (format) {
+                    case 'csv':
+                        content = this.exportAsCSV(sortedResults);
+                        mimeType = 'text/csv;charset=utf-8;';
+                        extension = 'csv';
+                        break;
+                    case 'markdown':
+                        content = this.exportAsMarkdown(sortedResults);
+                        mimeType = 'text/markdown;charset=utf-8;';
+                        extension = 'md';
+                        break;
+                    case 'html':
+                        content = this.exportAsHTML(sortedResults);
+                        mimeType = 'text/html;charset=utf-8;';
+                        extension = 'html';
+                        break;
+                    case 'json':
+                        content = this.exportAsJSON(sortedResults);
+                        mimeType = 'application/json;charset=utf-8;';
+                        extension = 'json';
+                        break;
+                    default:
+                        Logger.error(`Unknown export format: ${format}`);
+                        return;
+                }
+
+                // Create and trigger download
+                const blob = new Blob([content], { type: mimeType });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `cipp_analysis_${new Date().toISOString().split('T')[0]}.csv`;
-                a.click();
-                URL.revokeObjectURL(url);
+                a.download = `${filename}.${extension}`;
 
-                Logger.success(`📊 Results exported as CSV file`);
+                // Mobile-friendly download trigger
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                // Clean up
+                setTimeout(() => URL.revokeObjectURL(url), 100);
+
+                Logger.success(`📊 Results exported as ${format.toUpperCase()} file: ${filename}.${extension}`);
+            }
+
+            exportAsCSV(results) {
+                // Professional CSV format following promptbase.md specification
+                const header = ['"Section Header"', '"#"', '"Question"', '"Answer"', '"PDF Page"', '"Inline Citation"', '"Footnote"'].join(',');
+
+                const rows = results.map(result => {
+                    return [
+                        `"${this.escapeCsvField(result.section || 'N/A')}"`,
+                        `"${result.question_number || ''}"`,
+                        `"${this.escapeCsvField(result.question || 'N/A')}"`,
+                        `"${this.escapeCsvField(result.answer || 'No answer found')}"`,
+                        `"${this.escapeCsvField(result.pdf_page || result.chunk_number ? `Chunk ${result.chunk_number}` : 'N/A')}"`,
+                        `"${this.escapeCsvField(result.citation || 'N/A')}"`,
+                        `"${this.escapeCsvField(result.footnote || '')}"`,
+                    ].join(',');
+                });
+
+                return [header, ...rows].join('\n');
+            }
+
+            exportAsMarkdown(results) {
+                // Professional Markdown table format per promptbase.md
+                let md = `# CIPP Bid-Spec Analysis Report\n\n`;
+                md += `**Generated:** ${new Date().toLocaleString()}\n`;
+                md += `**Document:** ${this.currentFile?.name || 'Unknown'}\n`;
+                md += `**Total Results:** ${results.length}\n\n`;
+                md += `---\n\n`;
+
+                // Table header
+                md += `| Section Header | # | Question | Answer | PDF Page | Inline Citation | Footnote |\n`;
+                md += `|----------------|---|----------|--------|----------|-----------------|----------|\n`;
+
+                // Table rows
+                results.forEach(result => {
+                    md += `| ${this.escapeMarkdown(result.section || 'N/A')} `;
+                    md += `| ${result.question_number || ''} `;
+                    md += `| ${this.escapeMarkdown(result.question || 'N/A')} `;
+                    md += `| ${this.escapeMarkdown(result.answer || 'No answer found')} `;
+                    md += `| ${this.escapeMarkdown(result.pdf_page || (result.chunk_number ? `Chunk ${result.chunk_number}` : 'N/A'))} `;
+                    md += `| ${this.escapeMarkdown(result.citation || 'N/A')} `;
+                    md += `| ${this.escapeMarkdown(result.footnote || '')} |\n`;
+                });
+
+                return md;
+            }
+
+            exportAsHTML(results) {
+                // Professional HTML report with styling
+                const projectName = this.currentFile?.name || 'Unknown Document';
+                const date = new Date().toLocaleString();
+
+                let html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIPP Analysis Report - ${projectName}</title>
+    <style>
+        @media print {
+            body { margin: 0.5in; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #1E3A8A;
+            border-bottom: 3px solid #5B7FCC;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .metadata {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .metadata p {
+            margin: 5px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        thead {
+            background: linear-gradient(135deg, #1E3A8A, #5B7FCC);
+            color: white;
+            font-weight: bold;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border: 1px solid #ddd;
+            vertical-align: top;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        tbody tr:hover {
+            background-color: #e3f2fd;
+            transition: background-color 0.2s;
+        }
+
+        .section-cell {
+            font-weight: 600;
+            color: #1E3A8A;
+        }
+
+        .number-cell {
+            text-align: center;
+            font-weight: 600;
+            color: #5B7FCC;
+        }
+
+        .question-cell {
+            font-weight: 500;
+        }
+
+        .answer-cell {
+            max-width: 400px;
+            word-wrap: break-word;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 8px 10px;
+            }
+
+            .answer-cell {
+                max-width: 200px;
+            }
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #ddd;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏗️ CIPP Bid-Spec Analysis Report</h1>
+
+        <div class="metadata">
+            <p><strong>Document:</strong> ${this.escapeHtml(projectName)}</p>
+            <p><strong>Generated:</strong> ${date}</p>
+            <p><strong>Total Results:</strong> ${results.length}</p>
+            <p><strong>Sections Analyzed:</strong> ${[...new Set(results.map(r => r.section))].join(', ')}</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Section Header</th>
+                    <th>#</th>
+                    <th>Question</th>
+                    <th>Answer</th>
+                    <th>PDF Page</th>
+                    <th>Inline Citation</th>
+                    <th>Footnote</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+                results.forEach(result => {
+                    html += `
+                <tr>
+                    <td class="section-cell">${this.escapeHtml(result.section || 'N/A')}</td>
+                    <td class="number-cell">${result.question_number || ''}</td>
+                    <td class="question-cell">${this.escapeHtml(result.question || 'N/A')}</td>
+                    <td class="answer-cell">${this.escapeHtml(result.answer || 'No answer found')}</td>
+                    <td>${this.escapeHtml(result.pdf_page || (result.chunk_number ? `Chunk ${result.chunk_number}` : 'N/A'))}</td>
+                    <td>${this.escapeHtml(result.citation || 'N/A')}</td>
+                    <td>${this.escapeHtml(result.footnote || '')}</td>
+                </tr>`;
+                });
+
+                html += `
+            </tbody>
+        </table>
+
+        <div class="footer">
+            <p>Generated by Municipal Pipe Tool - CIPP Bid-Spec Analyzer</p>
+            <p>Report generated automatically - verify all information with original documents</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+                return html;
+            }
+
+            exportAsJSON(results) {
+                const exportData = {
+                    metadata: {
+                        generated: new Date().toISOString(),
+                        document: this.currentFile?.name || 'Unknown',
+                        total_results: results.length,
+                        sections: [...new Set(results.map(r => r.section))],
+                        version: '1.0.0'
+                    },
+                    results: results.map(result => ({
+                        section_header: result.section || 'N/A',
+                        question_number: result.question_number || null,
+                        question: result.question || 'N/A',
+                        answer: result.answer || 'No answer found',
+                        pdf_page: result.pdf_page || (result.chunk_number ? `Chunk ${result.chunk_number}` : 'N/A'),
+                        inline_citation: result.citation || 'N/A',
+                        footnote: result.footnote || '',
+                        confidence: result.confidence || 'medium',
+                        chunk_number: result.chunk_number || null,
+                        timestamp: result.analysis_timestamp || null
+                    }))
+                };
+
+                return JSON.stringify(exportData, null, 2);
+            }
+
+            // Helper functions for escaping special characters
+            escapeCsvField(field) {
+                if (!field) return '';
+                return String(field).replace(/"/g, '""');
+            }
+
+            escapeMarkdown(text) {
+                if (!text) return '';
+                return String(text).replace(/\|/g, '\\|').replace(/\n/g, ' ');
+            }
+
+            escapeHtml(text) {
+                if (!text) return '';
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
             }
 
             clearResults() {
@@ -2221,9 +2556,23 @@ ${text}
             app.clearResults();
         }
 
-        function exportResults() {
-            app.exportResults();
+        function showExportMenu() {
+            const menu = document.getElementById('exportMenu');
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
         }
+
+        function exportResults(format) {
+            app.exportResults(format);
+        }
+
+        // Close export menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('exportMenu');
+            const exportBtn = document.getElementById('exportBtn');
+            if (menu && exportBtn && !exportBtn.contains(event.target) && !menu.contains(event.target)) {
+                menu.style.display = 'none';
+            }
+        });
 
         function showQuestionManager() {
             const modal = document.getElementById('questionManagerModal');
