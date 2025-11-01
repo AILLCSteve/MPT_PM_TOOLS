@@ -1,0 +1,2377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIPP Bid-Spec Analyzer - MPT Tools</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            padding: 0;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('/shared/assets/images/bg3.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            filter: brightness(0.75);
+            z-index: -2;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(91, 127, 204, 0.4) 0%, rgba(30, 58, 138, 0.5) 100%);
+            z-index: -1;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(2.5px);
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 30px;
+            max-width: 1000px;
+            width: calc(100% - 40px);
+            min-height: 600px;
+            margin: 20px auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #ffffff;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #ffffff;
+            font-size: 1.1em;
+        }
+
+        .section {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid rgba(224, 224, 224, 0.5);
+            border-radius: 8px;
+            background: transparent;
+        }
+
+        .section h3 {
+            color: #ffffff;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #ffffff;
+            font-weight: 500;
+        }
+
+        input[type="text"], input[type="password"], input[type="file"], input[type="number"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus, input[type="password"]:focus, input[type="number"]:focus, textarea:focus {
+            outline: none;
+            border-color: #5B7FCC;
+        }
+
+        .file-upload {
+            border: 2px dashed rgba(221, 221, 221, 0.7);
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);
+        }
+
+        .file-upload:hover {
+            border-color: #5B7FCC;
+            background: rgba(248, 249, 255, 0.95);
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #5B7FCC, #1E3A8A);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-test {
+            background: #28a745;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #5B7FCC, #1E3A8A);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #ffffff;
+        }
+
+        .log-container {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            display: none;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+            white-space: pre-wrap;
+        }
+
+        .log-info { color: #17a2b8; }
+        .log-success { color: #28a745; }
+        .log-warning { color: #ffc107; }
+        .log-error { color: #dc3545; }
+        .log-debug { color: #6f42c1; }
+        .log-api { color: #fd7e14; background: #fff3cd; padding: 5px; border-radius: 3px; }
+        .log-request { color: #0056b3; background: #cce5ff; padding: 5px; border-radius: 3px; }
+        .log-response { color: #155724; background: #d4edda; padding: 5px; border-radius: 3px; }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-ready { background: #28a745; }
+        .status-processing { background: #ffc107; }
+        .status-error { background: #dc3545; }
+
+        .results-section {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .question-sections {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .question-section {
+            border: 1px solid rgba(221, 221, 221, 0.6);
+            border-radius: 6px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(5px);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .question-section:hover {
+            border-color: #5B7FCC;
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .question-section.enabled {
+            border-color: #28a745;
+            background: rgba(248, 255, 248, 0.9);
+        }
+
+        .question-section.disabled {
+            border-color: #dc3545;
+            background: rgba(255, 248, 248, 0.9);
+            opacity: 0.7;
+        }
+
+        .section-header {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-count {
+            font-size: 12px;
+            color: #666;
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+
+        .service-status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .service-running {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .service-stopped {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            font-weight: bold;
+        }
+
+        .close-btn:hover {
+            color: #666;
+        }
+
+        /* MPT Navbar */
+        .mpt-navbar {
+            background: linear-gradient(135deg, #1E3A8A, #5B7FCC);
+            padding: 15px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            margin-bottom: 0;
+        }
+
+        .mpt-navbar .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .mpt-navbar img {
+            height: 40px;
+            width: auto;
+        }
+
+        .mpt-navbar .app-title {
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .mpt-navbar .home-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 20px;
+            border: 2px solid white;
+            border-radius: 5px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .mpt-navbar .home-link:hover {
+            background-color: white;
+            color: #1E3A8A;
+        }
+
+        /* Mobile responsive for navbar */
+        @media (max-width: 768px) {
+            .mpt-navbar {
+                flex-direction: column;
+                gap: 15px;
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- MPT Navigation Bar -->
+    <nav class="mpt-navbar">
+        <div class="logo-container">
+            <img src="/shared/assets/images/logo.png" alt="Municipal Pipe Tool">
+            <span class="app-title">CIPP Bid-Spec Analyzer</span>
+        </div>
+        <a href="/" class="home-link">← Home</a>
+    </nav>
+
+    <div class="container">
+        <div class="header">
+            <h1>🏗️ CIPP Bid-Spec Analyzer</h1>
+            <p>Professional bid specification analysis powered by AI</p>
+        </div>
+
+        <!-- PDF Service Status -->
+        <div id="serviceStatus" class="service-status service-stopped">
+            <span id="serviceStatusText">🐍 Checking PDF extraction service...</span>
+        </div>
+
+        <!-- API Configuration Section -->
+        <div class="section">
+            <h3><span class="status-indicator status-ready" id="apiStatus"></span>API Connection Status</h3>
+            <div class="form-group">
+                <p>OpenAI API is configured with your default key. <a href="#" onclick="showSettings()">⚙️ Manage API settings</a></p>
+                <input type="password" id="apiKey" style="display: none;">
+            </div>
+            <button class="btn" onclick="testApiConnection()">🔗 Test Connection</button>
+        </div>
+
+        <!-- File Upload Section -->
+        <div class="section">
+            <h3>📄 Document Upload</h3>
+            <div class="file-upload" id="fileUpload" onclick="document.getElementById('fileInput').click()">
+                <input type="file" id="fileInput" style="display: none;" accept=".txt,.pdf,.docx,.xlsx" onchange="handleFileSelect(event)">
+                <p><strong>Click to select file</strong> or drag and drop</p>
+                <p>Supported formats: PDF (recommended), TXT, DOCX, XLSX</p>
+            </div>
+            <div id="fileInfo" style="margin-top: 10px; display: none;">
+                <p><strong>Selected file:</strong> <span id="fileName"></span></p>
+                <p><strong>Size:</strong> <span id="fileSize"></span></p>
+            </div>
+            <button class="btn btn-test" onclick="loadTestDocument()" style="margin-top: 10px;">📋 Load Test Document</button>
+        </div>
+
+        <!-- Question Management Section -->
+        <div class="section">
+            <h3>❓ Question Configuration</h3>
+            <div class="form-group">
+                <label>Question Sections (Click to enable/disable):</label>
+                <div id="questionSections" class="question-sections"></div>
+            </div>
+            <div class="form-group">
+                <label>Active Questions: <span id="activeQuestionCount">0</span> questions selected</label>
+            </div>
+            <button class="btn btn-secondary" onclick="showQuestionManager()">📝 Manage Questions</button>
+            <button class="btn btn-secondary" onclick="addQuestionSection()">➕ Add Custom Section</button>
+            <button class="btn btn-secondary" onclick="exportQuestions()">📤 Export Questions</button>
+            <button class="btn btn-secondary" onclick="showSettings()">⚙️ Settings</button>
+        </div>
+
+        <!-- Analysis Controls -->
+        <div class="section">
+            <h3>🎯 Analysis Configuration</h3>
+            <div class="form-group">
+                <label for="chunkSize">Characters per Analysis Chunk:</label>
+                <input type="number" id="chunkSize" value="1500" min="500" max="2000">
+                <small>Recommended: 1500 characters per chunk to stay within token limits (lowered due to GPT-4 constraints)</small>
+            </div>
+            <button class="btn" id="analyzeBtn" onclick="startAnalysis()" disabled>🚀 Start Analysis</button>
+            <button class="btn btn-danger" id="stopBtn" onclick="stopAnalysis()" disabled>⏹️ Stop Analysis</button>
+            <button class="btn btn-secondary" onclick="clearResults()">🗑️ Clear Results</button>
+            <button class="btn btn-secondary" onclick="exportResults()" id="exportBtn" disabled>📊 Export Results</button>
+        </div>
+
+        <!-- Progress Section -->
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Ready</div>
+        </div>
+
+        <!-- Log Section -->
+        <div class="log-container" id="logContainer">
+            <div id="logContent"></div>
+        </div>
+
+        <!-- Live Results Section -->
+        <div class="results-section" id="resultsSection" style="display: none;">
+            <h3>📋 Analysis Results (Live Updates)</h3>
+            <div id="liveResultsContainer">
+                <div id="liveResultsTable"></div>
+                <div id="resultsContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="hideSettings()">&times;</button>
+            <h2>⚙️ Application Settings</h2>
+            <div class="form-group">
+                <label for="settingsApiKey">OpenAI API Key:</label>
+                <input type="password" id="settingsApiKey" placeholder="sk-...">
+            </div>
+            <div class="form-group">
+                <label for="gptModel">GPT Model:</label>
+                <select id="gptModel">
+                    <option value="gpt-4">GPT-4 (Recommended)</option>
+                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                </select>
+            </div>
+            <button class="btn" onclick="saveSettings()">💾 Save Settings</button>
+            <button class="btn btn-secondary" onclick="hideSettings()">❌ Close</button>
+        </div>
+    </div>
+
+    <!-- Question Manager Modal -->
+    <div id="questionManagerModal" class="modal">
+        <div class="modal-content" style="max-width: 95%; max-height: 90%;">
+            <button class="close-btn" onclick="hideQuestionManager()">&times;</button>
+            <h2>📝 Question Manager</h2>
+
+            <div style="margin-bottom: 20px;">
+                <label>Select Section to Edit:</label>
+                <select id="sectionSelect" onchange="loadSectionForEdit()" style="width: 100%; padding: 8px; margin: 10px 0;">
+                    <option value="">-- Select a section --</option>
+                </select>
+                <button class="btn btn-secondary" onclick="addNewSectionInManager()">➕ Add New Section</button>
+                <button class="btn btn-danger" onclick="deleteCurrentSection()">🗑️ Delete Section</button>
+            </div>
+
+            <div id="sectionEditor" style="display: none;">
+                <h3 id="currentSectionName"></h3>
+                <div style="margin-bottom: 15px;">
+                    <label>
+                        <input type="checkbox" id="sectionEnabled" onchange="toggleSectionEnabled()">
+                        Section Enabled
+                    </label>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label>Section Name:</label>
+                    <input type="text" id="sectionNameInput" onchange="updateSectionName()" style="width: 100%; padding: 8px;">
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label>Questions in this section:</label>
+                    <div id="questionsList" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 6px; background: #f9f9f9;"></div>
+                    <button class="btn btn-secondary" onclick="addNewQuestion()" style="margin-top: 10px;">➕ Add Question</button>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button class="btn" onclick="saveQuestions()">💾 Save All Changes</button>
+                <button class="btn btn-secondary" onclick="hideQuestionManager()">❌ Close</button>
+                <button class="btn btn-secondary" onclick="exportQuestions()">📤 Export Questions</button>
+                <input type="file" id="importQuestionsFile" style="display: none;" accept=".json" onchange="importQuestions(event)">
+                <button class="btn btn-secondary" onclick="document.getElementById('importQuestionsFile').click()">📥 Import Questions</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced Logger with comprehensive API debugging
+        class Logger {
+            static log(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const logContainer = document.getElementById('logContent');
+                const entry = document.createElement('div');
+                entry.className = `log-entry log-${type}`;
+
+                if (typeof message === 'object') {
+                    entry.innerHTML = `[${timestamp}] <pre>${JSON.stringify(message, null, 2)}</pre>`;
+                } else {
+                    entry.textContent = `[${timestamp}] ${message}`;
+                }
+
+                logContainer.appendChild(entry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+
+                document.getElementById('logContainer').style.display = 'block';
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            }
+
+            static info(message) { this.log(message, 'info'); }
+            static success(message) { this.log(message, 'success'); }
+            static warning(message) { this.log(message, 'warning'); }
+            static error(message) { this.log(message, 'error'); }
+            static debug(message) { this.log(message, 'debug'); }
+            static api(message) { this.log(message, 'api'); }
+            static request(message) { this.log(message, 'request'); }
+            static response(message) { this.log(message, 'response'); }
+        }
+
+        // Progress tracking utility
+        class ProgressTracker {
+            static show() {
+                document.getElementById('progressContainer').style.display = 'block';
+            }
+
+            static hide() {
+                document.getElementById('progressContainer').style.display = 'none';
+            }
+
+            static update(percentage, text) {
+                document.getElementById('progressFill').style.width = `${percentage}%`;
+                document.getElementById('progressText').textContent = text;
+            }
+        }
+
+        // Settings Manager
+        class SettingsManager {
+            constructor() {
+                this.defaultSettings = {
+                    apiKey: '', // User must provide their own OpenAI API key
+                    gptModel: 'gpt-4',
+                    defaultChunkSize: 1500, // Reduced from 3000 to prevent token limit issues
+                    analysisTimeout: 60,
+                    autoRetry: true,
+                    rateLimitDelay: 2000,
+                    maxTokensPerRequest: 8000 // Safety margin under 10k limit
+                };
+                this.settings = { ...this.defaultSettings };
+                this.loadSettings();
+            }
+
+            loadSettings() {
+                try {
+                    const saved = localStorage.getItem('cipp_analyzer_settings');
+                    if (saved) {
+                        this.settings = { ...this.defaultSettings, ...JSON.parse(saved) };
+                    }
+                } catch (error) {
+                    Logger.warning('Could not load saved settings, using defaults');
+                }
+            }
+
+            saveSettings() {
+                try {
+                    localStorage.setItem('cipp_analyzer_settings', JSON.stringify(this.settings));
+                    Logger.success('Settings saved successfully');
+                } catch (error) {
+                    Logger.error('Failed to save settings: ' + error.message);
+                }
+            }
+
+            get(key) {
+                return this.settings[key];
+            }
+
+            set(key, value) {
+                this.settings[key] = value;
+                this.saveSettings();
+            }
+        }
+
+        // Enhanced OpenAI API Client with comprehensive debugging
+        class OpenAIClient {
+            constructor(apiKey) {
+                this.apiKey = apiKey;
+                this.baseUrl = 'https://api.openai.com/v1';
+                this.requestCount = 0;
+            }
+
+            async testConnection() {
+                Logger.api("🔍 Testing OpenAI API connection...");
+                Logger.debug("API Key (masked): " + this.apiKey.substring(0, 10) + "..." + this.apiKey.substring(this.apiKey.length - 4));
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    controller.abort();
+                    Logger.error("❌ Connection test timed out after 10 seconds");
+                }, 10000);
+
+                try {
+                    Logger.request("📤 Sending GET request to /models endpoint");
+
+                    const response = await fetch(`${this.baseUrl}/models`, {
+                        signal: controller.signal,
+                        headers: {
+                            'Authorization': `Bearer ${this.apiKey}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    clearTimeout(timeoutId);
+                    Logger.response(`📥 Received response: ${response.status} ${response.statusText}`);
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        Logger.success("✅ OpenAI API connection successful");
+                        Logger.debug(`Available models: ${data.data.length}`);
+                        return true;
+                    } else {
+                        const errorText = await response.text();
+                        Logger.error(`❌ API connection failed: ${response.status} - ${errorText}`);
+                        return false;
+                    }
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    if (error.name === 'AbortError') {
+                        Logger.error(`⏰ API connection timed out after 10 seconds`);
+                    } else {
+                        Logger.error(`💥 API connection error: ${error.message}`);
+                        Logger.debug(`Error details: ${error.stack}`);
+                    }
+                    return false;
+                }
+            }
+
+            async analyzeSection(text, questions, sectionName, chunkNumber = 1, totalChunks = 1) {
+                const requestId = ++this.requestCount;
+                Logger.api(`🚀 Starting analysis request #${requestId} for section "${sectionName}" chunk ${chunkNumber}/${totalChunks}`);
+
+                const controller = new AbortController();
+                const timeoutMs = (app.settingsManager.get('analysisTimeout') || 60) * 1000;
+                const timeoutId = setTimeout(() => {
+                    controller.abort();
+                    Logger.error(`⏰ Request #${requestId} timed out after ${timeoutMs/1000} seconds`);
+                }, timeoutMs);
+
+                try {
+                    const prompt = this.buildSectionPrompt(text, questions, sectionName, chunkNumber, totalChunks);
+                    const model = app.settingsManager.get('gptModel');
+
+                    Logger.debug(`Request #${requestId} details:`);
+                    Logger.debug(`- Section: ${sectionName}`);
+                    Logger.debug(`- Model: ${model}`);
+                    Logger.debug(`- Text length: ${text.length} characters`);
+                    Logger.debug(`- Questions: ${questions.length}`);
+
+                    const requestBody = {
+                        model: model,
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'You are an expert construction specification analyst with deep expertise in CIPP (Cured-in-Place Pipe) sewer rehabilitation projects. You excel at reading and analyzing technical documents to extract specific information. You MUST respond with valid JSON only.'
+                            },
+                            {
+                                role: 'user',
+                                content: prompt
+                            }
+                        ],
+                        max_tokens: 4000,
+                        temperature: 0.2
+                    };
+
+                    Logger.request(`📤 Sending request #${requestId} to OpenAI API`);
+
+                    const startTime = Date.now();
+                    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+                        method: 'POST',
+                        signal: controller.signal,
+                        headers: {
+                            'Authorization': `Bearer ${this.apiKey}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+
+                    const requestTime = Date.now() - startTime;
+                    Logger.response(`📥 Request #${requestId} response received in ${requestTime}ms: ${response.status} ${response.statusText}`);
+
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        Logger.error(`❌ Request #${requestId} failed: ${response.status} - ${errorText}`);
+                        throw new Error(`API request failed: ${response.status} - ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    Logger.success(`✅ Request #${requestId} completed successfully`);
+                    Logger.debug(`Response data:`);
+                    Logger.debug(`- Tokens used: ${data.usage?.total_tokens || 'N/A'}`);
+                    Logger.debug(`- Model used: ${data.model || 'N/A'}`);
+
+                    const analysis = data.choices[0].message.content;
+                    Logger.debug(`Raw response (first 200 chars): ${analysis.substring(0, 200)}...`);
+
+                    return this.parseAnalysisResponse(analysis, requestId);
+
+                } catch (error) {
+                    clearTimeout(timeoutId);
+
+                    if (error.name === 'AbortError') {
+                        Logger.error(`⏰ Request #${requestId} was aborted (timeout)`);
+                        throw new Error(`Analysis timed out after ${timeoutMs/1000} seconds`);
+                    } else {
+                        Logger.error(`💥 Request #${requestId} failed: ${error.message}`);
+                        throw error;
+                    }
+                }
+            }
+
+            buildSectionPrompt(text, questions, sectionName, chunkNumber, totalChunks) {
+                const questionList = questions.map((q, i) => `${i + 1}. ${q}`).join('\\n');
+
+                return `🎯 DOCUMENT ANALYSIS TASK:
+You are analyzing a CIPP sewer rehabilitation specification document. Focus on the "${sectionName}" section questions.
+
+📋 INSTRUCTIONS:
+1. CAREFULLY READ the entire document text provided
+2. FIND answers to each question based ONLY on the document text
+3. EXTRACT specific quotes, section references, and page numbers
+4. RESPOND with detailed answers or "Not specified in this section" if not found
+5. CITE exactly where you found each piece of information
+
+❓ ${sectionName.toUpperCase()} QUESTIONS (${questions.length} questions):
+${questionList}
+
+📄 DOCUMENT TEXT (Chunk ${chunkNumber}/${totalChunks}):
+================================================================================
+${text}
+================================================================================
+
+🎯 REQUIRED JSON RESPONSE (respond ONLY with this JSON format):
+{
+  "section": "${sectionName}",
+  "chunk_info": {
+    "chunk_number": ${chunkNumber},
+    "total_chunks": ${totalChunks},
+    "text_length": ${text.length}
+  },
+  "answers": [
+    {
+      "question_number": 1,
+      "question": "[exact question text]",
+      "answer": "[detailed answer from document or 'Not specified in this section']",
+      "citation": "[specific section/page reference]",
+      "confidence": "high/medium/low",
+      "pdf_page": "[page number if found]",
+      "inline_citation": "[exact quote from document]",
+      "footnote": "[additional details]"
+    }
+  ]
+}
+
+🚨 CRITICAL: Return ONLY the JSON. No other text.`;
+            }
+
+            parseAnalysisResponse(response, requestId = 'unknown') {
+                Logger.api(`🔍 Parsing response for request #${requestId}`);
+                Logger.debug(`Raw response length: ${response.length} characters`);
+
+                try {
+                    const cleanResponse = response.trim();
+
+                    // Log full response for debugging
+                    Logger.debug(`Full response: "${cleanResponse}"`);
+
+                    let parsed = null;
+
+                    // Method 1: Try parsing entire response as JSON
+                    try {
+                        parsed = JSON.parse(cleanResponse);
+                        Logger.success(`✅ Method 1: Parsed entire response as JSON`);
+                    } catch (e) {
+                        Logger.debug(`Method 1 failed: ${e.message}`);
+                    }
+
+                    // Method 2: Look for JSON between ```json and ``` markers
+                    if (!parsed) {
+                        const codeBlockMatch = cleanResponse.match(/```(?:json)?\\s*([\\s\\S]*?)```/i);
+                        if (codeBlockMatch) {
+                            try {
+                                parsed = JSON.parse(codeBlockMatch[1].trim());
+                                Logger.success(`✅ Method 2: Parsed JSON from code block`);
+                            } catch (e) {
+                                Logger.debug(`Method 2 failed: ${e.message}`);
+                            }
+                        }
+                    }
+
+                    // Method 3: Look for JSON starting with first { and ending with last }
+                    if (!parsed) {
+                        const firstBrace = cleanResponse.indexOf('{');
+                        const lastBrace = cleanResponse.lastIndexOf('}');
+                        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                            try {
+                                const jsonCandidate = cleanResponse.substring(firstBrace, lastBrace + 1);
+                                parsed = JSON.parse(jsonCandidate);
+                                Logger.success(`✅ Method 3: Extracted JSON between braces`);
+                            } catch (e) {
+                                Logger.debug(`Method 3 failed: ${e.message}`);
+                            }
+                        }
+                    }
+
+                    // Method 4: Try to extract JSON with regex (fixed pattern)
+                    if (!parsed) {
+                        const jsonMatch = cleanResponse.match(/\\{[\\s\\S]*\\}/);
+                        if (jsonMatch) {
+                            try {
+                                parsed = JSON.parse(jsonMatch[0]);
+                                Logger.success(`✅ Method 4: Found and parsed JSON pattern`);
+                            } catch (e) {
+                                Logger.debug(`Method 4 failed: ${e.message}`);
+                            }
+                        }
+                    }
+
+                    if (parsed) {
+                        Logger.debug(`Parsed object keys: ${Object.keys(parsed).join(', ')}`);
+
+                        if (parsed.answers && Array.isArray(parsed.answers)) {
+                            Logger.success(`✅ Successfully parsed ${parsed.answers.length} answers from request #${requestId}`);
+
+                            // Validate and clean answer structure
+                            const validAnswers = parsed.answers.map(answer => {
+                                return {
+                                    question_number: answer.question_number || 0,
+                                    question: answer.question || 'Unknown question',
+                                    answer: answer.answer || 'Not specified in this section',
+                                    citation: answer.citation || 'No citation',
+                                    confidence: answer.confidence || 'medium',
+                                    pdf_page: answer.pdf_page || 'Unknown',
+                                    inline_citation: answer.inline_citation || '',
+                                    footnote: answer.footnote || ''
+                                };
+                            });
+
+                            Logger.success(`✅ Validated ${validAnswers.length} answers`);
+                            return { ...parsed, answers: validAnswers };
+                        } else {
+                            Logger.warning(`⚠️ Parsed JSON missing answers array in request #${requestId}`);
+                            Logger.debug(`Parsed structure: ${JSON.stringify(parsed, null, 2)}`);
+                        }
+                    }
+
+                    // If all parsing methods failed, log the full response and return empty
+                    Logger.error(`❌ All JSON parsing methods failed for request #${requestId}`);
+                    Logger.error(`FULL RESPONSE DUMP:`);
+                    Logger.error(cleanResponse);
+                    return { answers: [], error: 'No valid JSON structure found', raw_response: cleanResponse };
+
+                } catch (error) {
+                    Logger.error(`💥 Parse error for request #${requestId}: ${error.message}`);
+                    Logger.error(`Error details: ${error.stack}`);
+                    return { answers: [], error: error.message };
+                }
+            }
+        }
+
+        // File Parser with proper PDF service integration
+        class FileParser {
+            async parse(file) {
+                const extension = file.name.split('.').pop().toLowerCase();
+                Logger.info(`📄 Parsing ${extension.toUpperCase()} file: ${file.name} (${(file.size/1024).toFixed(1)} KB)`);
+
+                switch (extension) {
+                    case 'pdf':
+                        return await this.parsePDF(file);
+                    case 'txt':
+                    case 'text':
+                        return await this.parseText(file);
+                    default:
+                        Logger.warning(`⚠️ Unsupported file type: ${extension}. Attempting text parsing...`);
+                        return await this.parseText(file);
+                }
+            }
+
+            async parsePDF(file) {
+                Logger.api(`🐍 Using Python service to extract text from PDF: ${file.name}`);
+
+                try {
+                    // Check if Python service is running
+                    const healthCheck = await fetch('http://localhost:5000/health', {
+                        method: 'GET',
+                        signal: AbortSignal.timeout(5000)
+                    });
+
+                    if (!healthCheck.ok) {
+                        throw new Error('PDF extraction service not available');
+                    }
+
+                    Logger.success('✅ Python PDF service is running');
+
+                    // Convert PDF to base64
+                    const base64 = await this.fileToBase64(file);
+                    Logger.debug(`PDF converted to base64: ${(base64.length/1024).toFixed(1)}KB`);
+
+                    Logger.request(`📤 Sending PDF to Python extraction service...`);
+
+                    const response = await fetch('http://localhost:5000/extract_pdf', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            pdf_data: base64
+                        }),
+                        signal: AbortSignal.timeout(60000)
+                    });
+
+                    if (!response.ok) {
+                        let errorData;
+                        try {
+                            errorData = await response.json();
+                        } catch (e) {
+                            errorData = { error: await response.text() };
+                        }
+                        Logger.error(`❌ PDF extraction HTTP error: ${response.status} ${response.statusText}`);
+                        Logger.error(`Error details: ${JSON.stringify(errorData)}`);
+                        throw new Error(`PDF extraction failed: ${errorData.error || response.statusText}`);
+                    }
+
+                    const data = await response.json();
+
+                    if (!data.success) {
+                        Logger.error(`❌ PDF extraction service reported failure: ${data.error || 'Unknown error'}`);
+                        throw new Error(`PDF extraction failed: ${data.error || 'Service reported failure'}`);
+                    }
+
+                    const extractedText = data.text;
+
+                    if (!extractedText || extractedText.length < 10) {
+                        Logger.error(`❌ Extracted text is too short: ${extractedText ? extractedText.length : 0} characters`);
+                        Logger.debug(`Raw extraction result: ${JSON.stringify(data)}`);
+                        throw new Error('PDF extraction returned insufficient text. The PDF may be image-based or corrupted.');
+                    }
+
+                    Logger.success(`✅ Python service extracted ${extractedText.length} characters from PDF using ${data.method}`);
+                    Logger.debug(`Text preview (first 300 chars): "${extractedText.substring(0, 300)}..."`);
+
+                    // Additional validation
+                    const wordCount = extractedText.split(/\s+/).filter(w => w.length > 0).length;
+                    Logger.debug(`📊 Extraction stats: ${extractedText.length} characters, ~${wordCount} words`);
+
+                    const chunkSize = parseInt(document.getElementById('chunkSize').value) || app.settingsManager.get('defaultChunkSize');
+                    Logger.info(`📏 Using chunk size: ${chunkSize} characters`);
+                    Logger.debug(`Total text length: ${extractedText.length} characters`);
+
+                    const chunks = this.chunkText(extractedText, chunkSize);
+
+                    Logger.success(`✂️ Text successfully chunked into ${chunks.length} pieces (target: ${chunkSize} chars per chunk)`);
+
+                    // Log each chunk size for debugging
+                    chunks.forEach((chunk, i) => {
+                        Logger.debug(`Chunk ${i + 1}: ${chunk.length} characters`);
+                    });
+
+                    return chunks;
+
+                } catch (error) {
+                    Logger.error(`❌ Python PDF extraction failed: ${error.message}`);
+                    if (error.message.includes('PDF extraction service not available')) {
+                        Logger.error(`🚨 PDF Service Required: Please start the PDF extraction service first!`);
+                        Logger.info(`🚀 To start the service: Double-click 'start_pdf_service.bat' in the application folder`);
+                    }
+                    throw error;
+                }
+            }
+
+            async parseText(file) {
+                return new Promise((resolve, reject) => {
+                    Logger.info(`📝 Reading text file: ${file.name}`);
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const text = e.target.result;
+
+                            if (!text || text.length === 0) {
+                                throw new Error("File appears to be empty");
+                            }
+
+                            Logger.success(`📖 Text loaded: ${text.length} characters`);
+
+                            const chunkSize = parseInt(document.getElementById('chunkSize').value) || app.settingsManager.get('defaultChunkSize');
+                            const chunks = this.chunkText(text, chunkSize);
+
+                            Logger.success(`✂️ Text chunked into ${chunks.length} pieces`);
+                            resolve(chunks);
+
+                        } catch (error) {
+                            Logger.error(`❌ Text parse error: ${error.message}`);
+                            reject(error);
+                        }
+                    };
+
+                    reader.onerror = () => {
+                        Logger.error("❌ File read error");
+                        reject(new Error("Failed to read file"));
+                    };
+
+                    reader.readAsText(file);
+                });
+            }
+
+            async fileToBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const base64 = reader.result.split(',')[1];
+                        resolve(base64);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            chunkText(text, chunkSize) {
+                const chunks = [];
+                const words = text.split(/\s+/).filter(w => w.length > 0);
+                let currentChunk = '';
+
+                Logger.debug(`📝 Starting chunking: ${text.length} chars, target chunk size: ${chunkSize}`);
+                Logger.debug(`📝 Split into ${words.length} words`);
+
+                for (const word of words) {
+                    const testChunk = currentChunk + (currentChunk ? ' ' : '') + word;
+
+                    if (testChunk.length <= chunkSize) {
+                        currentChunk = testChunk;
+                    } else {
+                        if (currentChunk.trim()) {
+                            chunks.push(currentChunk.trim());
+                            Logger.debug(`📦 Chunk ${chunks.length}: ${currentChunk.length} characters`);
+                        }
+                        currentChunk = word;
+                    }
+                }
+
+                if (currentChunk.trim()) {
+                    chunks.push(currentChunk.trim());
+                    Logger.debug(`📦 Final chunk ${chunks.length}: ${currentChunk.length} characters`);
+                }
+
+                Logger.success(`✂️ Chunked ${words.length} words into ${chunks.length} chunks (target: ${chunkSize} chars each)`);
+                return chunks;
+            }
+        }
+
+        // Main Application Controller
+        class CIPPAnalyzer {
+            constructor() {
+                this.settingsManager = new SettingsManager();
+                this.apiClient = null;
+                this.fileParser = new FileParser();
+                this.questionSections = {};
+                this.results = [];
+                this.allQuestions = []; // Track all questions for live display
+                this.currentFile = null;
+                this.isAnalyzing = false;
+                this.shouldStop = false;
+                this.currentChunk = 0;
+                this.totalChunks = 0;
+
+                this.initializeEventListeners();
+                this.loadDefaultQuestions();
+                this.initializeWithApiKey();
+                this.checkPdfService();
+                Logger.success("🚀 CIPP Spec Analyzer Complete initialized");
+            }
+
+            async checkPdfService() {
+                try {
+                    const response = await fetch('http://localhost:5000/health', {
+                        method: 'GET',
+                        signal: AbortSignal.timeout(3000)
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const serviceStatus = document.getElementById('serviceStatus');
+                        const serviceStatusText = document.getElementById('serviceStatusText');
+                        serviceStatus.className = 'service-status service-running';
+                        serviceStatusText.textContent = `🐍 PDF Service: Running (${data.pdf_library})`;
+                        Logger.success(`✅ PDF extraction service is running using ${data.pdf_library}`);
+                    } else {
+                        throw new Error('Service not responding');
+                    }
+                } catch (error) {
+                    const serviceStatusText = document.getElementById('serviceStatusText');
+                    serviceStatusText.textContent = '🚨 PDF Service: Not Running - Please start start_pdf_service.bat';
+                    Logger.warning(`⚠️ PDF service not available: ${error.message}`);
+                    Logger.info(`💡 To start: Double-click 'start_pdf_service.bat' in the application folder`);
+                }
+            }
+
+            initializeWithApiKey() {
+                const apiKey = this.settingsManager.get('apiKey');
+                if (apiKey) {
+                    document.getElementById('apiKey').value = apiKey;
+                    this.configureApi(apiKey);
+                }
+                document.getElementById('chunkSize').value = this.settingsManager.get('defaultChunkSize');
+            }
+
+            initializeEventListeners() {
+                const fileUpload = document.getElementById('fileUpload');
+
+                fileUpload.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    fileUpload.classList.add('dragover');
+                });
+
+                fileUpload.addEventListener('dragleave', () => {
+                    fileUpload.classList.remove('dragover');
+                });
+
+                fileUpload.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    fileUpload.classList.remove('dragover');
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        this.handleFileSelect({ target: { files } });
+                    }
+                });
+            }
+
+            loadDefaultQuestions() {
+                // Try to load from storage first
+                if (this.loadQuestionsFromStorage()) {
+                    this.updateQuestionSectionUI();
+                    this.updateActiveQuestionCount();
+                    Logger.success(`Loaded saved questions: ${this.getTotalQuestionCount()} questions`);
+                    return;
+                }
+
+                // Use comprehensive default questions
+                this.questionSections = {
+                    "Project Information": {
+                        enabled: true,
+                        questions: [
+                            "What is the project name and location?",
+                            "Who is the owner/agency for this project?",
+                            "What is the engineer of record?",
+                            "What are the project contract dates?",
+                            "What is the total project value or estimated cost?",
+                            "What are the liquidated damages specified?",
+                            "What is the project scope and description?",
+                            "Are there multiple bid items or phases?",
+                            "What are the key project milestones?",
+                            "What permits or approvals are required?"
+                        ]
+                    },
+                    "Pipe Specifications": {
+                        enabled: true,
+                        questions: [
+                            "What pipe diameters are being rehabilitated?",
+                            "What is the existing pipe material (concrete, clay, PVC, etc.)?",
+                            "What is the total linear footage to be lined?",
+                            "What are the pipe classifications or structural conditions?",
+                            "Are there different pipe sizes in the same run?",
+                            "What is the minimum and maximum pipe diameter?",
+                            "Are there any pipe material restrictions?",
+                            "What is the existing pipe wall thickness?",
+                            "Are there any pipe alignment or grade requirements?",
+                            "What existing pipe conditions must be documented?"
+                        ]
+                    },
+                    "CIPP Liner Requirements": {
+                        enabled: true,
+                        questions: [
+                            "What CIPP liner material is specified (polyester, vinyl ester, epoxy)?",
+                            "What is the minimum liner wall thickness required?",
+                            "What are the liner strength requirements (flexural, tensile)?",
+                            "What curing method is specified (steam, hot water, UV, ambient)?",
+                            "What is the required curing temperature and duration?",
+                            "What are the liner deflection limits after installation?",
+                            "Are there specific resin requirements?",
+                            "What liner manufacturing standards must be met?",
+                            "Are there flame retardant requirements?",
+                            "What is the required liner service life?"
+                        ]
+                    },
+                    "Pre-Installation Work": {
+                        enabled: true,
+                        questions: [
+                            "What cleaning methods are required before installation?",
+                            "Are root cutting or removal services specified?",
+                            "What debris removal requirements exist?",
+                            "Are high-pressure water jetting requirements specified?",
+                            "What surface preparation is required?",
+                            "Are there specific cleaning equipment requirements?",
+                            "What inspection requirements exist before installation?",
+                            "Are bypass pumping requirements specified?",
+                            "What traffic control measures are required?",
+                            "Are there specific access requirements?"
+                        ]
+                    },
+                    "Installation Process": {
+                        enabled: true,
+                        questions: [
+                            "What installation method is specified (inversion, pull-in-place)?",
+                            "Are there specific installation equipment requirements?",
+                            "What are the environmental conditions for installation?",
+                            "Are there temperature or weather restrictions?",
+                            "What safety requirements are specified during installation?",
+                            "Are there specific crew certification requirements?",
+                            "What installation rate or production requirements exist?",
+                            "Are there noise or time restrictions?",
+                            "What utilities protection measures are required?",
+                            "Are there specific staging area requirements?"
+                        ]
+                    },
+                    "Quality Control & Testing": {
+                        enabled: true,
+                        questions: [
+                            "What pre-installation testing is required?",
+                            "What post-installation testing procedures are specified?",
+                            "Are deflection tests required and at what intervals?",
+                            "What pressure testing requirements exist?",
+                            "Are there specific inspection requirements?",
+                            "What documentation must be provided?",
+                            "Are third-party inspections required?",
+                            "What testing equipment must be used?",
+                            "Are there specific testing standards referenced?",
+                            "What happens if testing fails specifications?"
+                        ]
+                    },
+                    "Warranty & Maintenance": {
+                        enabled: true,
+                        questions: [
+                            "What is the warranty period for the CIPP installation?",
+                            "What does the warranty cover specifically?",
+                            "Are there warranty exclusions specified?",
+                            "What maintenance requirements exist during warranty?",
+                            "Who is responsible for warranty service?",
+                            "Are there performance bonds required?",
+                            "What insurance requirements are specified?",
+                            "Are there specific warranty documentation requirements?",
+                            "What remedy procedures exist for warranty claims?",
+                            "Are there extended warranty options available?"
+                        ]
+                    },
+                    "Environmental & Safety": {
+                        enabled: true,
+                        questions: [
+                            "What environmental protection measures are required?",
+                            "Are there specific safety protocols for confined spaces?",
+                            "What air monitoring requirements exist?",
+                            "Are there noise level restrictions?",
+                            "What waste disposal requirements are specified?",
+                            "Are there groundwater protection measures?",
+                            "What emergency response procedures are required?",
+                            "Are there specific PPE requirements?",
+                            "What environmental permits are required?",
+                            "Are there seasonal or timing restrictions?"
+                        ]
+                    },
+                    "Payment & Documentation": {
+                        enabled: true,
+                        questions: [
+                            "How is the work measured for payment?",
+                            "What unit prices are specified?",
+                            "Are there mobilization costs included?",
+                            "What documentation is required for payment?",
+                            "Are there progress payment schedules?",
+                            "What final acceptance criteria exist?",
+                            "Are there retainage requirements?",
+                            "What change order procedures are specified?",
+                            "Are there specific invoicing requirements?",
+                            "What final documentation must be submitted?"
+                        ]
+                    },
+                    "Special Conditions": {
+                        enabled: true,
+                        questions: [
+                            "Are there any unique or special requirements?",
+                            "Are there specific material sourcing requirements?",
+                            "Are there local preference or DBE requirements?",
+                            "What special equipment or techniques are required?",
+                            "Are there specific training or certification requirements?",
+                            "Are there unusual access or logistics challenges?",
+                            "What coordination with other trades is required?",
+                            "Are there phasing or staging requirements?",
+                            "What are the project-specific technical specifications?",
+                            "Are there any innovative or pilot technologies specified?"
+                        ]
+                    }
+                };
+
+                this.updateQuestionSectionUI();
+                this.updateActiveQuestionCount();
+                Logger.success(`Loaded ${this.getTotalQuestionCount()} questions in ${Object.keys(this.questionSections).length} sections`);
+            }
+
+            getTotalQuestionCount() {
+                return Object.values(this.questionSections)
+                    .reduce((total, section) => total + section.questions.length, 0);
+            }
+
+            getActiveQuestions() {
+                const activeQuestions = [];
+
+                Object.entries(this.questionSections).forEach(([sectionName, section]) => {
+                    if (section.enabled && section.questions) {
+                        section.questions.forEach((question) => {
+                            activeQuestions.push({
+                                question: question,
+                                section: sectionName
+                            });
+                        });
+                    }
+                });
+
+                return activeQuestions;
+            }
+
+            getActiveSections() {
+                const activeSections = {};
+
+                Object.entries(this.questionSections).forEach(([sectionName, section]) => {
+                    if (section.enabled && section.questions) {
+                        activeSections[sectionName] = section.questions;
+                    }
+                });
+
+                return activeSections;
+            }
+
+            updateActiveQuestionCount() {
+                const activeCount = this.getActiveQuestions().length;
+                document.getElementById('activeQuestionCount').textContent = activeCount;
+
+                const analyzeBtn = document.getElementById('analyzeBtn');
+                analyzeBtn.disabled = !(this.currentFile && this.apiClient && activeCount > 0);
+            }
+
+            updateQuestionSectionUI() {
+                const container = document.getElementById('questionSections');
+                container.innerHTML = '';
+
+                Object.entries(this.questionSections).forEach(([sectionName, section]) => {
+                    const sectionDiv = document.createElement('div');
+                    sectionDiv.className = `question-section ${section.enabled ? 'enabled' : 'disabled'}`;
+                    sectionDiv.onclick = () => this.toggleQuestionSection(sectionName);
+
+                    sectionDiv.innerHTML = `
+                        <div class="section-header">
+                            <span>${sectionName}</span>
+                            <span class="section-count">${section.questions.length}</span>
+                        </div>
+                        <div style="font-size: 12px; color: #666;">
+                            ${section.enabled ? 'Enabled' : 'Disabled'} • Click to toggle
+                        </div>
+                    `;
+                    container.appendChild(sectionDiv);
+                });
+
+                this.updateActiveQuestionCount();
+            }
+
+            toggleQuestionSection(sectionName) {
+                if (this.questionSections[sectionName]) {
+                    this.questionSections[sectionName].enabled = !this.questionSections[sectionName].enabled;
+                    this.updateQuestionSectionUI();
+                    Logger.info(`${sectionName} section ${this.questionSections[sectionName].enabled ? 'enabled' : 'disabled'}`);
+                }
+            }
+
+            async handleFileSelect(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                this.currentFile = file;
+                const extension = file.name.split('.').pop().toLowerCase();
+                const sizeKB = (file.size / 1024).toFixed(1);
+                const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+
+                document.getElementById('fileName').textContent = file.name;
+                document.getElementById('fileSize').textContent = sizeMB > 1 ? `${sizeMB} MB` : `${sizeKB} KB`;
+                document.getElementById('fileInfo').style.display = 'block';
+
+                if (extension === 'pdf') {
+                    Logger.success(`📄 PDF file selected: ${file.name}`);
+                    Logger.info(`🔍 Will use Python service for text extraction`);
+                } else {
+                    Logger.success(`📄 ${extension.toUpperCase()} file selected: ${file.name}`);
+                }
+
+                if (this.apiClient) {
+                    document.getElementById('analyzeBtn').disabled = false;
+                }
+
+                Logger.info(`📁 File ready for analysis: ${file.name}`);
+            }
+
+            async configureApi(apiKey) {
+                this.apiClient = new OpenAIClient(apiKey);
+                const isConnected = await this.apiClient.testConnection();
+
+                const statusIndicator = document.getElementById('apiStatus');
+                if (isConnected) {
+                    statusIndicator.className = 'status-indicator status-ready';
+                    this.updateActiveQuestionCount();
+                } else {
+                    statusIndicator.className = 'status-indicator status-error';
+                }
+
+                return isConnected;
+            }
+
+            async startAnalysis() {
+                if (!this.currentFile || !this.apiClient) {
+                    Logger.error("File and API configuration required");
+                    return;
+                }
+
+                const activeSections = this.getActiveSections();
+                if (Object.keys(activeSections).length === 0) {
+                    Logger.error("No active question sections selected");
+                    return;
+                }
+
+                try {
+                    this.isAnalyzing = true;
+                    this.shouldStop = false;
+                    this.currentChunk = 0;
+
+                    document.getElementById('analyzeBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+                    ProgressTracker.show();
+                    ProgressTracker.update(0, "Starting analysis...");
+
+                    Logger.api(`🔍 Starting document parsing: ${this.currentFile.name}`);
+                    ProgressTracker.update(5, "Extracting text from document...");
+
+                    const chunks = await this.fileParser.parse(this.currentFile);
+
+                    if (!chunks || chunks.length === 0) {
+                        throw new Error("No text content could be extracted from the document. Please ensure the file contains readable text.");
+                    }
+
+                    Logger.success(`✅ Document successfully parsed into ${chunks.length} chunks`);
+
+                    if (chunks[0]) {
+                        Logger.debug(`First chunk preview (200 chars): "${chunks[0].substring(0, 200).trim()}..."`);
+                    }
+
+                    this.results = [];
+                    this.totalChunks = chunks.length;
+
+                    // Initialize live results display
+                    this.initializeLiveResults();
+
+                    // Analyze each chunk with each enabled section (section-by-section approach)
+                    const sectionNames = Object.keys(activeSections);
+                    let totalOperations = chunks.length * sectionNames.length;
+                    let completedOperations = 0;
+
+                    Logger.api(`🎯 Starting section-by-section analysis:`);
+                    Logger.info(`📊 Analysis scope: ${chunks.length} chunks × ${sectionNames.length} sections = ${totalOperations} operations`);
+                    Logger.info(`🔍 Active sections: ${sectionNames.join(', ')}`);
+
+                    for (let chunkIndex = 0; chunkIndex < chunks.length && !this.shouldStop; chunkIndex++) {
+                        this.currentChunk = chunkIndex + 1;
+                        const chunk = chunks[chunkIndex];
+
+                        Logger.info(`\\n📄 === ANALYZING CHUNK ${chunkIndex + 1}/${chunks.length} ===`);
+                        Logger.debug(`Chunk ${chunkIndex + 1} length: ${chunk.length} characters`);
+                        Logger.debug(`Chunk ${chunkIndex + 1} preview: "${chunk.substring(0, 150)}..."`);
+
+                        for (const [sectionName, questions] of Object.entries(activeSections)) {
+                            if (this.shouldStop) break;
+
+                            const baseProgress = (completedOperations / totalOperations) * 85;
+                            ProgressTracker.update(baseProgress, `Chunk ${chunkIndex + 1}/${chunks.length} - ${sectionName} (${questions.length} questions)`);
+
+                            Logger.api(`🔍 Analyzing section "${sectionName}" against chunk ${chunkIndex + 1}`);
+                            Logger.debug(`Section "${sectionName}" has ${questions.length} questions`);
+
+                            try {
+                                const analysisStart = Date.now();
+                                const sectionResult = await this.apiClient.analyzeSection(
+                                    chunk,
+                                    questions,
+                                    sectionName,
+                                    chunkIndex + 1,
+                                    chunks.length
+                                );
+                                const analysisTime = Date.now() - analysisStart;
+
+                                Logger.debug(`Analysis completed in ${analysisTime}ms`);
+
+                                if (sectionResult && sectionResult.answers && Array.isArray(sectionResult.answers) && sectionResult.answers.length > 0) {
+                                    const enrichedAnswers = sectionResult.answers.map(answer => ({
+                                        ...answer,
+                                        chunk_number: chunkIndex + 1,
+                                        total_chunks: chunks.length,
+                                        section: sectionName,
+                                        analysis_timestamp: new Date().toISOString()
+                                    }));
+
+                                    this.results.push(...enrichedAnswers);
+                                    Logger.success(`✅ Section "${sectionName}": Added ${enrichedAnswers.length} answers from chunk ${chunkIndex + 1}`);
+
+                                    // Update live results display for each answer
+                                    enrichedAnswers.forEach(answer => {
+                                        this.updateQuestionAnswer(sectionName, answer.question, answer);
+                                        Logger.debug(`📝 Live update: ${answer.question?.substring(0, 50)}... -> ${answer.answer?.substring(0, 50)}...`);
+                                    });
+
+                                    // Log sample answers for debugging
+                                    enrichedAnswers.slice(0, 2).forEach((answer, i) => {
+                                        Logger.debug(`  Answer ${i + 1}: ${answer.question?.substring(0, 50)}... -> ${answer.answer?.substring(0, 80)}...`);
+                                    });
+                                } else {
+                                    Logger.warning(`⚠️ Section "${sectionName}" returned no valid answers for chunk ${chunkIndex + 1}`);
+                                    Logger.debug(`Raw section result: ${JSON.stringify(sectionResult)}`);
+
+                                    // If parsing failed but we have a raw response, show it
+                                    if (sectionResult && sectionResult.raw_response) {
+                                        Logger.warning(`📄 Displaying raw ChatGPT response for debugging:`);
+                                        Logger.warning(sectionResult.raw_response);
+
+                                        // Add this as a special answer for debugging
+                                        const debugAnswer = {
+                                            question_number: 0,
+                                            question: `RAW RESPONSE - ${sectionName} (Chunk ${chunkIndex + 1})`,
+                                            answer: `PARSING FAILED - Raw ChatGPT Response: ${sectionResult.raw_response}`,
+                                            citation: "Parse Error",
+                                            confidence: "error",
+                                            pdf_page: `Chunk ${chunkIndex + 1}`,
+                                            section: sectionName,
+                                            chunk_number: chunkIndex + 1,
+                                            total_chunks: chunks.length,
+                                            is_raw_response: true
+                                        };
+
+                                        this.results.push(debugAnswer);
+                                        Logger.info(`📋 Added raw response as debug answer for section "${sectionName}"`);
+                                    }
+                                }
+
+                                completedOperations++;
+                                Logger.debug(`Progress: ${completedOperations}/${totalOperations} operations completed`);
+
+                                // Small delay between section analyses to prevent rate limiting
+                                if (!this.shouldStop && completedOperations < totalOperations) {
+                                    await new Promise(resolve => setTimeout(resolve, 1000));
+                                }
+
+                            } catch (error) {
+                                Logger.error(`❌ Section "${sectionName}" analysis failed for chunk ${chunkIndex + 1}: ${error.message}`);
+                                Logger.debug(`Error stack: ${error.stack}`);
+                                completedOperations++;
+
+                                // Continue with other sections even if one fails
+                                continue;
+                            }
+                        }
+
+                        // Longer delay between chunks to respect rate limits
+                        if (chunkIndex < chunks.length - 1 && !this.shouldStop) {
+                            const delay = this.settingsManager.get('rateLimitDelay') || 2000;
+                            Logger.debug(`⏳ Waiting ${delay}ms before analyzing next chunk...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                        }
+                    }
+
+                    Logger.info(`\\n📊 === ANALYSIS SUMMARY ===`);
+                    Logger.info(`Total operations completed: ${completedOperations}/${totalOperations}`);
+                    Logger.info(`Total answers collected: ${this.results.length}`);
+
+                    // Group results by section for summary
+                    const resultsBySection = {};
+                    this.results.forEach(result => {
+                        const section = result.section || 'Unknown';
+                        if (!resultsBySection[section]) resultsBySection[section] = 0;
+                        resultsBySection[section]++;
+                    });
+
+                    Logger.info('Results by section:');
+                    Object.entries(resultsBySection).forEach(([section, count]) => {
+                        Logger.info(`  ${section}: ${count} answers`);
+                    });
+
+                    if (this.shouldStop) {
+                        Logger.warning(`⏹️ Analysis stopped by user at chunk ${this.currentChunk}/${this.totalChunks}`);
+                        ProgressTracker.update(50, `Stopped at chunk ${this.currentChunk}/${this.totalChunks}`);
+                    } else {
+                        ProgressTracker.update(90, "Synthesizing results...");
+                        await this.synthesizeResults();
+                        ProgressTracker.update(100, "Analysis complete!");
+                        Logger.success(`🎉 Analysis completed! Found ${this.results.length} answers`);
+                    }
+
+                    this.displayResults();
+
+                    setTimeout(() => {
+                        ProgressTracker.hide();
+                    }, 2000);
+
+                } catch (error) {
+                    Logger.error(`Analysis failed: ${error.message}`);
+                    ProgressTracker.hide();
+                } finally {
+                    this.isAnalyzing = false;
+                    document.getElementById('analyzeBtn').disabled = false;
+                    document.getElementById('stopBtn').disabled = true;
+                    if (this.results.length > 0) {
+                        document.getElementById('exportBtn').disabled = false;
+                    }
+                }
+            }
+
+            stopAnalysis() {
+                if (this.isAnalyzing) {
+                    this.shouldStop = true;
+                    Logger.warning(`⏹️ Stopping analysis... (current chunk: ${this.currentChunk}/${this.totalChunks})`);
+                    document.getElementById('stopBtn').disabled = true;
+                }
+            }
+
+            async synthesizeResults() {
+                const grouped = {};
+                this.results.forEach(result => {
+                    const question = result.question || 'Unknown';
+                    if (!grouped[question]) {
+                        grouped[question] = [];
+                    }
+                    grouped[question].push(result);
+                });
+
+                this.results = Object.keys(grouped).map(question => {
+                    const answers = grouped[question];
+                    if (answers.length === 1) {
+                        return answers[0];
+                    }
+
+                    const combinedAnswer = answers
+                        .map(a => a.answer)
+                        .filter(a => a && !a.includes("Not specified"))
+                        .join("; ");
+
+                    const combinedCitation = answers
+                        .map(a => a.citation)
+                        .filter(c => c && c !== "No citation")
+                        .join(", ");
+
+                    return {
+                        question,
+                        answer: combinedAnswer || "Not specified in document",
+                        citation: combinedCitation || "No citation",
+                        confidence: "synthesized",
+                        section: answers[0].section
+                    };
+                });
+
+                Logger.success("Results synthesized");
+            }
+
+            initializeLiveResults() {
+                // Initialize live results table with all questions
+                this.allQuestions = [];
+
+                Object.entries(this.getActiveSections()).forEach(([sectionName, questions]) => {
+                    questions.forEach((question, index) => {
+                        this.allQuestions.push({
+                            section: sectionName,
+                            question_number: index + 1,
+                            question: question,
+                            answer: "Not yet found.",
+                            citation: "Pending analysis...",
+                            confidence: "pending",
+                            pdf_page: "-",
+                            status: "pending"
+                        });
+                    });
+                });
+
+                this.updateLiveResultsDisplay();
+                document.getElementById('resultsSection').style.display = 'block';
+                Logger.info(`🔄 Initialized live results table with ${this.allQuestions.length} questions`);
+            }
+
+            updateLiveResultsDisplay() {
+                const liveTable = document.getElementById('liveResultsTable');
+
+                let tableHTML = `
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 20px; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <thead style="background: #5B7FCC; color: white;">
+                            <tr>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #5a67d8;">Section</th>
+                                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #5a67d8;">#</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #5a67d8;">Question</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #5a67d8;">Answer</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #5a67d8;">Citation</th>
+                                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #5a67d8;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                this.allQuestions.forEach((question, index) => {
+                    const statusColor = {
+                        'pending': '#ffc107',
+                        'found': '#28a745',
+                        'not_found': '#6c757d'
+                    }[question.status] || '#6c757d';
+
+                    const rowStyle = index % 2 === 0 ? 'background: #f8f9fa;' : 'background: white;';
+
+                    tableHTML += `
+                        <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;" id="question-row-${index}">
+                            <td style="padding: 12px; font-weight: 500; color: #333;">${question.section}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: bold; color: #5B7FCC;">${question.question_number}</td>
+                            <td style="padding: 12px; max-width: 300px;">
+                                <div style="font-weight: 500; color: #333;">${question.question}</div>
+                            </td>
+                            <td style="padding: 12px; max-width: 400px;">
+                                <div style="line-height: 1.4; color: ${question.status === 'found' ? '#155724' : '#6c757d'};">${question.answer}</div>
+                            </td>
+                            <td style="padding: 12px; max-width: 250px;">
+                                <div style="font-style: italic; color: #666; font-size: 14px;">${question.citation}</div>
+                            </td>
+                            <td style="padding: 12px; text-align: center;">
+                                <span style="display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; color: white; background: ${statusColor};">
+                                    ${question.status}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                tableHTML += '</tbody></table>';
+
+                // Add summary
+                const foundCount = this.allQuestions.filter(q => q.status === 'found').length;
+                const summary = `
+                    <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                        <h4>📊 Live Analysis Progress</h4>
+                        <p><strong>Questions Found:</strong> ${foundCount} / ${this.allQuestions.length}</p>
+                        <p><strong>Progress:</strong> ${((foundCount / this.allQuestions.length) * 100).toFixed(1)}%</p>
+                        <p><strong>Document:</strong> ${this.currentFile?.name || 'Unknown'}</p>
+                        <p><strong>Status:</strong> ${this.isAnalyzing ? 'Analyzing...' : 'Ready'}</p>
+                    </div>
+                `;
+
+                liveTable.innerHTML = tableHTML + summary;
+            }
+
+            updateQuestionAnswer(sectionName, questionText, answer) {
+                // Find and update the question in the live table
+                const questionIndex = this.allQuestions.findIndex(q =>
+                    q.section === sectionName && q.question === questionText
+                );
+
+                if (questionIndex !== -1) {
+                    this.allQuestions[questionIndex] = {
+                        ...this.allQuestions[questionIndex],
+                        answer: answer.answer || "Not specified in this section",
+                        citation: answer.citation || "No citation",
+                        pdf_page: answer.pdf_page || "Unknown",
+                        confidence: answer.confidence || "medium",
+                        status: answer.answer && !answer.answer.toLowerCase().includes('not specified') ? 'found' : 'not_found'
+                    };
+
+                    // Update just this row for better performance
+                    const row = document.getElementById(`question-row-${questionIndex}`);
+                    if (row) {
+                        const statusColor = {
+                            'found': '#28a745',
+                            'not_found': '#6c757d'
+                        }[this.allQuestions[questionIndex].status];
+
+                        row.innerHTML = `
+                            <td style="padding: 12px; font-weight: 500; color: #333;">${this.allQuestions[questionIndex].section}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: bold; color: #5B7FCC;">${this.allQuestions[questionIndex].question_number}</td>
+                            <td style="padding: 12px; max-width: 300px;">
+                                <div style="font-weight: 500; color: #333;">${this.allQuestions[questionIndex].question}</div>
+                            </td>
+                            <td style="padding: 12px; max-width: 400px;">
+                                <div style="line-height: 1.4; color: ${this.allQuestions[questionIndex].status === 'found' ? '#155724' : '#6c757d'};">${this.allQuestions[questionIndex].answer}</div>
+                            </td>
+                            <td style="padding: 12px; max-width: 250px;">
+                                <div style="font-style: italic; color: #666; font-size: 14px;">${this.allQuestions[questionIndex].citation}</div>
+                            </td>
+                            <td style="padding: 12px; text-align: center;">
+                                <span style="display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; color: white; background: ${statusColor};">
+                                    ${this.allQuestions[questionIndex].status}
+                                </span>
+                            </td>
+                        `;
+                    }
+
+                    // Update summary
+                    this.updateLiveResultsDisplay();
+                    Logger.success(`📝 Updated answer for: ${questionText.substring(0, 50)}...`);
+                } else {
+                    Logger.warning(`❓ Could not find question to update: ${questionText.substring(0, 50)}...`);
+                }
+            }
+
+            displayResults() {
+                const resultsContent = document.getElementById('resultsContent');
+                resultsContent.innerHTML = '';
+
+                if (this.results.length === 0) {
+                    resultsContent.innerHTML = '<p>No results to display.</p>';
+                    return;
+                }
+
+                // Create enhanced table
+                let tableHTML = `
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 20px; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <thead style="background: #5B7FCC; color: white;">
+                            <tr>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #5a67d8;">Section</th>
+                                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #5a67d8;">#</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #5a67d8;">Question</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #5a67d8;">Answer</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #5a67d8;">Citation</th>
+                                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #5a67d8;">Confidence</th>
+                                <th style="padding: 12px; text-align: center; border-bottom: 2px solid #5a67d8;">Chunk</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                this.results.forEach((result, index) => {
+                    const confidenceColor = {
+                        'high': '#28a745',
+                        'medium': '#ffc107',
+                        'low': '#dc3545',
+                        'synthesized': '#6f42c1',
+                        'error': '#dc3545'
+                    }[result.confidence] || '#6c757d';
+
+                    const rowStyle = index % 2 === 0 ? 'background: #f8f9fa;' : 'background: white;';
+
+                    // Special styling for raw responses
+                    const isRawResponse = result.is_raw_response;
+                    const rowBorder = isRawResponse ? 'border-left: 4px solid #dc3545;' : '';
+
+                    tableHTML += `
+                        <tr style="${rowStyle} border-bottom: 1px solid #dee2e6; ${rowBorder}">
+                            <td style="padding: 12px; font-weight: 500; color: ${isRawResponse ? '#dc3545' : '#333'};">${result.section || 'Other'}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: bold; color: #5B7FCC;">${result.question_number || index + 1}</td>
+                            <td style="padding: 12px; max-width: 300px;">
+                                <div style="font-weight: 500; color: ${isRawResponse ? '#dc3545' : '#333'};">${result.question}</div>
+                            </td>
+                            <td style="padding: 12px; max-width: 400px;">
+                                ${isRawResponse ?
+                                    `<div style="background: #f8d7da; padding: 10px; border-radius: 4px; border: 1px solid #f5c6cb;">
+                                        <strong style="color: #721c24;">⚠️ JSON Parsing Failed - Raw ChatGPT Response:</strong><br>
+                                        <pre style="white-space: pre-wrap; margin-top: 10px; font-size: 12px; color: #721c24;">${result.answer.replace('PARSING FAILED - Raw ChatGPT Response: ', '')}</pre>
+                                    </div>` :
+                                    `<div style="line-height: 1.4; color: #555;">${result.answer}</div>`
+                                }
+                            </td>
+                            <td style="padding: 12px; max-width: 250px;">
+                                <div style="font-style: italic; color: #666; font-size: 14px;">${result.citation || 'No citation'}</div>
+                            </td>
+                            <td style="padding: 12px; text-align: center;">
+                                <span style="display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; color: white; background: ${confidenceColor};">
+                                    ${result.confidence}
+                                </span>
+                            </td>
+                            <td style="padding: 12px; text-align: center; font-family: monospace; color: #666;">${result.chunk_number || '-'}</td>
+                        </tr>
+                    `;
+                });
+
+                tableHTML += '</tbody></table>';
+
+                // Add summary
+                const summary = `
+                    <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                        <h4>📊 Analysis Summary</h4>
+                        <p><strong>Total Results:</strong> ${this.results.length}</p>
+                        <p><strong>Document:</strong> ${this.currentFile?.name || 'Unknown'}</p>
+                        <p><strong>Status:</strong> ${this.shouldStop ? `Stopped at chunk ${this.currentChunk}/${this.totalChunks}` : 'Completed'}</p>
+                        <p><strong>Sections Analyzed:</strong> ${Object.keys(this.getActiveSections()).join(', ')}</p>
+                    </div>
+                `;
+
+                resultsContent.innerHTML = tableHTML + summary;
+                document.getElementById('resultsSection').style.display = 'block';
+                Logger.success(`📋 Displayed ${this.results.length} results`);
+            }
+
+            async exportResults() {
+                if (this.results.length === 0) {
+                    Logger.warning("No results to export");
+                    return;
+                }
+
+                let csvContent = "Section,Question_Number,Question,Answer,Citation,Confidence,Chunk\\n";
+
+                this.results.forEach(result => {
+                    const row = [
+                        `"${(result.section || '').replace(/"/g, '""')}"`,
+                        `"${result.question_number || ''}"`,
+                        `"${(result.question || '').replace(/"/g, '""')}"`,
+                        `"${(result.answer || '').replace(/"/g, '""')}"`,
+                        `"${(result.citation || '').replace(/"/g, '""')}"`,
+                        `"${result.confidence || 'medium'}"`,
+                        `"${result.chunk_number || ''}"`
+                    ].join(',');
+                    csvContent += row + "\\n";
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `cipp_analysis_${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                Logger.success(`📊 Results exported as CSV file`);
+            }
+
+            clearResults() {
+                this.results = [];
+                document.getElementById('resultsSection').style.display = 'none';
+                document.getElementById('logContent').innerHTML = '';
+                document.getElementById('logContainer').style.display = 'none';
+                document.getElementById('exportBtn').disabled = true;
+                ProgressTracker.hide();
+                Logger.info("🗑️ Results cleared");
+            }
+
+            loadQuestionsFromStorage() {
+                try {
+                    const saved = localStorage.getItem('cipp_analyzer_questions');
+                    if (saved) {
+                        this.questionSections = JSON.parse(saved);
+                        return true;
+                    }
+                } catch (error) {
+                    Logger.warning('Could not load saved questions');
+                }
+                return false;
+            }
+
+            saveQuestionsToStorage() {
+                try {
+                    localStorage.setItem('cipp_analyzer_questions', JSON.stringify(this.questionSections));
+                } catch (error) {
+                    Logger.warning('Could not save questions to storage');
+                }
+            }
+
+            exportQuestions() {
+                const blob = new Blob([JSON.stringify(this.questionSections, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'cipp_analyzer_questions.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                Logger.success('Questions exported successfully');
+            }
+
+            addNewSection() {
+                const sectionName = prompt('Enter section name:');
+                if (sectionName && !this.questionSections[sectionName]) {
+                    this.questionSections[sectionName] = {
+                        enabled: true,
+                        questions: ['New question...']
+                    };
+                    this.saveQuestionsToStorage();
+                    this.updateQuestionSectionUI();
+                    Logger.success(`Added new section: ${sectionName}`);
+                } else if (this.questionSections[sectionName]) {
+                    alert('Section already exists!');
+                }
+            }
+        }
+
+        // Global application instance
+        let app = null;
+
+        // Initialize application
+        document.addEventListener('DOMContentLoaded', function() {
+            app = new CIPPAnalyzer();
+        });
+
+        // Global functions for HTML event handlers
+        function testApiConnection() {
+            const apiKey = document.getElementById('apiKey').value || app.settingsManager.get('apiKey');
+            if (!apiKey) {
+                Logger.error("Please enter an OpenAI API key or configure it in settings");
+                return;
+            }
+            app.configureApi(apiKey);
+            app.settingsManager.set('apiKey', apiKey);
+        }
+
+        function handleFileSelect(event) {
+            app.handleFileSelect(event);
+        }
+
+        function startAnalysis() {
+            app.startAnalysis();
+        }
+
+        function stopAnalysis() {
+            app.stopAnalysis();
+        }
+
+        function clearResults() {
+            app.clearResults();
+        }
+
+        function exportResults() {
+            app.exportResults();
+        }
+
+        function showQuestionManager() {
+            const modal = document.getElementById('questionManagerModal');
+            const sectionSelect = document.getElementById('sectionSelect');
+
+            // Populate section dropdown
+            sectionSelect.innerHTML = '<option value="">-- Select a section --</option>';
+            Object.keys(app.questionSections).forEach(sectionName => {
+                const option = document.createElement('option');
+                option.value = sectionName;
+                option.textContent = sectionName;
+                sectionSelect.appendChild(option);
+            });
+
+            modal.style.display = 'flex';
+            Logger.info("📝 Question manager opened");
+        }
+
+        function hideQuestionManager() {
+            document.getElementById('questionManagerModal').style.display = 'none';
+            document.getElementById('sectionEditor').style.display = 'none';
+        }
+
+        function loadSectionForEdit() {
+            const sectionName = document.getElementById('sectionSelect').value;
+            if (!sectionName || !app.questionSections[sectionName]) {
+                document.getElementById('sectionEditor').style.display = 'none';
+                return;
+            }
+
+            const section = app.questionSections[sectionName];
+            document.getElementById('currentSectionName').textContent = sectionName;
+            document.getElementById('sectionNameInput').value = sectionName;
+            document.getElementById('sectionEnabled').checked = section.enabled;
+
+            // Load questions
+            const questionsList = document.getElementById('questionsList');
+            questionsList.innerHTML = '';
+
+            section.questions.forEach((question, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.style.cssText = 'margin-bottom: 10px; padding: 10px; background: white; border-radius: 4px; border: 1px solid #ddd;';
+                questionDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                        <span style="font-weight: bold; margin-right: 10px;">${index + 1}.</span>
+                        <button class="btn btn-danger" onclick="deleteQuestion(${index})" style="margin-left: auto; padding: 4px 8px; font-size: 12px;">🗑️ Delete</button>
+                    </div>
+                    <textarea onchange="updateQuestion(${index}, this.value)" style="width: 100%; min-height: 60px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: vertical;">${question}</textarea>
+                `;
+                questionsList.appendChild(questionDiv);
+            });
+
+            document.getElementById('sectionEditor').style.display = 'block';
+            Logger.info(`📝 Loaded section "${sectionName}" for editing (${section.questions.length} questions)`);
+        }
+
+        function toggleSectionEnabled() {
+            const sectionName = document.getElementById('sectionSelect').value;
+            if (sectionName && app.questionSections[sectionName]) {
+                app.questionSections[sectionName].enabled = document.getElementById('sectionEnabled').checked;
+                Logger.info(`Section "${sectionName}" ${app.questionSections[sectionName].enabled ? 'enabled' : 'disabled'}`);
+            }
+        }
+
+        function updateSectionName() {
+            const oldName = document.getElementById('sectionSelect').value;
+            const newName = document.getElementById('sectionNameInput').value.trim();
+
+            if (!oldName || !newName || oldName === newName) return;
+
+            if (app.questionSections[newName]) {
+                alert('A section with that name already exists!');
+                document.getElementById('sectionNameInput').value = oldName;
+                return;
+            }
+
+            // Rename section
+            app.questionSections[newName] = app.questionSections[oldName];
+            delete app.questionSections[oldName];
+
+            // Update UI
+            document.getElementById('currentSectionName').textContent = newName;
+            const option = document.querySelector(`#sectionSelect option[value="${oldName}"]`);
+            if (option) {
+                option.value = newName;
+                option.textContent = newName;
+                document.getElementById('sectionSelect').value = newName;
+            }
+
+            Logger.info(`Section renamed from "${oldName}" to "${newName}"`);
+        }
+
+        function updateQuestion(index, newText) {
+            const sectionName = document.getElementById('sectionSelect').value;
+            if (sectionName && app.questionSections[sectionName]) {
+                app.questionSections[sectionName].questions[index] = newText.trim();
+                Logger.debug(`Updated question ${index + 1} in section "${sectionName}"`);
+            }
+        }
+
+        function deleteQuestion(index) {
+            const sectionName = document.getElementById('sectionSelect').value;
+            if (sectionName && app.questionSections[sectionName]) {
+                if (confirm('Are you sure you want to delete this question?')) {
+                    app.questionSections[sectionName].questions.splice(index, 1);
+                    loadSectionForEdit(); // Refresh the display
+                    Logger.info(`Deleted question ${index + 1} from section "${sectionName}"`);
+                }
+            }
+        }
+
+        function addNewQuestion() {
+            const sectionName = document.getElementById('sectionSelect').value;
+            if (sectionName && app.questionSections[sectionName]) {
+                app.questionSections[sectionName].questions.push('New question...');
+                loadSectionForEdit(); // Refresh the display
+                Logger.info(`Added new question to section "${sectionName}"`);
+            }
+        }
+
+        function addNewSectionInManager() {
+            const sectionName = prompt('Enter new section name:');
+            if (sectionName && sectionName.trim()) {
+                const trimmedName = sectionName.trim();
+                if (app.questionSections[trimmedName]) {
+                    alert('A section with that name already exists!');
+                    return;
+                }
+
+                app.questionSections[trimmedName] = {
+                    enabled: true,
+                    questions: ['New question...']
+                };
+
+                // Update dropdown
+                const option = document.createElement('option');
+                option.value = trimmedName;
+                option.textContent = trimmedName;
+                document.getElementById('sectionSelect').appendChild(option);
+                document.getElementById('sectionSelect').value = trimmedName;
+
+                loadSectionForEdit();
+                Logger.success(`Added new section: "${trimmedName}"`);
+            }
+        }
+
+        function deleteCurrentSection() {
+            const sectionName = document.getElementById('sectionSelect').value;
+            if (!sectionName) {
+                alert('Please select a section first.');
+                return;
+            }
+
+            if (confirm(`Are you sure you want to delete the entire "${sectionName}" section and all its questions?`)) {
+                delete app.questionSections[sectionName];
+
+                // Remove from dropdown
+                const option = document.querySelector(`#sectionSelect option[value="${sectionName}"]`);
+                if (option) option.remove();
+
+                document.getElementById('sectionSelect').value = '';
+                document.getElementById('sectionEditor').style.display = 'none';
+
+                Logger.warning(`Deleted section: "${sectionName}"`);
+            }
+        }
+
+        function saveQuestions() {
+            app.saveQuestionsToStorage();
+            app.updateQuestionSectionUI();
+            app.updateActiveQuestionCount();
+            Logger.success('✅ All questions saved successfully');
+        }
+
+        function importQuestions(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+
+                    if (confirm('This will replace all current questions. Are you sure?')) {
+                        app.questionSections = imported;
+                        app.saveQuestionsToStorage();
+                        app.updateQuestionSectionUI();
+                        app.updateActiveQuestionCount();
+                        hideQuestionManager();
+                        Logger.success('Questions imported successfully');
+                    }
+                } catch (error) {
+                    alert('Invalid JSON file');
+                    Logger.error('Failed to import questions: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function addQuestionSection() {
+            app.addNewSection();
+        }
+
+        function exportQuestions() {
+            app.exportQuestions();
+        }
+
+        function showSettings() {
+            const modal = document.getElementById('settingsModal');
+            document.getElementById('settingsApiKey').value = app.settingsManager.get('apiKey');
+            document.getElementById('gptModel').value = app.settingsManager.get('gptModel');
+            modal.style.display = 'flex';
+        }
+
+        function hideSettings() {
+            document.getElementById('settingsModal').style.display = 'none';
+        }
+
+        function saveSettings() {
+            app.settingsManager.set('apiKey', document.getElementById('settingsApiKey').value);
+            app.settingsManager.set('gptModel', document.getElementById('gptModel').value);
+            document.getElementById('apiKey').value = app.settingsManager.get('apiKey');
+            hideSettings();
+            Logger.success('Settings saved successfully');
+        }
+
+        function loadTestDocument() {
+            const testDocument = `CIPP REHABILITATION PROJECT SPECIFICATION
+
+PROJECT INFORMATION:
+Project Name: Main Street Sewer Rehabilitation Phase 2
+Owner: City of Springfield Public Works Department
+Engineer: ABC Engineering Consultants, Inc.
+Contract Period: 120 calendar days from Notice to Proceed
+Total Project Value: $1,850,000
+Liquidated Damages: $500 per calendar day
+
+PIPE SPECIFICATIONS:
+The existing sewer system consists of 18-inch to 36-inch diameter reinforced concrete pipe (RCP) installed between 1965 and 1975. Total rehabilitation length is 8,500 linear feet. The pipes show moderate to severe deterioration with significant infiltration and some structural defects.
+
+CIPP LINER REQUIREMENTS:
+The contractor shall install cured-in-place pipe (CIPP) liners using vinyl ester resin with polyester felt tube. Minimum liner wall thickness shall be 6.5mm for 18-inch diameter pipes and 9.0mm for pipes 24-inch diameter and larger. The liner shall be cured using hot water curing method at minimum temperature of 180°F for 4-6 hours depending on pipe diameter.
+
+DEFLECTION AND TESTING:
+Maximum allowable deflection after installation and curing shall not exceed 5% of the pipe diameter. Deflection testing shall be performed on a minimum of 10% of the total linear footage. All installations shall undergo pressure testing at 4 PSI for minimum 1 hour duration.
+
+QUALITY CONTROL:
+Pre-installation CCTV inspection is required for all pipe segments. Post-installation CCTV documentation shall be provided within 30 days of completion. All work shall be warranted for 5 years for materials and workmanship.
+
+PAYMENT:
+Work shall be measured and paid for by the linear foot of completed CIPP installation. Unit price for 18-inch diameter pipe is $135 per linear foot. Unit price for 24-inch and larger diameter pipe is $185 per linear foot.`;
+
+            const blob = new Blob([testDocument], { type: 'text/plain' });
+            const file = new File([blob], 'test_cipp_spec.txt', { type: 'text/plain' });
+
+            const fileInput = document.getElementById('fileInput');
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            fileInput.files = dataTransfer.files;
+
+            app.handleFileSelect({ target: { files: [file] } });
+            Logger.success('📄 Test document loaded successfully');
+        }
+    </script>
+</body>
+</html>

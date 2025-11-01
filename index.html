@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Municipal Pipe Tool - Professional project management tools for municipal infrastructure projects">
+    <title>Municipal Pipe Tool - Project Management Suite</title>
+    <link rel="stylesheet" href="/shared/assets/css/common.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        /* Hero Section with Background */
+        .hero-wrapper {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .hero-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            z-index: -1;
+        }
+
+        .hero-background::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('/shared/assets/images/bg2.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            filter: brightness(0.75);
+        }
+
+        .hero-background::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(30, 58, 138, 0.4) 0%, rgba(17, 24, 39, 0.5) 100%);
+        }
+
+        /* Navigation */
+        .navbar {
+            position: relative;
+            z-index: 100;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, rgba(30, 58, 138, 0.95), rgba(91, 127, 204, 0.95));
+            backdrop-filter: blur(10px);
+            border-bottom: 3px solid #5B7FCC;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .navbar-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .navbar-logo {
+            height: 50px;
+            width: auto;
+            filter: brightness(2.0) contrast(1.2);
+        }
+
+        .navbar-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .navbar-link {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .navbar-link:hover {
+            background: rgba(91, 127, 204, 0.2);
+            color: #5B7FCC;
+        }
+
+        /* Hero Content */
+        .hero-content {
+            position: relative;
+            z-index: 10;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 4rem 2rem;
+            text-align: center;
+            color: white;
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1.5rem;
+            text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
+            letter-spacing: -0.02em;
+        }
+
+        .hero-subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 3rem;
+            opacity: 0.95;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.6;
+            font-weight: 300;
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            margin-bottom: 4rem;
+        }
+
+        .btn-hero {
+            padding: 1rem 2.5rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #5B7FCC;
+            color: white;
+            box-shadow: 0 4px 15px rgba(91, 127, 204, 0.4);
+        }
+
+        .btn-primary:hover {
+            background: #4A6AB3;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(91, 127, 204, 0.5);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid white;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* Tools Section */
+        .tools-section {
+            position: relative;
+            z-index: 10;
+            background: white;
+            padding: 5rem 2rem;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1E3A8A;
+            margin-bottom: 1rem;
+        }
+
+        .section-subtitle {
+            font-size: 1.2rem;
+            color: #6B7280;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .tools-grid {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2.5rem;
+        }
+
+        .tool-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+            border: 1px solid #E5E7EB;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tool-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, #5B7FCC, #1E3A8A);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .tool-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 40px rgba(91, 127, 204, 0.2);
+        }
+
+        .tool-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .tool-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1.5rem;
+            display: block;
+        }
+
+        .tool-status {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            background: #10B981;
+            color: white;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .tool-status.coming-soon {
+            background: #9CA3AF;
+        }
+
+        .tool-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #1F2937;
+            margin-bottom: 1rem;
+        }
+
+        .tool-description {
+            color: #6B7280;
+            font-size: 1rem;
+            line-height: 1.7;
+            margin-bottom: 1.5rem;
+        }
+
+        .tool-features {
+            list-style: none;
+            margin: 1.5rem 0;
+            padding: 0;
+        }
+
+        .tool-features li {
+            padding: 0.6rem 0;
+            color: #4B5563;
+            display: flex;
+            align-items: center;
+            font-size: 0.95rem;
+        }
+
+        .tool-features li::before {
+            content: "✓";
+            color: #5B7FCC;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-right: 0.75rem;
+        }
+
+        .tool-button {
+            display: inline-block;
+            padding: 0.9rem 2rem;
+            background: linear-gradient(135deg, #5B7FCC, #1E3A8A);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .tool-button:hover {
+            transform: translateX(4px);
+            box-shadow: 0 4px 15px rgba(91, 127, 204, 0.4);
+        }
+
+        .tool-button:disabled {
+            background: #D1D5DB;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Footer */
+        .footer {
+            background: #111827;
+            color: white;
+            padding: 3rem 2rem 2rem;
+        }
+
+        .footer-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 3rem;
+            margin-bottom: 2rem;
+        }
+
+        .footer-section h3 {
+            color: #5B7FCC;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 0.75rem;
+        }
+
+        .footer-link {
+            color: #D1D5DB;
+            text-decoration: none;
+            transition: color 0.3s ease;
+            font-size: 0.95rem;
+        }
+
+        .footer-link:hover {
+            color: #5B7FCC;
+        }
+
+        .footer-bottom {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding-top: 2rem;
+            border-top: 1px solid #374151;
+            text-align: center;
+            color: #9CA3AF;
+            font-size: 0.9rem;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 3rem;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            position: relative;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 2rem;
+            cursor: pointer;
+            color: #6B7280;
+            transition: color 0.3s ease;
+        }
+
+        .modal-close:hover {
+            color: #1E3A8A;
+        }
+
+        .modal-content h2 {
+            color: #1E3A8A;
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
+        }
+
+        .modal-content p {
+            color: #4B5563;
+            line-height: 1.8;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2.5rem;
+            }
+
+            .hero-subtitle {
+                font-size: 1.2rem;
+            }
+
+            .hero-cta {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn-hero {
+                width: 100%;
+                max-width: 300px;
+            }
+
+            .tools-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .navbar-links {
+                display: none;
+            }
+
+            .section-title {
+                font-size: 2rem;
+            }
+
+            .modal-content {
+                padding: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="navbar-content">
+            <img src="/shared/assets/images/logo.png" alt="Municipal Pipe Tool" class="navbar-logo">
+            <div class="navbar-links">
+                <a href="#" class="navbar-link" onclick="showAboutModal(event)">About</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section with Background -->
+    <div class="hero-wrapper">
+        <div class="hero-background"></div>
+
+        <div class="hero-content">
+            <h1 class="hero-title">MPT Project Management<br>Tools Suite</h1>
+            <p class="hero-subtitle">
+                Professional AI driven PM tools under development for Municipal Pipe Tool Co. LLC Management Team. Submit only public bid docs or documents deemed appropriate for online AI review.
+            </p>
+            <div class="hero-cta">
+                <a href="#tools" class="btn-hero btn-primary">Explore Tools</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tools Section -->
+    <section class="tools-section" id="tools">
+        <div class="section-header">
+            <h2 class="section-title">Professional Project Management Tools</h2>
+            <p class="section-subtitle">
+                Powerful applications designed specifically for municipal infrastructure professionals
+            </p>
+        </div>
+
+        <div class="tools-grid">
+            <!-- CIPP Analyzer Tool -->
+            <div class="tool-card">
+                <span class="tool-icon">📋</span>
+                <span class="tool-status">Available</span>
+                <h3 class="tool-title">CIPP Spec Analyzer</h3>
+                <p class="tool-description">
+                    AI-powered analysis of CIPP (Cured-In-Place Pipe) project specifications.
+                    Extract and analyze bid requirements from PDF documents automatically.
+                </p>
+                <ul class="tool-features">
+                    <li>Intelligent PDF text extraction</li>
+                    <li>Automated bid requirement analysis</li>
+                    <li>Project scope identification</li>
+                    <li>Quick turnaround time</li>
+                </ul>
+                <a href="/cipp-analyzer" class="tool-button">Launch Analyzer →</a>
+            </div>
+
+            <!-- Progress Estimator Tool -->
+            <div class="tool-card">
+                <span class="tool-icon">📊</span>
+                <span class="tool-status">Available</span>
+                <h3 class="tool-title">Production Estimator</h3>
+                <p class="tool-description">
+                    Calculate production rates and project timelines for sewer cleaning and jetting operations
+                    with advanced efficiency modeling.
+                </p>
+                <ul class="tool-features">
+                    <li>Production rate calculations</li>
+                    <li>Recycler efficiency analysis</li>
+                    <li>Site condition adjustments</li>
+                    <li>Time savings projections</li>
+                </ul>
+                <a href="/progress-estimator" class="tool-button">Launch Estimator →</a>
+            </div>
+
+            <!-- Future Tool Placeholder -->
+            <div class="tool-card" style="opacity: 0.7;">
+                <span class="tool-icon">🚧</span>
+                <span class="tool-status coming-soon">Coming Soon</span>
+                <h3 class="tool-title">More Tools In Development</h3>
+                <p class="tool-description">
+                    Additional project management and estimation tools are currently in development
+                    to further enhance your workflow efficiency.
+                </p>
+                <ul class="tool-features">
+                    <li>Further estimation modules</li>
+                    <li>Resource planning tools</li>
+                    <li>Schedule optimization</li>
+                    <li>Team collaboration features</li>
+                </ul>
+                <button class="tool-button" disabled>Coming Soon</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Modal -->
+    <div id="aboutModal" class="modal" onclick="closeModalOnOutsideClick(event)">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeAboutModal()">&times;</button>
+            <h2>About</h2>
+            <p>Tools by Stephen Bartlett for Municipal Pipe Tool, under development</p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>Municipal Pipe Tool</h3>
+                <p style="color: #9CA3AF; line-height: 1.6; font-size: 0.95rem;">
+                    Professional project management tools designed specifically for municipal
+                    infrastructure and pipe rehabilitation projects.
+                </p>
+            </div>
+
+            <div class="footer-section">
+                <h3>Quick Links</h3>
+                <ul class="footer-links">
+                    <li><a href="#tools" class="footer-link">Available Tools</a></li>
+                    <li><a href="#" class="footer-link" onclick="showAboutModal(event)">About</a></li>
+                    <li><a href="/health" class="footer-link">System Status</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <p>&copy; 2025 Municipal Pipe Tool. All rights reserved.</p>
+            <p style="margin-top: 0.5rem; font-size: 0.85rem;">
+                Built for municipal infrastructure professionals
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // About Modal Functions
+        function showAboutModal(event) {
+            event.preventDefault();
+            document.getElementById('aboutModal').classList.add('show');
+        }
+
+        function closeAboutModal() {
+            document.getElementById('aboutModal').classList.remove('show');
+        }
+
+        function closeModalOnOutsideClick(event) {
+            if (event.target === document.getElementById('aboutModal')) {
+                closeAboutModal();
+            }
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeAboutModal();
+            }
+        });
+
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                const href = this.getAttribute('href');
+                if (href !== '#' && href.startsWith('#')) {
+                    e.preventDefault();
+                    const target = document.querySelector(href);
+                    if (target) {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }
+            });
+        });
+
+        // Track tool launches
+        document.querySelectorAll('.tool-button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const toolName = this.closest('.tool-card').querySelector('.tool-title').textContent;
+                console.log(`Launching tool: ${toolName}`);
+            });
+        });
+    </script>
+</body>
+</html>

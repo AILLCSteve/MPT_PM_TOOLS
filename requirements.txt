@@ -1,0 +1,19 @@
+# PM Tools Suite - Python Dependencies
+
+# Web Framework
+Flask==3.1.0
+flask-cors==5.0.0
+
+# WSGI Server for Production
+gunicorn==22.0.0
+
+# PDF Processing (CIPP Analyzer)
+PyPDF2==3.0.1
+pdfplumber==0.11.0
+pdfminer.six==20231228
+
+# Environment Management
+python-dotenv==1.0.1
+
+# Utilities
+Werkzeug==3.0.3

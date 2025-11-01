@@ -1,0 +1,30 @@
+# Render Configuration for PM Tools Suite
+# This file defines the deployment configuration for Render.com
+
+services:
+  # Main Web Service
+  - type: web
+    name: pm-tools-suite
+    env: python
+    region: oregon  # Choose region closest to your users
+    plan: starter   # Free tier, upgrade to 'standard' for production
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DEBUG
+        value: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: SECRET_KEY
+        generateValue: true  # Render will auto-generate a secure key
+    healthCheckPath: /health
+    autoDeploy: true  # Auto-deploy on git push
+
+# Optional: Static Site Configuration (if you want to serve landing page separately)
+# - type: static
+#   name: pm-tools-landing
+#   buildCommand: echo "No build needed"
+#   staticPublishPath: .
+#   pullRequestPreviewsEnabled: true
