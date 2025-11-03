@@ -858,9 +858,12 @@
                     sessionStorage.setItem('authToken', data.token);
                     sessionStorage.setItem('userEmail', username);
 
+                    // Save URL before closing modal (closeAuthModal clears targetToolUrl)
+                    const redirectUrl = targetToolUrl;
+
                     // Close modal and redirect to tool
                     closeAuthModal();
-                    window.location.href = targetToolUrl;
+                    window.location.href = redirectUrl;
                 } else {
                     // Show error message
                     errorDiv.textContent = data.message || 'Invalid credentials. Please try again.';
