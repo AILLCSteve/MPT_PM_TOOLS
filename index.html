@@ -807,20 +807,68 @@
         }
 
         // Authentication Modal Functions
-        function showAuthModal(toolUrl, toolName) {
+        async function showAuthModal(toolUrl, toolName) {
             targetToolUrl = toolUrl;
             targetToolName = toolName;
+
+            // Check if user already has a valid session
+            const existingToken = sessionStorage.getItem('authToken');
+            if (existingToken) {
+                // Verify the session is still valid
+                try {
+                    const response = await fetch('/api/verify-session', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ token: existingToken }),
+                    });
+
+                    const data = await response.json();
+                    if (data.valid) {
+                        // Session is valid, redirect directly to tool
+                        window.location.href = toolUrl;
+                        return;
+                    } else {
+                        // Session invalid, clear it
+                        sessionStorage.removeItem('authToken');
+                        sessionStorage.removeItem('userEmail');
+                    }
+                } catch (error) {
+                    console.error('Session verification error:', error);
+                    sessionStorage.removeItem('authToken');
+                    sessionStorage.removeItem('userEmail');
+                }
+            }
+
+            // Show modal for authentication
             document.getElementById('authModalTitle').textContent = `Access ${toolName}`;
             document.getElementById('authModal').classList.add('show');
-            // Clear form and errors
-            document.getElementById('authForm').reset();
+
+            // Clear and reset form completely
+            const authForm = document.getElementById('authForm');
+            authForm.reset();
             document.getElementById('authError').style.display = 'none';
+
+            // Ensure submit button is enabled and has correct text
+            const submitBtn = document.getElementById('authSubmitBtn');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Access Tool';
         }
 
         function closeAuthModal() {
             document.getElementById('authModal').classList.remove('show');
             targetToolUrl = '';
             targetToolName = '';
+
+            // Reset form and button state
+            const authForm = document.getElementById('authForm');
+            authForm.reset();
+            document.getElementById('authError').style.display = 'none';
+
+            const submitBtn = document.getElementById('authSubmitBtn');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Access Tool';
         }
 
         function closeAuthModalOnOutsideClick(event) {
