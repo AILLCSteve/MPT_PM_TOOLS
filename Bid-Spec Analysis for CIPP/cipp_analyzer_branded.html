@@ -570,9 +570,10 @@
             <div class="form-group">
                 <label for="gptModel">GPT Model:</label>
                 <select id="gptModel">
-                    <option value="gpt-4">GPT-4 (Recommended)</option>
-                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                    <option value="gpt-4o">GPT-4o (Recommended - 128K context)</option>
+                    <option value="gpt-4-turbo">GPT-4 Turbo (128K context)</option>
+                    <option value="gpt-4">GPT-4 (8K context - may fail on large docs)</option>
+                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo (16K context)</option>
                 </select>
             </div>
             <button class="btn" onclick="saveSettings()">💾 Save Settings</button>
@@ -679,7 +680,7 @@
             constructor() {
                 this.defaultSettings = {
                     apiKey: '', // User must provide their own OpenAI API key
-                    gptModel: 'gpt-4',
+                    gptModel: 'gpt-4o', // GPT-4o with 128K context window
                     defaultChunkSize: 1500, // Reduced from 3000 to prevent token limit issues
                     analysisTimeout: 60,
                     autoRetry: true,
@@ -726,6 +727,27 @@
                 this.apiKey = apiKey;
                 this.baseUrl = 'https://api.openai.com/v1';
                 this.requestCount = 0;
+            }
+
+            // Estimate tokens (rough approximation: 1 token ≈ 4 characters for English)
+            estimateTokens(text) {
+                if (!text) return 0;
+                // More accurate estimation accounting for spaces and punctuation
+                const words = text.split(/\s+/).length;
+                const chars = text.length;
+                // Average: 1 token per 0.75 words or 4 chars, whichever is higher
+                return Math.ceil(Math.max(words / 0.75, chars / 4));
+            }
+
+            // Get model context limits
+            getModelContextLimit(model) {
+                const limits = {
+                    'gpt-4o': 128000,
+                    'gpt-4-turbo': 128000,
+                    'gpt-4': 8192,
+                    'gpt-3.5-turbo': 16384
+                };
+                return limits[model] || 8192;
             }
 
             async testConnection() {
@@ -860,10 +882,10 @@
             }
 
             // LAYER 2: Question Answering Specialist for 3-page windows
-            async analyze3PageWindow(windowText, allQuestions, pageNumbers) {
+            async analyze3PageWindow(windowText, allQuestions, pageNumbers, maxTokens = 3000, retryCount = 0) {
                 const requestId = ++this.requestCount;
                 const pageRange = `${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`;
-                Logger.api(`🔬 Layer 2: Analyzing pages ${pageRange} against ALL ${allQuestions.length} questions`);
+                Logger.api(`🔬 Layer 2: Analyzing pages ${pageRange} against ALL ${allQuestions.length} questions (attempt ${retryCount + 1})`);
 
                 const controller = new AbortController();
                 const timeoutMs = 90000; // 90 seconds for comprehensive analysis
@@ -876,31 +898,41 @@
                     const prompt = this.build3PageWindowPrompt(windowText, allQuestions, pageNumbers);
                     const model = app.settingsManager.get('gptModel');
 
+                    // Token estimation and validation
+                    const systemPrompt = `You are an expert CIPP (Cured-in-Place Pipe) contractor analyzing bid specifications.\n\nEXPERTISE: You understand sewer rehabilitation, pipe lining materials, installation methods, testing procedures, and project requirements from a contractor's bidding perspective.\n\nTASK: Analyze the provided 3-page window and answer ALL questions. Be thorough but concise.\n\nOUTPUT: Return ONLY valid JSON with the exact structure specified. No additional text.`;
+                    const estimatedInputTokens = this.estimateTokens(systemPrompt) + this.estimateTokens(prompt);
+                    const estimatedTotalTokens = estimatedInputTokens + maxTokens;
+                    const modelLimit = this.getModelContextLimit(model);
+
                     Logger.debug(`Layer 2 Request #${requestId}:`);
                     Logger.debug(`- Pages: ${pageRange}`);
-                    Logger.debug(`- Model: ${model}`);
+                    Logger.debug(`- Model: ${model} (limit: ${modelLimit} tokens)`);
                     Logger.debug(`- Text length: ${windowText.length} characters`);
                     Logger.debug(`- Questions to analyze: ${allQuestions.length}`);
+                    Logger.debug(`- Estimated input tokens: ~${estimatedInputTokens}`);
+                    Logger.debug(`- Requested output tokens: ${maxTokens}`);
+                    Logger.debug(`- Estimated total: ~${estimatedTotalTokens} tokens`);
+
+                    // Warning if approaching limit
+                    if (estimatedTotalTokens > modelLimit * 0.9) {
+                        Logger.warning(`⚠️ Token usage near limit! Estimated ${estimatedTotalTokens}/${modelLimit} tokens (${Math.round(estimatedTotalTokens/modelLimit*100)}%)`);
+                    } else {
+                        Logger.success(`✅ Token usage OK: ~${estimatedTotalTokens}/${modelLimit} tokens (${Math.round(estimatedTotalTokens/modelLimit*100)}%)`);
+                    }
 
                     const requestBody = {
                         model: model,
                         messages: [
                             {
                                 role: 'system',
-                                content: `You are an expert CIPP (Cured-in-Place Pipe) contractor analyzing bid specifications.
-
-EXPERTISE: You understand sewer rehabilitation, pipe lining materials, installation methods, testing procedures, and project requirements from a contractor's bidding perspective.
-
-TASK: Analyze the provided 3-page window and answer ALL questions. Be thorough but concise.
-
-OUTPUT: Return ONLY valid JSON with the exact structure specified. No additional text.`
+                                content: systemPrompt
                             },
                             {
                                 role: 'user',
                                 content: prompt
                             }
                         ],
-                        max_tokens: 6000,
+                        max_tokens: maxTokens,
                         temperature: 0.2
                     };
 
@@ -945,66 +977,72 @@ OUTPUT: Return ONLY valid JSON with the exact structure specified. No additional
 
                 } catch (error) {
                     clearTimeout(timeoutId);
+
+                    // Check if this is a context length error
+                    const errorMsg = error.message.toLowerCase();
+                    const isContextError = errorMsg.includes('context') &&
+                                          (errorMsg.includes('length') || errorMsg.includes('limit') || errorMsg.includes('exceeded'));
+
                     if (error.name === 'AbortError') {
                         Logger.error(`⏰ Layer 2 request #${requestId} timed out`);
+                        return [];
+                    } else if (isContextError && retryCount < 2) {
+                        // Automatic retry with reduced tokens
+                        const newMaxTokens = Math.floor(maxTokens * 0.6); // Reduce by 40%
+                        Logger.warning(`⚠️ Context length exceeded! Retrying with reduced tokens: ${newMaxTokens} (was ${maxTokens})`);
+                        Logger.info(`🔄 Retry ${retryCount + 1}/2 for pages ${pageRange}`);
+
+                        // Wait a moment before retrying
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+
+                        // Recursive retry with smaller max_tokens
+                        return this.analyze3PageWindow(windowText, allQuestions, pageNumbers, newMaxTokens, retryCount + 1);
                     } else {
                         Logger.error(`💥 Layer 2 request #${requestId} failed: ${error.message}`);
+                        if (isContextError) {
+                            Logger.error(`❌ Context limit exceeded even after retries. Consider using a model with larger context window.`);
+                        }
+                        return []; // Return empty array on error, don't stop processing
                     }
-                    return []; // Return empty array on error, don't stop processing
                 }
             }
 
             build3PageWindowPrompt(windowText, allQuestions, pageNumbers) {
                 const pageRange = `${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`;
 
-                // Build question list with numbers
-                const questionList = allQuestions.map((q, i) =>
-                    `${q.number}. [${q.section_header}] ${q.question}`
+                // Build concise question list
+                const questionList = allQuestions.map(q =>
+                    `${q.number}. ${q.question}`
                 ).join('\n');
 
-                return `📄 ANALYZING PAGES ${pageRange} OF CIPP BID SPECIFICATION
+                return `ANALYZE PAGES ${pageRange} - Answer all ${allQuestions.length} questions from contractor perspective.
 
-🔍 YOUR TASK:
-Analyze the following 3-page window and answer ALL ${allQuestions.length} questions from a CIPP contractor's perspective.
-
-📋 ALL ${allQuestions.length} QUESTIONS:
+QUESTIONS:
 ${questionList}
 
-📖 DOCUMENT TEXT (Pages ${pageRange}):
+DOCUMENT (Pages ${pageRange}):
 ${windowText}
 
-✅ CRITICAL INSTRUCTIONS:
+INSTRUCTIONS:
+1. Answer format: Quote verbatim with <PDF pg #> OR "Not found in pages ${pageRange}"
+2. Bold key terms (**6.5mm thickness**), cite sections (Section 2.1), reference standards (ASTM F1216)
+3. Focus on bid-critical info: specs, costs, methods, timeline, payment, warranty, testing
 
-1. ANSWER FORMAT: For each question, provide:
-   - If answer found: Quote verbatim with <PDF pg #> marker
-   - If NOT found in pages ${pageRange}: "Not found in pages ${pageRange}"
-
-2. CITATION REQUIREMENTS:
-   - Include section titles or clause numbers as inline citations
-   - Bold critical terms (e.g., **6.5mm thickness**, **hot water curing**)
-   - Reference standards/laws if mentioned (e.g., ASTM F1216)
-
-3. CONTRACTOR PERSPECTIVE:
-   - Focus on requirements that affect bidding, costs, methods, timeline
-   - Identify specifications, tolerances, acceptance criteria
-   - Note payment terms, warranty requirements, testing procedures
-
-4. JSON OUTPUT STRUCTURE:
+JSON OUTPUT (ALL ${allQuestions.length} questions):
 {
   "findings": [
     {
       "question_number": 1,
-      "answer": "The exact text from the document or 'Not found in pages ${pageRange}'",
-      "pdf_page": ${pageNumbers[0]} (or appropriate page number),
-      "citation": "Section 2.1 or clause reference",
+      "answer": "exact text or 'Not found in pages ${pageRange}'",
+      "pdf_page": ${pageNumbers[0]},
+      "citation": "Section X.X",
       "confidence": "high|medium|low",
-      "footnote": "Additional context if needed"
+      "footnote": "context if needed"
     }
-    // ... repeat for ALL ${allQuestions.length} questions
   ]
 }
 
-🚨 RETURN ONLY THE JSON. Include ALL ${allQuestions.length} questions in your response.`;
+Return ONLY valid JSON.`;
             }
 
             parse3PageWindowResponse(response, requestId = 'unknown') {
