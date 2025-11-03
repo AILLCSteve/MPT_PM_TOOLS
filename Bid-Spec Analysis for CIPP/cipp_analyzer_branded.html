@@ -619,6 +619,92 @@
                 padding: 15px;
             }
         }
+
+        /* Dashboard Responsive Styles */
+        @media (max-width: 1200px) {
+            #dashboardSection .dashboard-card {
+                grid-column: span 1 !important;
+            }
+
+            #dashboardSection > div {
+                grid-template-columns: 1fr !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            #dashboardSection h3 {
+                font-size: 1.3em;
+            }
+
+            #dashboardSection p {
+                font-size: 0.9em;
+            }
+
+            .dashboard-card {
+                padding: 15px !important;
+            }
+
+            .dashboard-card h4 {
+                font-size: 1em !important;
+                margin-bottom: 10px !important;
+            }
+
+            .dashboard-card canvas {
+                max-height: 250px !important;
+            }
+
+            #competitivenessGauge {
+                max-width: 250px !important;
+                max-height: 250px !important;
+            }
+
+            #competitivenessSummary {
+                padding: 15px !important;
+                font-size: 0.85em;
+            }
+
+            #competitivenessSummary h4 {
+                font-size: 1.1em !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #dashboardSection h3 {
+                font-size: 1.1em;
+            }
+
+            #dashboardSection > div {
+                gap: 15px !important;
+            }
+
+            .dashboard-card {
+                padding: 12px !important;
+                border-radius: 8px !important;
+            }
+
+            .dashboard-card h4 {
+                font-size: 0.95em !important;
+            }
+
+            .dashboard-card canvas {
+                max-height: 200px !important;
+            }
+
+            #competitivenessGauge {
+                max-width: 200px !important;
+                max-height: 200px !important;
+            }
+
+            #competitivenessSummary {
+                font-size: 0.8em;
+                line-height: 1.5 !important;
+            }
+
+            #riskSummary, #costSummary, #complianceSummary, #timelineSummary {
+                font-size: 0.85em !important;
+                padding: 8px !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -4483,10 +4569,81 @@ ${text}
 
                     XLSX.utils.book_append_sheet(wb, wsSectionSummary, 'Section Summary');
 
+                    // === VISUAL INSIGHTS SHEET (Dashboard Analytics) ===
+                    // Calculate dashboard metrics using the same logic as visual dashboards
+                    const riskData = this.analyzeRisks(questions);
+                    const costData = this.analyzeCosts(questions);
+                    const complianceData = this.analyzeCompliance(questions);
+                    const timelineData = this.analyzeTimeline(questions);
+                    const scoreData = this.calculateCompetitivenessScore(questions);
+
+                    const visualInsightsData = [
+                        ['CIPP VISUAL INSIGHTS & ANALYTICS'],
+                        ['Generated from interactive dashboards for offline reference'],
+                        [''],
+                        ['=== BID COMPETITIVENESS SCORE ==='],
+                        ['Overall Score:', `${scoreData.score}%`],
+                        ['Rating:', scoreData.score >= 80 ? 'Highly Competitive' : scoreData.score >= 60 ? 'Competitive' : 'Needs Improvement'],
+                        [''],
+                        ['Strengths:'],
+                        ...scoreData.strengths.map(s => ['', `✓ ${s}`]),
+                        [''],
+                        ['Areas for Improvement:'],
+                        ...scoreData.improvements.map(i => ['', `⚠ ${i}`]),
+                        [''],
+                        ['Assessment:', scoreData.assessment],
+                        [''],
+                        ['=== RISK ASSESSMENT MATRIX ==='],
+                        ['Category', 'Risk Count', 'High Priority Risks'],
+                        ['Technical Risks', riskData.technical.length, riskData.technical.filter(r => r.x * r.y > 50).length],
+                        ['Schedule Risks', riskData.schedule.length, riskData.schedule.filter(r => r.x * r.y > 50).length],
+                        ['Cost Risks', riskData.cost.length, riskData.cost.filter(r => r.x * r.y > 50).length],
+                        ['Compliance Risks', riskData.compliance.length, riskData.compliance.filter(r => r.x * r.y > 50).length],
+                        [''],
+                        ['Total Risks Identified:', riskData.technical.length + riskData.schedule.length + riskData.cost.length + riskData.compliance.length],
+                        [''],
+                        ['=== COST DRIVER BREAKDOWN ==='],
+                        ['Cost Category', 'Estimated %'],
+                        ...costData.labels.map((label, idx) => [label, `${((costData.values[idx] / costData.total) * 100).toFixed(1)}%`]),
+                        [''],
+                        ['Top Cost Driver:', `${costData.labels[0]} (${((costData.values[0] / costData.total) * 100).toFixed(1)}%)`],
+                        [''],
+                        ['=== COMPLIANCE SCORECARD ==='],
+                        ['Compliance Category', 'Score %', 'Status'],
+                        ...complianceData.categories.map((cat, idx) => [
+                            cat,
+                            `${complianceData.scores[idx].toFixed(1)}%`,
+                            complianceData.scores[idx] >= 90 ? 'Excellent' : complianceData.scores[idx] >= 70 ? 'Good' : 'Needs Attention'
+                        ]),
+                        [''],
+                        ['Average Compliance Score:', `${(complianceData.scores.reduce((a, b) => a + b, 0) / complianceData.scores.length).toFixed(1)}%`],
+                        [''],
+                        ['=== PROJECT TIMELINE & MILESTONES ==='],
+                        ['Milestone', 'Days from Award'],
+                        ...timelineData.milestones.map((milestone, idx) => [milestone, timelineData.days[idx]]),
+                        [''],
+                        ['Total Project Duration:', `${timelineData.days[timelineData.days.length - 1]} days (~${(timelineData.days[timelineData.days.length - 1] / 30).toFixed(1)} months)`],
+                        [''],
+                        ['=== DASHBOARD LEGEND ==='],
+                        ['Risk Priority:', 'Probability × Impact > 50 = High Priority'],
+                        ['Compliance Status:', 'Green ≥90%, Yellow ≥70%, Red <70%'],
+                        ['Competitiveness:', 'Highly Competitive ≥80%, Competitive ≥60%'],
+                        ['Cost Breakdown:', 'Based on typical CIPP project cost distribution'],
+                        ['Timeline:', 'Estimated from standard CIPP project phases']
+                    ];
+
+                    const wsVisualInsights = XLSX.utils.aoa_to_sheet(visualInsightsData);
+                    wsVisualInsights['!cols'] = [
+                        { wch: 40 }, // Column A
+                        { wch: 60 }  // Column B
+                    ];
+
+                    XLSX.utils.book_append_sheet(wb, wsVisualInsights, 'Visual Insights');
+
                     // Generate Excel file
                     XLSX.writeFile(wb, `${filename}.xlsx`);
 
-                    Logger.success(`✅ Professional Excel workbook created with 4 sheets: Dashboard, Results, Footnotes, Section Summary`);
+                    Logger.success(`✅ Professional Excel workbook created with 5 sheets: Dashboard, Results, Footnotes, Section Summary, Visual Insights`);
                 } catch (error) {
                     Logger.error(`Excel export failed: ${error.message}`);
                     alert(`Failed to create Excel file: ${error.message}\n\nTrying CSV export instead...`);
