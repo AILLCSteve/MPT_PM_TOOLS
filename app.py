@@ -18,8 +18,8 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import tempfile
 
-# Import PDF extraction service
-from services.pdf_extractor import PDFExtractorService
+# Import document extraction service (supports PDF, TXT, DOCX, RTF)
+from services.document_extractor import DocumentExtractorService
 
 # Configure logging
 logging.basicConfig(
@@ -83,13 +83,17 @@ def create_app(config=Config) -> Flask:
 def register_routes(app: Flask, config: Config):
     """Register all application routes."""
 
-    # Initialize PDF extractor service
+    # Initialize document extractor service
     try:
-        pdf_extractor = PDFExtractorService()
-        logger.info(f"PDF extractor initialized with libraries: {pdf_extractor.get_available_libraries()}")
+        doc_extractor = DocumentExtractorService()
+        libraries = doc_extractor.get_available_libraries()
+        extensions = doc_extractor.get_supported_extensions()
+        logger.info(f"Document extractor initialized")
+        logger.info(f"  Supported formats: {', '.join(extensions)}")
+        logger.info(f"  Available libraries: {libraries}")
     except Exception as e:
-        logger.error(f"Failed to initialize PDF extractor: {e}")
-        pdf_extractor = None
+        logger.error(f"Failed to initialize document extractor: {e}")
+        doc_extractor = None
 
     @app.route('/')
     def index():
@@ -107,9 +111,10 @@ def register_routes(app: Flask, config: Config):
                 'cipp_analyzer': 'available',
                 'progress_estimator': 'available'
             },
-            'pdf_service': {
-                'available': pdf_extractor is not None,
-                'libraries': pdf_extractor.get_available_libraries() if pdf_extractor else []
+            'document_service': {
+                'available': doc_extractor is not None,
+                'supported_formats': doc_extractor.get_supported_extensions() if doc_extractor else [],
+                'libraries': doc_extractor.get_available_libraries() if doc_extractor else {}
             }
         })
 
@@ -150,26 +155,26 @@ def register_routes(app: Flask, config: Config):
     @app.route('/cipp-analyzer/api/extract_pdf', methods=['POST'])
     def cipp_extract_pdf():
         """
-        CIPP Analyzer PDF extraction endpoint.
-        Extracts text from uploaded PDF with page numbers preserved.
+        CIPP Analyzer document extraction endpoint.
+        Extracts text from uploaded documents (PDF, TXT, DOCX, RTF) with page numbers preserved.
         Handles large files up to MAX_CONTENT_LENGTH.
         """
-        if not pdf_extractor:
-            logger.error("PDF extraction service not initialized")
+        if not doc_extractor:
+            logger.error("Document extraction service not initialized")
             return jsonify({
                 'success': False,
-                'error': 'PDF extraction service not available. Please check server logs.'
+                'error': 'Document extraction service not available. Please check server logs.'
             }), 503
 
         # Log request details
-        logger.info(f"PDF extraction request received - Content-Length: {request.content_length}")
+        logger.info(f"Document extraction request received - Content-Length: {request.content_length}")
 
         # Check if file was uploaded
         if 'file' not in request.files:
             logger.warning("No file in request.files")
             return jsonify({
                 'success': False,
-                'error': 'No file provided. Please upload a PDF file.'
+                'error': 'No file provided. Please upload a document file.'
             }), 400
 
         file = request.files['file']
@@ -181,18 +186,23 @@ def register_routes(app: Flask, config: Config):
                 'error': 'No file selected.'
             }), 400
 
-        if not file.filename.lower().endswith('.pdf'):
+        # Validate file type
+        if not doc_extractor.is_supported(file.filename):
+            supported = ', '.join(doc_extractor.get_supported_extensions())
             logger.warning(f"Invalid file type: {file.filename}")
             return jsonify({
                 'success': False,
-                'error': 'Invalid file type. Only PDF files are supported.'
+                'error': f'Invalid file type. Supported formats: {supported}'
             }), 400
 
         # Save uploaded file to temporary location
         temp_path = None
         try:
+            # Get file extension for temporary file
+            file_ext = '.' + file.filename.lower().split('.')[-1]
+
             # Create temporary file with binary mode
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf', mode='wb') as temp_file:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext, mode='wb') as temp_file:
                 temp_path = temp_file.name
                 # Read file in chunks to handle large files
                 chunk_size = 8192
@@ -206,23 +216,23 @@ def register_routes(app: Flask, config: Config):
 
             # Verify file was completely written
             actual_size = os.path.getsize(temp_path)
-            logger.info(f"PDF saved: {file.filename}")
+            logger.info(f"Document saved: {file.filename}")
             logger.info(f"  Temp path: {temp_path}")
             logger.info(f"  Bytes written: {bytes_written}")
             logger.info(f"  File size on disk: {actual_size} bytes ({actual_size / 1024 / 1024:.2f} MB)")
 
-            if actual_size < 100:
+            if actual_size < 10:
                 raise ValueError(f"File too small ({actual_size} bytes) - likely corrupted or truncated")
 
             # Extract text with page numbers
-            logger.info(f"Starting PDF extraction for {file.filename}")
-            pages = pdf_extractor.extract_text_with_pages(temp_path)
+            logger.info(f"Starting text extraction for {file.filename}")
+            pages = doc_extractor.extract_text_with_pages(temp_path)
 
             if not pages:
-                raise ValueError("No pages extracted from PDF - file may be corrupted or encrypted")
+                raise ValueError("No text extracted from document - file may be corrupted, encrypted, or empty")
 
             # Also get combined text with markers
-            combined_text = pdf_extractor.extract_text_combined(temp_path)
+            combined_text = doc_extractor.extract_text_combined(temp_path)
 
             # Clean up temporary file
             os.unlink(temp_path)
@@ -252,16 +262,19 @@ def register_routes(app: Flask, config: Config):
                     logger.error(f"Cleanup error: {cleanup_error}")
 
             error_msg = str(e)
-            logger.error(f"PDF extraction failed for {file.filename}: {error_msg}")
+            logger.error(f"Document extraction failed for {file.filename}: {error_msg}")
             logger.error(f"Error type: {type(e).__name__}")
 
             # Provide more helpful error messages
             if 'disturbed' in error_msg.lower() or 'locked' in error_msg.lower():
-                error_msg = f"PDF file appears corrupted or truncated. Original error: {error_msg}. This often happens with large files - check upload limits."
+                error_msg = f"Document appears corrupted or truncated. Original error: {error_msg}. This often happens with large files - check upload limits."
             elif 'memory' in error_msg.lower():
-                error_msg = f"PDF too large to process in available memory. Try a smaller file or contact support."
+                error_msg = f"Document too large to process in available memory. Try a smaller file or contact support."
             elif 'encrypted' in error_msg.lower() or 'password' in error_msg.lower():
-                error_msg = "PDF is password-protected or encrypted. Please provide an unencrypted version."
+                error_msg = "Document is password-protected or encrypted. Please provide an unencrypted version."
+            elif 'unsupported' in error_msg.lower():
+                supported = ', '.join(doc_extractor.get_supported_extensions())
+                error_msg = f"Unsupported file type. Supported formats: {supported}"
 
             return jsonify({
                 'success': False,
@@ -275,12 +288,13 @@ def register_routes(app: Flask, config: Config):
     @app.route('/cipp-analyzer/api/service-status', methods=['GET'])
     def cipp_service_status():
         """
-        Check if PDF extraction service is available.
+        Check if document extraction service is available.
         """
         return jsonify({
-            'available': pdf_extractor is not None,
-            'libraries': pdf_extractor.get_available_libraries() if pdf_extractor else [],
-            'status': 'running' if pdf_extractor else 'unavailable'
+            'available': doc_extractor is not None,
+            'supported_formats': doc_extractor.get_supported_extensions() if doc_extractor else [],
+            'libraries': doc_extractor.get_available_libraries() if doc_extractor else {},
+            'status': 'running' if doc_extractor else 'unavailable'
         })
 
     # Progress Estimator routes

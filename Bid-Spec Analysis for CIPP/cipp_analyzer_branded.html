@@ -462,9 +462,9 @@
             <p>Professional bid specification analysis powered by AI</p>
         </div>
 
-        <!-- PDF Service Status -->
+        <!-- Document Service Status -->
         <div id="serviceStatus" class="service-status service-stopped">
-            <span id="serviceStatusText">🐍 Checking PDF extraction service...</span>
+            <span id="serviceStatusText">📄 Checking document extraction service...</span>
         </div>
 
         <!-- API Configuration Section -->
@@ -483,9 +483,9 @@
         <div class="section">
             <h3>📄 Document Upload</h3>
             <div class="file-upload" id="fileUpload" onclick="document.getElementById('fileInput').click()">
-                <input type="file" id="fileInput" style="display: none;" accept=".txt,.pdf,.docx,.xlsx" onchange="handleFileSelect(event)">
+                <input type="file" id="fileInput" style="display: none;" accept=".pdf,.txt,.docx,.rtf" onchange="handleFileSelect(event)">
                 <p><strong>Click to select file</strong> or drag and drop</p>
-                <p>Supported formats: PDF (recommended), TXT, DOCX, XLSX</p>
+                <p>Supported formats: PDF, TXT, DOCX, RTF</p>
             </div>
             <div id="fileInfo" style="margin-top: 10px; display: none;">
                 <p><strong>Selected file:</strong> <span id="fileName"></span></p>
@@ -1686,9 +1686,9 @@ ${text}
 
                         if (data.available) {
                             serviceStatus.className = 'service-status service-running';
-                            const libraries = data.libraries.join(', ');
-                            serviceStatusText.textContent = `✅ PDF Service: Running (${libraries})`;
-                            Logger.success(`✅ PDF extraction service is running using ${libraries}`);
+                            const formats = data.supported_formats ? data.supported_formats.join(', ') : 'PDF';
+                            serviceStatusText.textContent = `✅ Document Service: Running (${formats})`;
+                            Logger.success(`✅ Document extraction service is running. Supported: ${formats}`);
                         } else {
                             throw new Error('Service not available');
                         }
@@ -1699,8 +1699,8 @@ ${text}
                     const serviceStatus = document.getElementById('serviceStatus');
                     const serviceStatusText = document.getElementById('serviceStatusText');
                     serviceStatus.className = 'service-status service-stopped';
-                    serviceStatusText.textContent = '⚠️ PDF Service: Unavailable - Check server logs';
-                    Logger.warning(`⚠️ PDF service not available: ${error.message}`);
+                    serviceStatusText.textContent = '⚠️ Document Service: Unavailable - Check server logs';
+                    Logger.warning(`⚠️ Document service not available: ${error.message}`);
                 }
             }
 
