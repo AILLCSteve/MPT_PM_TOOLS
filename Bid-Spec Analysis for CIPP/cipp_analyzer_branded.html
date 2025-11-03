@@ -1104,10 +1104,11 @@
                                 parsed.gptModel = 'gpt-4o';
                             }
 
-                            // Reduce excessive max_tokens
-                            if (!parsed.maxTokensPerRequest || parsed.maxTokensPerRequest > 4000) {
-                                Logger.warning(`⬇️ Reducing max_tokens: ${parsed.maxTokensPerRequest || 6000} → 3000`);
-                                parsed.maxTokensPerRequest = 3000;
+                            // Set appropriate max_tokens for 100-question comprehensive analysis
+                            // gpt-4o has 128K limit, allocate 85K for output (leaves room for input)
+                            if (!parsed.maxTokensPerRequest || parsed.maxTokensPerRequest < 80000) {
+                                Logger.warning(`⬆️ Increasing max_tokens for comprehensive analysis: ${parsed.maxTokensPerRequest || 3000} → 85000`);
+                                parsed.maxTokensPerRequest = 85000;
                             }
 
                             // Mark as migrated
@@ -1314,8 +1315,10 @@
                 const pageRange = `${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`;
 
                 // Get max_tokens from settings if not provided
+                // CRITICAL: For 100-question comprehensive analysis, allow 80-90K token output
+                // gpt-4o has 128K context limit, so 85K output + ~15K input = ~100K total (safe)
                 if (maxTokens === null) {
-                    maxTokens = app.settingsManager.get('maxTokensPerRequest') || 3000;
+                    maxTokens = app.settingsManager.get('maxTokensPerRequest') || 85000;
                 }
 
                 Logger.api(`🔬 Layer 2: Analyzing pages ${pageRange} against ALL ${allQuestions.length} questions (attempt ${retryCount + 1}, network retry ${networkRetryCount})`);
