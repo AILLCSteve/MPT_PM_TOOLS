@@ -355,6 +355,67 @@
             color: #666;
         }
 
+        /* Collapsible Debug Sections */
+        .debug-panel {
+            margin: 20px auto;
+            max-width: 1200px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .debug-section {
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+        }
+
+        .debug-section-header {
+            background: linear-gradient(135deg, #6c757d, #495057);
+            color: white;
+            padding: 12px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 500;
+            transition: all 0.3s;
+            user-select: none;
+        }
+
+        .debug-section-header:hover {
+            background: linear-gradient(135deg, #5a6268, #3d4246);
+        }
+
+        .debug-section-header .toggle-icon {
+            font-size: 20px;
+            transition: transform 0.3s;
+        }
+
+        .debug-section-header.collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+
+        .debug-section-content {
+            padding: 20px;
+            display: none;
+        }
+
+        .debug-section-content.expanded {
+            display: block;
+        }
+
+        .debug-button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
         /* MPT Navbar */
         .mpt-navbar {
             background: linear-gradient(135deg, #1E3A8A, #5B7FCC);
@@ -462,20 +523,55 @@
             <p>Professional bid specification analysis powered by AI</p>
         </div>
 
-        <!-- Document Service Status -->
-        <div id="serviceStatus" class="service-status service-stopped">
-            <span id="serviceStatusText">📄 Checking document extraction service...</span>
-        </div>
+        <!-- Collapsible Debug/Development Panel -->
+        <div class="debug-panel">
+            <h3 style="text-align: center; color: #495057; margin-bottom: 20px;">🛠️ Debug & Development Tools</h3>
 
-        <!-- API Configuration Section -->
-        <div class="section">
-            <h3><span class="status-indicator" id="apiStatus"></span>API Connection Status</h3>
-            <div class="form-group">
-                <p id="apiStatusText">Loading API configuration...</p>
+            <!-- PDF Service Status (Collapsible) -->
+            <div class="debug-section">
+                <div class="debug-section-header collapsed" onclick="toggleDebugSection('pdfServiceSection')">
+                    <span>📄 PDF Service Status</span>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div id="pdfServiceSection" class="debug-section-content">
+                    <div id="serviceStatus" class="service-status service-stopped">
+                        <span id="serviceStatusText">📄 Checking document extraction service...</span>
+                    </div>
+                </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
-                <button class="btn btn-test" id="testConnectionBtn" onclick="testApiConnection()">🔗 Test Connection</button>
-                <span id="testStatusDisplay" style="font-weight: 500; padding: 8px 16px; border-radius: 6px; display: none;"></span>
+
+            <!-- API Configuration (Collapsible) -->
+            <div class="debug-section">
+                <div class="debug-section-header collapsed" onclick="toggleDebugSection('apiConfigSection')">
+                    <span><span class="status-indicator" id="apiStatus"></span>API Configuration</span>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div id="apiConfigSection" class="debug-section-content">
+                    <div class="form-group">
+                        <p id="apiStatusText">Loading API configuration...</p>
+                    </div>
+                    <div class="debug-button-group">
+                        <button class="btn btn-test" id="testConnectionBtn" onclick="testApiConnection()">🔗 Test Connection</button>
+                        <span id="testStatusDisplay" style="font-weight: 500; padding: 8px 16px; border-radius: 6px; display: none;"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Log (Collapsible) -->
+            <div class="debug-section">
+                <div class="debug-section-header collapsed" onclick="toggleDebugSection('logSection')">
+                    <span>📋 Activity Log</span>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div id="logSection" class="debug-section-content">
+                    <div class="debug-button-group">
+                        <button class="btn btn-secondary" onclick="exportLog()">💾 Export Log</button>
+                        <button class="btn btn-secondary" onclick="clearLog()">🗑️ Clear Log</button>
+                    </div>
+                    <div class="log-container" id="logContainer" style="display: block; margin-top: 15px;">
+                        <div id="logContent"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -538,11 +634,6 @@
                 <div class="progress-fill" id="progressFill"></div>
             </div>
             <div class="progress-text" id="progressText">Ready</div>
-        </div>
-
-        <!-- Log Section -->
-        <div class="log-container" id="logContainer">
-            <div id="logContent"></div>
         </div>
 
         <!-- Live Results Section -->
@@ -1604,6 +1695,8 @@ ${text}
                 const normalize = (text) => text
                     .toLowerCase()
                     .replace(/[<>]/g, '') // Remove angle brackets from <PDF pg #>
+                    .replace(/pdf pg \d+/g, '') // Remove specific page numbers for comparison
+                    .replace(/section \d+(\.\d+)*/g, 'section') // Normalize section references
                     .replace(/\s+/g, ' ') // Normalize whitespace
                     .replace(/[.,;:!?]/g, '') // Remove punctuation
                     .trim();
@@ -1615,19 +1708,25 @@ ${text}
                 if (norm1 === norm2) return true;
 
                 // Check if one contains the other (substring match)
-                if (norm1.includes(norm2) || norm2.includes(norm1)) {
-                    return true;
+                // But only if the substring is substantial (>50 chars)
+                if (norm1.length > 50 && norm2.length > 50) {
+                    if (norm1.includes(norm2) || norm2.includes(norm1)) {
+                        return true;
+                    }
                 }
 
-                // Word-set similarity: if they share 80%+ of words, consider similar
-                const words1 = new Set(norm1.split(' '));
-                const words2 = new Set(norm2.split(' '));
+                // Word-set similarity: if they share 85%+ of words, consider similar
+                // (Increased from 80% for better precision)
+                const words1 = new Set(norm1.split(' ').filter(w => w.length > 2)); // Ignore short words
+                const words2 = new Set(norm2.split(' ').filter(w => w.length > 2));
+
+                if (words1.size === 0 || words2.size === 0) return false;
 
                 const intersection = new Set([...words1].filter(w => words2.has(w)));
                 const union = new Set([...words1, ...words2]);
 
                 const similarity = intersection.size / union.size;
-                return similarity >= 0.8; // 80% word overlap threshold
+                return similarity >= 0.85; // 85% word overlap threshold (stricter)
             }
 
             // Add footnote with deduplication
@@ -1889,9 +1988,14 @@ ${text}
                 // Add footnotes if any (with better formatting)
                 if (footnotes.length > 0) {
                     tableHTML += `
-                        <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
-                            <h4 style="margin-top: 0; color: #1E3A8A;">📝 Footnotes (PDF Pages & Section References)</h4>
-                            <ol style="margin: 10px 0; padding-left: 20px; line-height: 1.8;">
+                        <div id="footnotesContainer" style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h4 style="margin: 0; color: #1E3A8A;">📝 Footnotes (PDF Pages & Section References)</h4>
+                                <button class="btn btn-secondary" onclick="cleanUpFootnotes()" style="padding: 8px 16px; font-size: 14px; margin: 0;">
+                                    🧹 Clean Up Duplicates
+                                </button>
+                            </div>
+                            <ol id="footnotesList" style="margin: 10px 0; padding-left: 20px; line-height: 1.8;">
                                 ${footnotes.map(f => {
                                     // Ensure footnote text is properly formatted
                                     // The AI should include both PDF page and section, but let's ensure it displays well
@@ -1900,6 +2004,7 @@ ${text}
                             </ol>
                             <p style="margin-top: 15px; font-size: 0.9em; color: #666; font-style: italic;">
                                 Note: Each footnote includes the PDF page number (&lt;PDF pg #&gt;) and contract section number where information was found.
+                                Click "Clean Up Duplicates" to remove semantically identical footnotes using AI.
                             </p>
                         </div>
                     `;
@@ -3490,6 +3595,193 @@ ${text}
             document.getElementById('apiKey').value = app.settingsManager.get('apiKey');
             hideSettings();
             Logger.success('Settings saved successfully');
+        }
+
+        // Debug Panel Functions
+        function toggleDebugSection(sectionId) {
+            const content = document.getElementById(sectionId);
+            const header = content.previousElementSibling;
+
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                header.classList.add('collapsed');
+            } else {
+                content.classList.add('expanded');
+                header.classList.remove('collapsed');
+            }
+        }
+
+        function exportLog() {
+            const logContent = document.getElementById('logContent');
+            if (!logContent || logContent.children.length === 0) {
+                alert('No log entries to export');
+                return;
+            }
+
+            // Extract plain text from log entries
+            const logEntries = Array.from(logContent.children);
+            const logText = logEntries.map(entry => {
+                // Remove HTML tags and get timestamp + message
+                const text = entry.textContent || entry.innerText;
+                return text;
+            }).join('\n');
+
+            // Create timestamp for filename
+            const now = new Date();
+            const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const filename = `cipp-analyzer-log-${timestamp}.txt`;
+
+            // Create blob and download
+            const blob = new Blob([logText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            Logger.success(`Log exported: ${filename}`);
+        }
+
+        function clearLog() {
+            if (confirm('Clear all log entries? This cannot be undone.')) {
+                const logContent = document.getElementById('logContent');
+                logContent.innerHTML = '';
+                Logger.info('Log cleared');
+            }
+        }
+
+        // AI-Powered Footnote Deduplication
+        async function cleanUpFootnotes() {
+            const footnotesList = document.getElementById('footnotesList');
+            if (!footnotesList) {
+                alert('No footnotes to clean up');
+                return;
+            }
+
+            // Extract current footnotes from DOM
+            const footnoteItems = Array.from(footnotesList.children);
+            if (footnoteItems.length === 0) {
+                alert('No footnotes found');
+                return;
+            }
+
+            const footnotes = footnoteItems.map(item => item.textContent);
+            Logger.info(`🧹 Starting AI-powered footnote cleanup on ${footnotes.length} entries...`);
+
+            try {
+                // Build AI prompt for intelligent deduplication
+                const prompt = `You are analyzing footnotes from a CIPP bid specification document. Your task is to identify and remove duplicate or semantically identical footnotes while preserving unique information.
+
+ORIGINAL FOOTNOTES (${footnotes.length} entries):
+${footnotes.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+
+DEDUPLICATION CRITERIA:
+1. Remove exact duplicates
+2. Remove semantically identical entries (same meaning, different wording)
+3. If footnotes refer to the same specification section and convey the same information, keep only ONE
+4. When merging similar footnotes, preserve ALL unique PDF page numbers and section references
+5. Keep footnotes that provide different context or implications even if they reference the same section
+
+TASK:
+Return a JSON array of deduplicated footnotes. Each footnote should include all relevant PDF page numbers and section references from merged entries.
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON array, no explanatory text:
+["Footnote 1 text with merged references", "Footnote 2 text", ...]
+
+IMPORTANT:
+- Preserve the format "Found on <PDF pg #>, Section X.X.X: [context]"
+- When merging, combine page numbers like "Found on <PDF pg 5, 12, 18>, Section X.X.X"
+- Maintain professional tone and technical accuracy
+- Return the minimal set of unique, informative footnotes`;
+
+                // Call OpenAI API for intelligent deduplication
+                const apiKey = app.settingsManager.get('apiKey');
+                if (!apiKey) {
+                    alert('API key not configured. Please configure in Settings.');
+                    return;
+                }
+
+                Logger.api('🤖 Sending footnotes to AI for deduplication...');
+
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: app.settingsManager.get('gptModel') || 'gpt-4o',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'You are a technical document analyst specializing in CIPP specifications. You excel at identifying duplicate and semantically identical information.'
+                            },
+                            {
+                                role: 'user',
+                                content: prompt
+                            }
+                        ],
+                        max_tokens: 2000,
+                        temperature: 0.1 // Low temperature for consistent deduplication
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API Error: ${errorData.error?.message || response.statusText}`);
+                }
+
+                const data = await response.json();
+                const cleanedFootnotesText = data.choices[0].message.content.trim();
+
+                // Parse JSON response
+                let cleanedFootnotes;
+                try {
+                    // Remove markdown code blocks if present
+                    const jsonMatch = cleanedFootnotesText.match(/\[[\s\S]*\]/);
+                    if (jsonMatch) {
+                        cleanedFootnotes = JSON.parse(jsonMatch[0]);
+                    } else {
+                        cleanedFootnotes = JSON.parse(cleanedFootnotesText);
+                    }
+                } catch (parseError) {
+                    Logger.error('Failed to parse AI response as JSON');
+                    throw new Error('AI returned invalid JSON format');
+                }
+
+                if (!Array.isArray(cleanedFootnotes)) {
+                    throw new Error('AI response is not an array');
+                }
+
+                // Update DOM with cleaned footnotes
+                const beforeCount = footnotes.length;
+                const afterCount = cleanedFootnotes.length;
+                const removed = beforeCount - afterCount;
+
+                footnotesList.innerHTML = cleanedFootnotes.map(f =>
+                    `<li style="margin: 8px 0; color: #333;">${f}</li>`
+                ).join('');
+
+                // Update the accumulator's footnotes array to reflect cleanup
+                if (app.answerAccumulator) {
+                    app.answerAccumulator.doc_footnotes = cleanedFootnotes;
+                }
+
+                Logger.success(`✅ Footnote cleanup complete!`);
+                Logger.info(`   • Before: ${beforeCount} footnotes`);
+                Logger.info(`   • After: ${afterCount} footnotes`);
+                Logger.success(`   • Removed: ${removed} duplicate/similar entries`);
+
+                alert(`Footnote cleanup successful!\n\nBefore: ${beforeCount} footnotes\nAfter: ${afterCount} footnotes\nRemoved: ${removed} duplicates`);
+
+            } catch (error) {
+                Logger.error(`Footnote cleanup failed: ${error.message}`);
+                alert(`Footnote cleanup failed: ${error.message}`);
+            }
         }
 
         function loadTestDocument() {
