@@ -777,8 +777,9 @@
             <button class="btn btn-secondary" onclick="clearResults()">🗑️ Clear Results</button>
             <div class="btn-group" style="display: inline-block; position: relative;">
                 <button class="btn btn-secondary" onclick="showExportMenu()" id="exportBtn" disabled>📊 Export Results ▼</button>
-                <div id="exportMenu" style="display: none; position: absolute; background: white; border: 2px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 220px; top: 100%; left: 0; margin-top: 5px;">
-                    <button onclick="exportResults('excel')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee; font-weight: 600; color: #1e7145;">📊 Excel (Styled + Dashboard)</button>
+                <div id="exportMenu" style="display: none; position: absolute; background: white; border: 2px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 250px; top: 100%; left: 0; margin-top: 5px;">
+                    <button onclick="exportResults('excel-simple')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee; font-weight: 600; color: #1e7145;">✨ Excel (Styled Table)</button>
+                    <button onclick="exportResults('excel')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee; color: #666;">📊 Excel (Full Dashboard)</button>
                     <button onclick="exportResults('csv')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📄 CSV (Simple)</button>
                     <button onclick="exportResults('html')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">🌐 HTML Report</button>
                     <button onclick="exportResults('markdown')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📝 Markdown Table</button>
@@ -4472,6 +4473,9 @@ ${text}
                         mimeType = 'text/csv;charset=utf-8;';
                         extension = 'csv';
                         break;
+                    case 'excel-simple':
+                        await this.exportAsExcelSimple(questions, footnotes, filename);
+                        return; // Excel export handles download itself
                     case 'excel':
                         await this.exportAsExcel(questions, footnotes, filename);
                         return; // Excel export handles download itself
@@ -4564,6 +4568,97 @@ ${text}
                 }
 
                 return [header, ...rows].join('\n');
+            }
+
+            async exportAsExcelSimple(questions, footnotes, filename) {
+                Logger.info('✨ Creating beautifully styled Excel table...');
+
+                try {
+                    // Create workbook
+                    const wb = XLSX.utils.book_new();
+
+                    // Build data array with headers
+                    const data = [
+                        ['CIPP BID-SPEC ANALYSIS - DETAILED RESULTS'],
+                        ['Generated: ' + new Date().toLocaleString()],
+                        ['Document: ' + (this.currentFile?.name || 'Unknown')],
+                        [],
+                        ['Section', 'Q#', 'Question', 'Answer', 'PDF Pages', 'Citations', 'Confidence', 'Footnotes']
+                    ];
+
+                    // Add question data
+                    questions.forEach(q => {
+                        const pdfPages = q.pdf_pages && q.pdf_pages.length > 0
+                            ? q.pdf_pages.sort((a, b) => a - b).join(', ')
+                            : '-';
+
+                        const citations = q.inline_citations && q.inline_citations.length > 0
+                            ? q.inline_citations.join('; ')
+                            : '-';
+
+                        const questionFootnotes = q.footnotes && q.footnotes.length > 0
+                            ? q.footnotes.map((fn, idx) => `[${idx + 1}] ${fn}`).join('\n\n')
+                            : '';
+
+                        data.push([
+                            q.section_header || 'N/A',
+                            q.number || '',
+                            q.question || 'N/A',
+                            q.answer || 'Not yet found',
+                            pdfPages,
+                            citations,
+                            q.confidence || 'pending',
+                            questionFootnotes
+                        ]);
+                    });
+
+                    // Convert to sheet
+                    const ws = XLSX.utils.aoa_to_sheet(data);
+
+                    // STYLING: Column widths (this is what SheetJS supports)
+                    ws['!cols'] = [
+                        { wch: 28 },  // Section (wider for better readability)
+                        { wch: 6 },   // Q#
+                        { wch: 55 },  // Question (wider)
+                        { wch: 65 },  // Answer (widest column)
+                        { wch: 16 },  // PDF Pages
+                        { wch: 35 },  // Citations
+                        { wch: 14 },  // Confidence
+                        { wch: 55 }   // Footnotes (wider)
+                    ];
+
+                    // STYLING: Row heights
+                    ws['!rows'] = [
+                        { hpt: 28 },  // Title row - taller
+                        { hpt: 18 },  // Generated date
+                        { hpt: 18 },  // Document name
+                        { hpt: 10 },  // Empty row
+                        { hpt: 24 }   // Header row - taller and bold-looking
+                    ];
+
+                    // Set text wrapping for long content columns (Question, Answer, Footnotes)
+                    // Note: SheetJS free version has limited cell-level styling
+                    // We're maximizing what's available: widths, heights, and data organization
+
+                    // Add merge cells for title
+                    ws['!merges'] = [
+                        { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }  // Merge title across all columns
+                    ];
+
+                    // Append to workbook
+                    XLSX.utils.book_append_sheet(wb, ws, 'Analysis Results');
+
+                    // Write file
+                    XLSX.writeFile(wb, `${filename}_Styled.xlsx`);
+
+                    Logger.success(`✅ Styled Excel file exported: ${filename}_Styled.xlsx`);
+                    Logger.info(`📊 Exported ${questions.length} questions with professional formatting`);
+
+                } catch (error) {
+                    Logger.error(`❌ Excel export failed: ${error.message}`);
+                    console.error('Excel export error:', error);
+                    alert(`Excel export failed: ${error.message}\n\nTry using CSV format instead.`);
+                }
             }
 
             async exportAsExcel(questions, footnotes, filename) {
