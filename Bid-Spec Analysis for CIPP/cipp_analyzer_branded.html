@@ -891,8 +891,11 @@
         </div>
 
         <div class="results-section" id="dashboardSection" style="display: none; padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
-            <div style="text-align: center; margin-bottom: 30px;">
+            <div style="text-align: center; margin-bottom: 30px; position: relative;">
                 <h2 style="color: #fff; font-size: 2em; margin-bottom: 10px;">📊 CIPP Industry Intelligence Dashboards</h2>
+                <button onclick="refreshDashboards()" class="btn" style="position: absolute; right: 0; top: 0; background: rgba(255,255,255,0.2); color: white; border: 2px solid white; padding: 10px 20px; font-size: 14px; font-weight: 600; transition: all 0.3s ease; backdrop-filter: blur(10px);" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                    🔄 Refresh
+                </button>
                 <p style="color: rgba(255,255,255,0.9); font-size: 1.1em;">Visual insights extracted from your bid specification analysis</p>
             </div>
 
@@ -3567,6 +3570,9 @@ ${text}
                             totalPages
                         );
 
+                        // Update dashboards with live data
+                        this.renderDashboards();
+
                         // LAYER 4: Checkpoint display every 30 pages
                         if (this.unitaryLogCompiler.shouldDisplayCheckpoint(currentPage)) {
                             this.unitaryLogCompiler.displayCheckpoint(
@@ -3615,6 +3621,9 @@ ${text}
                         this.pdfPages.length,
                         this.pdfPages.length
                     );
+
+                    // Final dashboard update with all data
+                    this.renderDashboards();
 
                     ProgressTracker.update(100, "Analysis complete!");
                     Logger.success(`\n✅ Multi-layer AI processing completed successfully!`);
@@ -5741,6 +5750,23 @@ ${text}
                 icon.textContent = '📊';
                 text.textContent = 'Show Industry Intelligence Dashboards';
                 Logger.info('📊 Dashboards closed');
+            }
+        }
+
+        // Dashboard Refresh Function
+        function refreshDashboards() {
+            Logger.info('🔄 Refreshing dashboards with latest data...');
+
+            // Get the analyzer instance (stored as global 'app')
+            if (window.app) {
+                try {
+                    window.app.renderDashboards();
+                    Logger.success('✅ Dashboards refreshed successfully!');
+                } catch (error) {
+                    Logger.error(`❌ Dashboard refresh failed: ${error.message}`);
+                }
+            } else {
+                Logger.warning('⚠️ Analyzer not initialized - cannot refresh dashboards');
             }
         }
 
