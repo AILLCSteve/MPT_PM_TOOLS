@@ -12,8 +12,11 @@ Architecture:
 import os
 import sys
 import logging
+import secrets
+import hashlib
 from pathlib import Path
-from flask import Flask, render_template, send_from_directory, jsonify, request
+from datetime import datetime, timedelta
+from flask import Flask, render_template, send_from_directory, jsonify, request, session
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import tempfile
@@ -27,6 +30,22 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Authentication credentials (in production, use a database)
+# Password hashes generated using hashlib.sha256(password.encode()).hexdigest()
+AUTHORIZED_USERS = {
+    'stephenb@munipipe.com': {
+        'password_hash': hashlib.sha256('babyWren_0!!'.encode()).hexdigest(),
+        'name': 'Stephen Bartlett'
+    },
+    'sharonm@munipipe.com': {
+        'password_hash': hashlib.sha256('RegalTrue1!'.encode()).hexdigest(),
+        'name': 'Sharon M'
+    }
+}
+
+# Session storage for authentication tokens (in production, use Redis or database)
+active_sessions = {}
 
 
 class Config:
@@ -117,6 +136,141 @@ def register_routes(app: Flask, config: Config):
                 'libraries': doc_extractor.get_available_libraries() if doc_extractor else {}
             }
         })
+
+    # Authentication endpoint
+    @app.route('/api/authenticate', methods=['POST'])
+    def authenticate():
+        """
+        Authenticate user credentials and return session token.
+
+        Request body: {"username": "email", "password": "password"}
+        Response: {"success": true/false, "token": "session_token", "message": "error message"}
+        """
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid request format'
+                }), 400
+
+            username = data.get('username', '').strip().lower()
+            password = data.get('password', '')
+
+            if not username or not password:
+                return jsonify({
+                    'success': False,
+                    'message': 'Username and password are required'
+                }), 400
+
+            # Check if user exists
+            if username not in AUTHORIZED_USERS:
+                logger.warning(f"Authentication failed: User not found - {username}")
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid credentials'
+                }), 401
+
+            # Verify password
+            password_hash = hashlib.sha256(password.encode()).hexdigest()
+            if password_hash != AUTHORIZED_USERS[username]['password_hash']:
+                logger.warning(f"Authentication failed: Invalid password for {username}")
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid credentials'
+                }), 401
+
+            # Generate session token
+            token = secrets.token_urlsafe(32)
+            expires_at = datetime.now() + timedelta(hours=24)  # 24-hour session
+
+            # Store session
+            active_sessions[token] = {
+                'username': username,
+                'name': AUTHORIZED_USERS[username]['name'],
+                'created_at': datetime.now(),
+                'expires_at': expires_at
+            }
+
+            logger.info(f"Authentication successful: {username} ({AUTHORIZED_USERS[username]['name']})")
+
+            return jsonify({
+                'success': True,
+                'token': token,
+                'user': {
+                    'email': username,
+                    'name': AUTHORIZED_USERS[username]['name']
+                },
+                'expires_at': expires_at.isoformat()
+            })
+
+        except Exception as e:
+            logger.error(f"Authentication error: {e}")
+            return jsonify({
+                'success': False,
+                'message': 'An error occurred during authentication'
+            }), 500
+
+    @app.route('/api/verify-session', methods=['POST'])
+    def verify_session():
+        """
+        Verify if a session token is valid.
+
+        Request body: {"token": "session_token"}
+        Response: {"valid": true/false, "user": {...}}
+        """
+        try:
+            data = request.get_json()
+            token = data.get('token', '')
+
+            if not token:
+                return jsonify({'valid': False}), 401
+
+            # Check if session exists and is not expired
+            if token in active_sessions:
+                session_data = active_sessions[token]
+                if datetime.now() < session_data['expires_at']:
+                    return jsonify({
+                        'valid': True,
+                        'user': {
+                            'email': session_data['username'],
+                            'name': session_data['name']
+                        }
+                    })
+                else:
+                    # Session expired, remove it
+                    del active_sessions[token]
+                    logger.info(f"Session expired and removed: {session_data['username']}")
+
+            return jsonify({'valid': False}), 401
+
+        except Exception as e:
+            logger.error(f"Session verification error: {e}")
+            return jsonify({'valid': False}), 500
+
+    @app.route('/api/logout', methods=['POST'])
+    def logout():
+        """
+        Logout and invalidate session token.
+
+        Request body: {"token": "session_token"}
+        Response: {"success": true/false}
+        """
+        try:
+            data = request.get_json()
+            token = data.get('token', '')
+
+            if token and token in active_sessions:
+                username = active_sessions[token]['username']
+                del active_sessions[token]
+                logger.info(f"User logged out: {username}")
+                return jsonify({'success': True})
+
+            return jsonify({'success': False, 'message': 'Invalid session'}), 401
+
+        except Exception as e:
+            logger.error(f"Logout error: {e}")
+            return jsonify({'success': False}), 500
 
     # API Configuration endpoints
     @app.route('/api/config/apikey', methods=['GET'])
