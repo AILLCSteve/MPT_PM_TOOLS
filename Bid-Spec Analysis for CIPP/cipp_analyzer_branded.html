@@ -678,14 +678,16 @@
         // Settings Manager
         class SettingsManager {
             constructor() {
+                this.SETTINGS_VERSION = 2; // Increment when breaking changes made
                 this.defaultSettings = {
+                    version: this.SETTINGS_VERSION,
                     apiKey: '', // User must provide their own OpenAI API key
                     gptModel: 'gpt-4o', // GPT-4o with 128K context window
                     defaultChunkSize: 1500, // Reduced from 3000 to prevent token limit issues
                     analysisTimeout: 60,
                     autoRetry: true,
                     rateLimitDelay: 2000,
-                    maxTokensPerRequest: 8000 // Safety margin under 10k limit
+                    maxTokensPerRequest: 3000 // Reduced from 6000
                 };
                 this.settings = { ...this.defaultSettings };
                 this.loadSettings();
@@ -695,10 +697,40 @@
                 try {
                     const saved = localStorage.getItem('cipp_analyzer_settings');
                     if (saved) {
-                        this.settings = { ...this.defaultSettings, ...JSON.parse(saved) };
+                        const parsed = JSON.parse(saved);
+
+                        // Check if settings need migration
+                        if (!parsed.version || parsed.version < this.SETTINGS_VERSION) {
+                            Logger.warning(`⚠️ Migrating settings from v${parsed.version || 1} to v${this.SETTINGS_VERSION}`);
+
+                            // FORCE UPGRADE: Critical settings that must be updated
+                            if (parsed.gptModel === 'gpt-4') {
+                                Logger.warning('⬆️ Upgrading model: gpt-4 → gpt-4o (128K context)');
+                                parsed.gptModel = 'gpt-4o';
+                            }
+
+                            // Reduce excessive max_tokens
+                            if (!parsed.maxTokensPerRequest || parsed.maxTokensPerRequest > 4000) {
+                                Logger.warning(`⬇️ Reducing max_tokens: ${parsed.maxTokensPerRequest || 6000} → 3000`);
+                                parsed.maxTokensPerRequest = 3000;
+                            }
+
+                            // Mark as migrated
+                            parsed.version = this.SETTINGS_VERSION;
+
+                            // Save migrated settings
+                            this.settings = { ...this.defaultSettings, ...parsed };
+                            this.saveSettings();
+
+                            Logger.success('✅ Settings migrated successfully');
+                        } else {
+                            // Normal load
+                            this.settings = { ...this.defaultSettings, ...parsed };
+                        }
                     }
                 } catch (error) {
                     Logger.warning('Could not load saved settings, using defaults');
+                    this.settings = { ...this.defaultSettings };
                 }
             }
 
@@ -882,10 +914,16 @@
             }
 
             // LAYER 2: Question Answering Specialist for 3-page windows
-            async analyze3PageWindow(windowText, allQuestions, pageNumbers, maxTokens = 3000, retryCount = 0) {
+            async analyze3PageWindow(windowText, allQuestions, pageNumbers, maxTokens = null, retryCount = 0, networkRetryCount = 0) {
                 const requestId = ++this.requestCount;
                 const pageRange = `${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`;
-                Logger.api(`🔬 Layer 2: Analyzing pages ${pageRange} against ALL ${allQuestions.length} questions (attempt ${retryCount + 1})`);
+
+                // Get max_tokens from settings if not provided
+                if (maxTokens === null) {
+                    maxTokens = app.settingsManager.get('maxTokensPerRequest') || 3000;
+                }
+
+                Logger.api(`🔬 Layer 2: Analyzing pages ${pageRange} against ALL ${allQuestions.length} questions (attempt ${retryCount + 1}, network retry ${networkRetryCount})`);
 
                 const controller = new AbortController();
                 const timeoutMs = 90000; // 90 seconds for comprehensive analysis
@@ -898,26 +936,61 @@
                     const prompt = this.build3PageWindowPrompt(windowText, allQuestions, pageNumbers);
                     const model = app.settingsManager.get('gptModel');
 
-                    // Token estimation and validation
-                    const systemPrompt = `You are an expert CIPP (Cured-in-Place Pipe) contractor analyzing bid specifications.\n\nEXPERTISE: You understand sewer rehabilitation, pipe lining materials, installation methods, testing procedures, and project requirements from a contractor's bidding perspective.\n\nTASK: Analyze the provided 3-page window and answer ALL questions. Be thorough but concise.\n\nOUTPUT: Return ONLY valid JSON with the exact structure specified. No additional text.`;
+                    // Enhanced system prompt with industry expertise
+                    const systemPrompt = `ROLE DEFINITION:
+You are a senior CIPP (Cured-In-Place Pipe) bid analyst and technical expert with deep knowledge of:
+- Underground infrastructure rehabilitation standards and specifications
+- ASTM standards F1216, F1743, F2019, F2843 for CIPP installation
+- Municipal and commercial sewer/stormwater rehabilitation projects
+- Contract documents, general conditions, and technical specifications
+- CIPP materials: felt tubes, resin systems (polyester, vinyl ester, epoxy), cure methods
+- Installation techniques: inversion, pull-in-place, water cure, steam cure, UV cure
+- Quality control: CCTV inspection, mandrel testing, pressure testing, flexural testing
+- Project risks: bonds, insurance, warranties, liquidated damages, acceptance criteria
+
+OPERATIONAL MODE:
+You analyze bid specification documents on behalf of CIPP lining contractors preparing competitive bids. Your analysis must be:
+1. EXHAUSTIVE: Every question must be researched thoroughly across the provided pages
+2. EVIDENCE-BASED: All answers must quote verbatim from the source document with page citations
+3. CONTRACTOR-FOCUSED: Emphasize cost drivers, risk factors, compliance requirements, and bidding constraints
+4. PRECISE: Use exact terminology from specifications; bold critical values and requirements
+5. CONTEXTUAL: Provide footnotes explaining ambiguities, cross-references, or bid implications
+
+CRITICAL DIRECTIVES:
+- Never synthesize, paraphrase, or approximate specification language - quote exactly
+- Always include <PDF pg #> markers with quoted text for audit trail
+- Mark answers as "Not found in pages X-Y" only when truly absent from the provided window
+- Maintain contractor perspective: identify requirements affecting bid price, schedule, risk, or methodology
+- Apply 15+ years of CIPP industry knowledge to interpret specifications accurately
+
+OUTPUT FORMAT:
+Return ONLY valid JSON matching the exact structure specified in the user prompt. No markdown, no explanatory text, no code blocks.`;
+
+                    // Token estimation and validation (target: <50% of model limit)
                     const estimatedInputTokens = this.estimateTokens(systemPrompt) + this.estimateTokens(prompt);
                     const estimatedTotalTokens = estimatedInputTokens + maxTokens;
                     const modelLimit = this.getModelContextLimit(model);
+                    const safeLimit = Math.floor(modelLimit * 0.5); // 50% threshold
 
                     Logger.debug(`Layer 2 Request #${requestId}:`);
                     Logger.debug(`- Pages: ${pageRange}`);
-                    Logger.debug(`- Model: ${model} (limit: ${modelLimit} tokens)`);
+                    Logger.debug(`- Model: ${model} (limit: ${modelLimit} tokens, safe limit: ${safeLimit} tokens)`);
                     Logger.debug(`- Text length: ${windowText.length} characters`);
                     Logger.debug(`- Questions to analyze: ${allQuestions.length}`);
                     Logger.debug(`- Estimated input tokens: ~${estimatedInputTokens}`);
                     Logger.debug(`- Requested output tokens: ${maxTokens}`);
                     Logger.debug(`- Estimated total: ~${estimatedTotalTokens} tokens`);
 
-                    // Warning if approaching limit
-                    if (estimatedTotalTokens > modelLimit * 0.9) {
-                        Logger.warning(`⚠️ Token usage near limit! Estimated ${estimatedTotalTokens}/${modelLimit} tokens (${Math.round(estimatedTotalTokens/modelLimit*100)}%)`);
+                    // Warning if exceeding 50% threshold
+                    const percentUsed = Math.round((estimatedTotalTokens / modelLimit) * 100);
+                    const percentOfSafe = Math.round((estimatedTotalTokens / safeLimit) * 100);
+
+                    if (estimatedTotalTokens > safeLimit) {
+                        Logger.warning(`⚠️ Token usage exceeds 50% threshold! Estimated ${estimatedTotalTokens}/${modelLimit} tokens (${percentUsed}%, safe limit: ${safeLimit})`);
+                    } else if (estimatedTotalTokens > modelLimit * 0.9) {
+                        Logger.warning(`⚠️ Token usage near absolute limit! Estimated ${estimatedTotalTokens}/${modelLimit} tokens (${percentUsed}%)`);
                     } else {
-                        Logger.success(`✅ Token usage OK: ~${estimatedTotalTokens}/${modelLimit} tokens (${Math.round(estimatedTotalTokens/modelLimit*100)}%)`);
+                        Logger.success(`✅ Token usage OK: ~${estimatedTotalTokens}/${modelLimit} tokens (${percentUsed}%, ${percentOfSafe}% of safe limit)`);
                     }
 
                     const requestBody = {
@@ -978,29 +1051,48 @@
                 } catch (error) {
                     clearTimeout(timeoutId);
 
-                    // Check if this is a context length error
+                    // Check error type
                     const errorMsg = error.message.toLowerCase();
                     const isContextError = errorMsg.includes('context') &&
                                           (errorMsg.includes('length') || errorMsg.includes('limit') || errorMsg.includes('exceeded'));
+                    const isNetworkError = errorMsg.includes('load failed') ||
+                                          errorMsg.includes('network') ||
+                                          errorMsg.includes('fetch') ||
+                                          error.name === 'TypeError';
 
                     if (error.name === 'AbortError') {
                         Logger.error(`⏰ Layer 2 request #${requestId} timed out`);
                         return [];
+
+                    } else if (isNetworkError && networkRetryCount < 3) {
+                        // Network error - retry with exponential backoff
+                        const backoffMs = 1000 * Math.pow(2, networkRetryCount); // 1s, 2s, 4s
+                        Logger.warning(`⚠️ Network error: ${error.message}`);
+                        Logger.info(`🔄 Network retry ${networkRetryCount + 1}/3 for pages ${pageRange} (waiting ${backoffMs}ms)`);
+
+                        await new Promise(resolve => setTimeout(resolve, backoffMs));
+
+                        // Retry with same parameters but increment network retry count
+                        return this.analyze3PageWindow(windowText, allQuestions, pageNumbers, maxTokens, retryCount, networkRetryCount + 1);
+
                     } else if (isContextError && retryCount < 2) {
-                        // Automatic retry with reduced tokens
+                        // Context length error - retry with reduced tokens
                         const newMaxTokens = Math.floor(maxTokens * 0.6); // Reduce by 40%
                         Logger.warning(`⚠️ Context length exceeded! Retrying with reduced tokens: ${newMaxTokens} (was ${maxTokens})`);
-                        Logger.info(`🔄 Retry ${retryCount + 1}/2 for pages ${pageRange}`);
+                        Logger.info(`🔄 Token retry ${retryCount + 1}/2 for pages ${pageRange}`);
 
-                        // Wait a moment before retrying
                         await new Promise(resolve => setTimeout(resolve, 1000));
 
-                        // Recursive retry with smaller max_tokens
-                        return this.analyze3PageWindow(windowText, allQuestions, pageNumbers, newMaxTokens, retryCount + 1);
+                        // Retry with smaller max_tokens, reset network retry count
+                        return this.analyze3PageWindow(windowText, allQuestions, pageNumbers, newMaxTokens, retryCount + 1, 0);
+
                     } else {
+                        // Final failure after all retries
                         Logger.error(`💥 Layer 2 request #${requestId} failed: ${error.message}`);
                         if (isContextError) {
-                            Logger.error(`❌ Context limit exceeded even after retries. Consider using a model with larger context window.`);
+                            Logger.error(`❌ Context limit exceeded even after ${retryCount} retries. Consider upgrading to GPT-4o (128K context).`);
+                        } else if (isNetworkError) {
+                            Logger.error(`❌ Network error persisted after ${networkRetryCount} retries. Check your internet connection.`);
                         }
                         return []; // Return empty array on error, don't stop processing
                     }
@@ -1010,39 +1102,118 @@
             build3PageWindowPrompt(windowText, allQuestions, pageNumbers) {
                 const pageRange = `${pageNumbers[0]}-${pageNumbers[pageNumbers.length - 1]}`;
 
-                // Build concise question list
+                // Build detailed question list with section headers for context
                 const questionList = allQuestions.map(q =>
-                    `${q.number}. ${q.question}`
+                    `${q.number}. [${q.section_header}] ${q.question}`
                 ).join('\n');
 
-                return `ANALYZE PAGES ${pageRange} - Answer all ${allQuestions.length} questions from contractor perspective.
+                return `ROLE AND EXPERTISE:
+You are a senior CIPP (Cured-In-Place Pipe) project manager and bid analyst with 15+ years of experience in underground infrastructure rehabilitation. You specialize in:
+- Sewer and stormwater pipe rehabilitation using CIPP lining methods
+- Bid specification analysis for municipal and commercial projects
+- Contract risk assessment and compliance verification
+- ASTM standards (F1216, F1743, F2019, F2843) and industry best practices
+- Installation methods: water cure, steam cure, UV cure
+- Materials engineering: polyester, vinyl ester, epoxy resin systems
+- Project cost estimation and schedule development
 
-QUESTIONS:
+MISSION-CRITICAL OBJECTIVE:
+You are analyzing pages ${pageRange} of a CIPP bid specification document on behalf of a CIPP lining contractor preparing to bid on this project. Your analysis MUST be exhaustive, precise, and evidence-based. The contractor's bid accuracy, risk mitigation, and project success depend on your thoroughness.
+
+CONTRACTOR PERSPECTIVE - ANALYZE FOR:
+1. Bid Requirements: bonds, insurance, certifications, submission deadlines
+2. Technical Specifications: liner materials, thickness, ASTM compliance, cure methods
+3. Cost Drivers: linear footage, pipe diameters, bypass pumping, traffic control, permits
+4. Installation Constraints: access restrictions, working hours, dewatering requirements
+5. Quality Control: testing procedures, acceptance criteria, third-party certification
+6. Risk Factors: warranty duration, liquidated damages, defect remediation costs
+7. Payment Terms: schedule of values, retention, progress payments
+8. Timeline: substantial completion, final completion, penalty clauses
+
+DOCUMENT CONTEXT:
+Pages ${pageRange} of CIPP Bid Specification Document
+
+ALL QUESTIONS TO ANALYZE (${allQuestions.length} questions):
 ${questionList}
 
-DOCUMENT (Pages ${pageRange}):
+DOCUMENT TEXT (Pages ${pageRange}):
 ${windowText}
 
-INSTRUCTIONS:
-1. Answer format: Quote verbatim with <PDF pg #> OR "Not found in pages ${pageRange}"
-2. Bold key terms (**6.5mm thickness**), cite sections (Section 2.1), reference standards (ASTM F1216)
-3. Focus on bid-critical info: specs, costs, methods, timeline, payment, warranty, testing
+CRITICAL ANSWERING INSTRUCTIONS:
 
-JSON OUTPUT (ALL ${allQuestions.length} questions):
+1. EXHAUSTIVE SEARCH PROTOCOL:
+   - Read through pages ${pageRange} completely for EACH question
+   - Look for direct answers, indirect references, and implied information
+   - Check tables, appendices, technical specifications, and general conditions
+   - If information exists on these pages, you MUST find it
+
+2. ANSWER FORMAT REQUIREMENTS:
+   - If answer found: Quote verbatim from the document
+   - Include inline page marker: <PDF pg #>
+   - Bold critical specifications: **6.5mm minimum thickness**, **ASTM F1216 compliance**
+   - Provide inline citation: Section 3.2.1, Appendix B, Technical Specification 02505
+   - If NOT found in pages ${pageRange}: State exactly: "Not found in pages ${pageRange}"
+
+3. CITATION AND EVIDENCE STANDARDS:
+   - Cite the specific section, clause, or paragraph where information appears
+   - Reference applicable standards: ASTM F1216, ASTM F1743, AWWA M28, etc.
+   - Include specification section numbers: Division 02, Section 02505, Part 3.2
+   - Note if information appears in multiple locations on these pages
+
+4. CONTRACTOR-CRITICAL CONTEXT:
+   - Identify specifications that impact cost estimation
+   - Flag requirements that affect schedule or methodology
+   - Note testing or acceptance criteria that could trigger rework
+   - Highlight warranty, bonding, or insurance requirements
+   - Extract penalty clauses, liquidated damages, or risk allocation language
+
+5. CONFIDENCE ASSESSMENT:
+   - High: Direct, explicit statement in specification
+   - Medium: Indirect reference or inferred from related clause
+   - Low: Partially addressed or requires clarification from engineer
+
+6. FOOTNOTE GUIDANCE:
+   - Always include PDF page number(s) where information was found
+   - Always include contract section numbers (e.g., Division 02, Section 02505, Part 3.2.1)
+   - Provide additional context that affects bidding decisions
+   - Note cross-references to other specification sections
+   - Flag ambiguities or items requiring clarification
+   - Identify deviations from standard industry practice
+   - Format: "Found on <PDF pg #>, Section X.X.X: [additional context]"
+
+JSON OUTPUT STRUCTURE:
+Return a JSON object with exactly this structure. Include ALL ${allQuestions.length} questions in your response, even if not found on these pages.
+
 {
   "findings": [
     {
       "question_number": 1,
-      "answer": "exact text or 'Not found in pages ${pageRange}'",
+      "answer": "Verbatim quote from document with <PDF pg #> marker, or 'Not found in pages ${pageRange}'",
       "pdf_page": ${pageNumbers[0]},
-      "citation": "Section X.X",
-      "confidence": "high|medium|low",
-      "footnote": "context if needed"
+      "citation": "Section 3.2.1 - CIPP Material Requirements",
+      "confidence": "high",
+      "footnote": "Found on <PDF pg ${pageNumbers[0]}>, Section 3.2.1: ASTM F1216 compliance required. Cross-reference General Conditions 00700 for warranty terms affecting this requirement."
+    },
+    {
+      "question_number": 2,
+      "answer": "Next answer...",
+      "pdf_page": ${pageNumbers[1]},
+      "citation": "Technical Specification 02505, Part 2.1",
+      "confidence": "medium",
+      "footnote": "Found on <PDF pg ${pageNumbers[1]}>, Division 02, Section 02505, Part 2.1: Thickness requirements vary by pipe diameter. See Appendix C Table 1 for calculations."
     }
   ]
 }
 
-Return ONLY valid JSON.`;
+QUALITY CONTROL REMINDER:
+- You are analyzing pages ${pageRange} of a ${windowText.length}-character window
+- You must provide responses for all ${allQuestions.length} questions
+- Treat "not found" answers as temporary - other pages may contain this information
+- Your accuracy directly impacts a contractor's ability to submit a competitive, compliant bid
+- Incomplete or imprecise analysis could result in bid rejection or project losses
+
+OUTPUT REQUIREMENT:
+Return ONLY the JSON object. Do not include explanatory text, markdown formatting, or code blocks. The JSON must be valid and parseable.`;
             }
 
             parse3PageWindowResponse(response, requestId = 'unknown') {
