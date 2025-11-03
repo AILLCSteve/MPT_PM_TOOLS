@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CIPP Bid-Spec Analyzer - MPT Tools</title>
+    <!-- SheetJS Library for Professional Excel Export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -562,10 +564,11 @@
             <button class="btn btn-secondary" onclick="clearResults()">🗑️ Clear Results</button>
             <div class="btn-group" style="display: inline-block; position: relative;">
                 <button class="btn btn-secondary" onclick="showExportMenu()" id="exportBtn" disabled>📊 Export Results ▼</button>
-                <div id="exportMenu" style="display: none; position: absolute; background: white; border: 2px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 200px; top: 100%; left: 0; margin-top: 5px;">
-                    <button onclick="exportResults('csv')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📄 CSV (Excel)</button>
-                    <button onclick="exportResults('markdown')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📝 Markdown Table</button>
+                <div id="exportMenu" style="display: none; position: absolute; background: white; border: 2px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 220px; top: 100%; left: 0; margin-top: 5px;">
+                    <button onclick="exportResults('excel')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee; font-weight: 600; color: #1e7145;">📊 Excel (Styled + Dashboard)</button>
+                    <button onclick="exportResults('csv')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📄 CSV (Simple)</button>
                     <button onclick="exportResults('html')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">🌐 HTML Report</button>
+                    <button onclick="exportResults('markdown')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📝 Markdown Table</button>
                     <button onclick="exportResults('json')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer;">📋 JSON Data</button>
                 </div>
             </div>
@@ -2890,44 +2893,47 @@ ${text}
             }
 
             async exportResults(format = 'csv') {
-                if (this.results.length === 0) {
+                // Use the new multi-layer architecture data (answerAccumulator)
+                const questions = this.answerAccumulator?.doc_review_glocom || [];
+                const footnotes = this.answerAccumulator?.doc_footnotes || [];
+
+                if (questions.length === 0) {
                     Logger.warning("No results to export");
+                    alert("No analysis results available. Please run an analysis first.");
                     return;
                 }
 
                 // Hide export menu
                 document.getElementById('exportMenu').style.display = 'none';
 
-                const timestamp = new Date().toISOString().split('T')[0];
-                const filename = `cipp_analysis_${timestamp}`;
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                const filename = `CIPP_Analysis_${timestamp}`;
 
-                // Sort results by section and question number
-                const sortedResults = [...this.results].sort((a, b) => {
-                    const sectionCompare = (a.section || '').localeCompare(b.section || '');
-                    if (sectionCompare !== 0) return sectionCompare;
-                    return (a.question_number || 0) - (b.question_number || 0);
-                });
+                Logger.info(`📊 Preparing ${format.toUpperCase()} export with ${questions.length} questions...`);
 
                 let content, mimeType, extension;
 
                 switch (format) {
                     case 'csv':
-                        content = this.exportAsCSV(sortedResults);
+                        content = this.exportAsCSV(questions, footnotes);
                         mimeType = 'text/csv;charset=utf-8;';
                         extension = 'csv';
                         break;
+                    case 'excel':
+                        await this.exportAsExcel(questions, footnotes, filename);
+                        return; // Excel export handles download itself
                     case 'markdown':
-                        content = this.exportAsMarkdown(sortedResults);
+                        content = this.exportAsMarkdown(questions, footnotes);
                         mimeType = 'text/markdown;charset=utf-8;';
                         extension = 'md';
                         break;
                     case 'html':
-                        content = this.exportAsHTML(sortedResults);
+                        content = this.exportAsHTML(questions, footnotes);
                         mimeType = 'text/html;charset=utf-8;';
                         extension = 'html';
                         break;
                     case 'json':
-                        content = this.exportAsJSON(sortedResults);
+                        content = this.exportAsJSON(questions, footnotes);
                         mimeType = 'application/json;charset=utf-8;';
                         extension = 'json';
                         break;
@@ -2951,58 +2957,324 @@ ${text}
                 // Clean up
                 setTimeout(() => URL.revokeObjectURL(url), 100);
 
-                Logger.success(`📊 Results exported as ${format.toUpperCase()} file: ${filename}.${extension}`);
+                Logger.success(`✅ Exported ${questions.length} questions as ${format.toUpperCase()}: ${filename}.${extension}`);
             }
 
-            exportAsCSV(results) {
-                // Professional CSV format following promptbase.md specification
-                const header = ['"Section Header"', '"#"', '"Question"', '"Answer"', '"PDF Page"', '"Inline Citation"', '"Footnote"'].join(',');
+            exportAsCSV(questions, footnotes) {
+                // Complete CSV export with ALL data fields from multi-layer architecture
+                const header = [
+                    '"Section Header"',
+                    '"Question #"',
+                    '"Question"',
+                    '"Answer"',
+                    '"PDF Pages"',
+                    '"Citations"',
+                    '"Confidence"',
+                    '"Question-Specific Footnotes"'
+                ].join(',');
 
-                const rows = results.map(result => {
+                const rows = questions.map(q => {
+                    // Format PDF pages as comma-separated list
+                    const pdfPages = q.pdf_pages && q.pdf_pages.length > 0
+                        ? q.pdf_pages.sort((a, b) => a - b).join(', ')
+                        : 'Not found';
+
+                    // Format citations as semicolon-separated list
+                    const citations = q.inline_citations && q.inline_citations.length > 0
+                        ? q.inline_citations.join('; ')
+                        : 'N/A';
+
+                    // Format footnotes as numbered list
+                    const questionFootnotes = q.footnotes && q.footnotes.length > 0
+                        ? q.footnotes.map((fn, idx) => `[${idx + 1}] ${fn}`).join(' | ')
+                        : '';
+
                     return [
-                        `"${this.escapeCsvField(result.section || 'N/A')}"`,
-                        `"${result.question_number || ''}"`,
-                        `"${this.escapeCsvField(result.question || 'N/A')}"`,
-                        `"${this.escapeCsvField(result.answer || 'No answer found')}"`,
-                        `"${this.escapeCsvField(result.pdf_page || result.chunk_number ? `Chunk ${result.chunk_number}` : 'N/A')}"`,
-                        `"${this.escapeCsvField(result.citation || 'N/A')}"`,
-                        `"${this.escapeCsvField(result.footnote || '')}"`,
+                        `"${this.escapeCsvField(q.section_header || 'N/A')}"`,
+                        `"${q.number || ''}"`,
+                        `"${this.escapeCsvField(q.question || 'N/A')}"`,
+                        `"${this.escapeCsvField(q.answer || 'Not yet found')}"`,
+                        `"${this.escapeCsvField(pdfPages)}"`,
+                        `"${this.escapeCsvField(citations)}"`,
+                        `"${q.confidence || 'pending'}"`,
+                        `"${this.escapeCsvField(questionFootnotes)}"`
                     ].join(',');
                 });
+
+                // Add document footnotes section at the end
+                if (footnotes && footnotes.length > 0) {
+                    rows.push(''); // Empty row separator
+                    rows.push('"DOCUMENT FOOTNOTES",,,,,,,"Total: ' + footnotes.length + '"');
+                    footnotes.forEach((fn, idx) => {
+                        rows.push(`"Footnote ${idx + 1}",,,,"${this.escapeCsvField(fn)}",,,`);
+                    });
+                }
 
                 return [header, ...rows].join('\n');
             }
 
-            exportAsMarkdown(results) {
-                // Professional Markdown table format per promptbase.md
+            async exportAsExcel(questions, footnotes, filename) {
+                Logger.info('📊 Creating professional Excel workbook with dashboard...');
+
+                try {
+                    // Calculate statistics for dashboard
+                    const totalQuestions = questions.length;
+                    const answeredQuestions = questions.filter(q => q.answer !== 'Not yet found').length;
+                    const pendingQuestions = totalQuestions - answeredQuestions;
+                    const completionRate = ((answeredQuestions / totalQuestions) * 100).toFixed(1);
+
+                    // Group by section for section analysis
+                    const sectionStats = {};
+                    questions.forEach(q => {
+                        const section = q.section_header || 'Uncategorized';
+                        if (!sectionStats[section]) {
+                            sectionStats[section] = { total: 0, answered: 0 };
+                        }
+                        sectionStats[section].total++;
+                        if (q.answer !== 'Not yet found') {
+                            sectionStats[section].answered++;
+                        }
+                    });
+
+                    // Confidence distribution
+                    const confidenceStats = {
+                        high: questions.filter(q => q.confidence === 'high').length,
+                        medium: questions.filter(q => q.confidence === 'medium').length,
+                        low: questions.filter(q => q.confidence === 'low').length,
+                        pending: questions.filter(q => q.confidence === 'pending').length
+                    };
+
+                    // Create new workbook
+                    const wb = XLSX.utils.book_new();
+
+                    // === DASHBOARD SHEET ===
+                    const dashboardData = [
+                        ['CIPP BID-SPEC ANALYSIS DASHBOARD'],
+                        [''],
+                        ['Generated:', new Date().toLocaleString()],
+                        ['Document:', this.currentFile?.name || 'Unknown'],
+                        ['Total Questions:', totalQuestions],
+                        ['Answered Questions:', answeredQuestions],
+                        ['Pending Questions:', pendingQuestions],
+                        ['Completion Rate:', `${completionRate}%`],
+                        ['Total Footnotes:', footnotes.length],
+                        [''],
+                        ['COMPLETION BY SECTION'],
+                        ['Section', 'Total Questions', 'Answered', 'Completion %']
+                    ];
+
+                    Object.entries(sectionStats).forEach(([section, stats]) => {
+                        const sectionCompletion = ((stats.answered / stats.total) * 100).toFixed(1);
+                        dashboardData.push([section, stats.total, stats.answered, `${sectionCompletion}%`]);
+                    });
+
+                    dashboardData.push(['']);
+                    dashboardData.push(['CONFIDENCE DISTRIBUTION']);
+                    dashboardData.push(['Confidence Level', 'Count', 'Percentage']);
+                    dashboardData.push(['High', confidenceStats.high, `${((confidenceStats.high / answeredQuestions) * 100).toFixed(1)}%`]);
+                    dashboardData.push(['Medium', confidenceStats.medium, `${((confidenceStats.medium / answeredQuestions) * 100).toFixed(1)}%`]);
+                    dashboardData.push(['Low', confidenceStats.low, `${((confidenceStats.low / answeredQuestions) * 100).toFixed(1)}%`]);
+                    dashboardData.push(['Pending', confidenceStats.pending, `${((confidenceStats.pending / totalQuestions) * 100).toFixed(1)}%`]);
+
+                    const wsDashboard = XLSX.utils.aoa_to_sheet(dashboardData);
+
+                    // Style dashboard with column widths
+                    wsDashboard['!cols'] = [
+                        { wch: 30 }, // Column A
+                        { wch: 20 }, // Column B
+                        { wch: 15 }, // Column C
+                        { wch: 15 }  // Column D
+                    ];
+
+                    // Add dashboard to workbook
+                    XLSX.utils.book_append_sheet(wb, wsDashboard, 'Dashboard');
+
+                    // === ANALYSIS RESULTS SHEET ===
+                    const resultsData = [
+                        ['CIPP BID-SPEC ANALYSIS - DETAILED RESULTS'],
+                        [''],
+                        ['Section', 'Q#', 'Question', 'Answer', 'PDF Pages', 'Citations', 'Confidence', 'Footnotes']
+                    ];
+
+                    questions.forEach(q => {
+                        const pdfPages = q.pdf_pages && q.pdf_pages.length > 0
+                            ? q.pdf_pages.sort((a, b) => a - b).join(', ')
+                            : 'Not found';
+
+                        const citations = q.inline_citations && q.inline_citations.length > 0
+                            ? q.inline_citations.join('; ')
+                            : 'N/A';
+
+                        const questionFootnotes = q.footnotes && q.footnotes.length > 0
+                            ? q.footnotes.map((fn, idx) => `[${idx + 1}] ${fn}`).join('\n\n')
+                            : '';
+
+                        resultsData.push([
+                            q.section_header || 'N/A',
+                            q.number || '',
+                            q.question || 'N/A',
+                            q.answer || 'Not yet found',
+                            pdfPages,
+                            citations,
+                            q.confidence || 'pending',
+                            questionFootnotes
+                        ]);
+                    });
+
+                    const wsResults = XLSX.utils.aoa_to_sheet(resultsData);
+
+                    // Style results with column widths
+                    wsResults['!cols'] = [
+                        { wch: 25 }, // Section
+                        { wch: 5 },  // Q#
+                        { wch: 50 }, // Question
+                        { wch: 60 }, // Answer
+                        { wch: 15 }, // PDF Pages
+                        { wch: 30 }, // Citations
+                        { wch: 12 }, // Confidence
+                        { wch: 50 }  // Footnotes
+                    ];
+
+                    // Set row heights for better readability
+                    wsResults['!rows'] = [
+                        { hpt: 25 }, // Title row
+                        { hpt: 15 }, // Empty row
+                        { hpt: 20 }  // Header row
+                    ];
+
+                    XLSX.utils.book_append_sheet(wb, wsResults, 'Analysis Results');
+
+                    // === DOCUMENT FOOTNOTES SHEET ===
+                    if (footnotes && footnotes.length > 0) {
+                        const footnotesData = [
+                            ['DOCUMENT FOOTNOTES'],
+                            [''],
+                            ['Total Footnotes:', footnotes.length],
+                            [''],
+                            ['#', 'Footnote Content']
+                        ];
+
+                        footnotes.forEach((fn, idx) => {
+                            footnotesData.push([idx + 1, fn]);
+                        });
+
+                        const wsFootnotes = XLSX.utils.aoa_to_sheet(footnotesData);
+                        wsFootnotes['!cols'] = [
+                            { wch: 5 },  // #
+                            { wch: 100 } // Content
+                        ];
+
+                        XLSX.utils.book_append_sheet(wb, wsFootnotes, 'Footnotes');
+                    }
+
+                    // === SECTION SUMMARY SHEET ===
+                    const sectionSummaryData = [
+                        ['SECTION-BY-SECTION SUMMARY'],
+                        [''],
+                        ['Section', 'Total Questions', 'Answered', 'Pending', 'Completion %', 'High Confidence', 'Medium Confidence', 'Low Confidence']
+                    ];
+
+                    Object.entries(sectionStats).forEach(([section, stats]) => {
+                        const sectionQuestions = questions.filter(q => (q.section_header || 'Uncategorized') === section);
+                        const highConf = sectionQuestions.filter(q => q.confidence === 'high').length;
+                        const medConf = sectionQuestions.filter(q => q.confidence === 'medium').length;
+                        const lowConf = sectionQuestions.filter(q => q.confidence === 'low').length;
+                        const sectionCompletion = ((stats.answered / stats.total) * 100).toFixed(1);
+
+                        sectionSummaryData.push([
+                            section,
+                            stats.total,
+                            stats.answered,
+                            stats.total - stats.answered,
+                            `${sectionCompletion}%`,
+                            highConf,
+                            medConf,
+                            lowConf
+                        ]);
+                    });
+
+                    const wsSectionSummary = XLSX.utils.aoa_to_sheet(sectionSummaryData);
+                    wsSectionSummary['!cols'] = [
+                        { wch: 30 }, { wch: 15 }, { wch: 12 }, { wch: 12 },
+                        { wch: 15 }, { wch: 18 }, { wch: 20 }, { wch: 18 }
+                    ];
+
+                    XLSX.utils.book_append_sheet(wb, wsSectionSummary, 'Section Summary');
+
+                    // Generate Excel file
+                    XLSX.writeFile(wb, `${filename}.xlsx`);
+
+                    Logger.success(`✅ Professional Excel workbook created with 4 sheets: Dashboard, Results, Footnotes, Section Summary`);
+                } catch (error) {
+                    Logger.error(`Excel export failed: ${error.message}`);
+                    alert(`Failed to create Excel file: ${error.message}\n\nTrying CSV export instead...`);
+                    // Fallback to CSV
+                    const csvContent = this.exportAsCSV(questions, footnotes);
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${filename}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+            }
+
+            exportAsMarkdown(questions, footnotes) {
+                // Professional Markdown table format with complete data
+                const answered = questions.filter(q => q.answer !== 'Not yet found').length;
+                const completion = ((answered / questions.length) * 100).toFixed(1);
+
                 let md = `# CIPP Bid-Spec Analysis Report\n\n`;
                 md += `**Generated:** ${new Date().toLocaleString()}\n`;
                 md += `**Document:** ${this.currentFile?.name || 'Unknown'}\n`;
-                md += `**Total Results:** ${results.length}\n\n`;
+                md += `**Total Questions:** ${questions.length}\n`;
+                md += `**Answered:** ${answered} (${completion}%)\n`;
+                md += `**Footnotes:** ${footnotes.length}\n\n`;
                 md += `---\n\n`;
 
                 // Table header
-                md += `| Section Header | # | Question | Answer | PDF Page | Inline Citation | Footnote |\n`;
-                md += `|----------------|---|----------|--------|----------|-----------------|----------|\n`;
+                md += `| Section | # | Question | Answer | PDF Pages | Citations | Confidence |\n`;
+                md += `|---------|---|----------|--------|-----------|-----------|------------|\n`;
 
                 // Table rows
-                results.forEach(result => {
-                    md += `| ${this.escapeMarkdown(result.section || 'N/A')} `;
-                    md += `| ${result.question_number || ''} `;
-                    md += `| ${this.escapeMarkdown(result.question || 'N/A')} `;
-                    md += `| ${this.escapeMarkdown(result.answer || 'No answer found')} `;
-                    md += `| ${this.escapeMarkdown(result.pdf_page || (result.chunk_number ? `Chunk ${result.chunk_number}` : 'N/A'))} `;
-                    md += `| ${this.escapeMarkdown(result.citation || 'N/A')} `;
-                    md += `| ${this.escapeMarkdown(result.footnote || '')} |\n`;
+                questions.forEach(q => {
+                    const pdfPages = q.pdf_pages && q.pdf_pages.length > 0
+                        ? q.pdf_pages.sort((a, b) => a - b).join(', ')
+                        : 'Not found';
+
+                    const citations = q.inline_citations && q.inline_citations.length > 0
+                        ? q.inline_citations.join('; ')
+                        : 'N/A';
+
+                    md += `| ${this.escapeMarkdown(q.section_header || 'N/A')} `;
+                    md += `| ${q.number || ''} `;
+                    md += `| ${this.escapeMarkdown(q.question || 'N/A')} `;
+                    md += `| ${this.escapeMarkdown(q.answer || 'Not yet found')} `;
+                    md += `| ${this.escapeMarkdown(pdfPages)} `;
+                    md += `| ${this.escapeMarkdown(citations)} `;
+                    md += `| ${q.confidence || 'pending'} |\n`;
                 });
+
+                // Add footnotes section
+                if (footnotes && footnotes.length > 0) {
+                    md += `\n\n---\n\n## Document Footnotes\n\n`;
+                    footnotes.forEach((fn, idx) => {
+                        md += `${idx + 1}. ${this.escapeMarkdown(fn)}\n`;
+                    });
+                }
 
                 return md;
             }
 
-            exportAsHTML(results) {
-                // Professional HTML report with styling
+            exportAsHTML(questions, footnotes) {
+                // Professional HTML report with complete data
                 const projectName = this.currentFile?.name || 'Unknown Document';
                 const date = new Date().toLocaleString();
+                const answered = questions.filter(q => q.answer !== 'Not yet found').length;
+                const completion = ((answered / questions.length) * 100).toFixed(1);
 
                 let html = `<!DOCTYPE html>
 <html lang="en">
@@ -3148,41 +3420,68 @@ ${text}
         <div class="metadata">
             <p><strong>Document:</strong> ${this.escapeHtml(projectName)}</p>
             <p><strong>Generated:</strong> ${date}</p>
-            <p><strong>Total Results:</strong> ${results.length}</p>
-            <p><strong>Sections Analyzed:</strong> ${[...new Set(results.map(r => r.section))].join(', ')}</p>
+            <p><strong>Total Questions:</strong> ${questions.length}</p>
+            <p><strong>Answered:</strong> ${answered} (${completion}%)</p>
+            <p><strong>Footnotes:</strong> ${footnotes.length}</p>
+            <p><strong>Sections:</strong> ${[...new Set(questions.map(q => q.section_header))].join(', ')}</p>
         </div>
 
         <table>
             <thead>
                 <tr>
-                    <th>Section Header</th>
+                    <th>Section</th>
                     <th>#</th>
                     <th>Question</th>
                     <th>Answer</th>
-                    <th>PDF Page</th>
-                    <th>Inline Citation</th>
-                    <th>Footnote</th>
+                    <th>PDF Pages</th>
+                    <th>Citations</th>
+                    <th>Confidence</th>
                 </tr>
             </thead>
             <tbody>`;
 
-                results.forEach(result => {
+                questions.forEach(q => {
+                    const pdfPages = q.pdf_pages && q.pdf_pages.length > 0
+                        ? q.pdf_pages.sort((a, b) => a - b).join(', ')
+                        : 'Not found';
+
+                    const citations = q.inline_citations && q.inline_citations.length > 0
+                        ? q.inline_citations.join('; ')
+                        : 'N/A';
+
                     html += `
                 <tr>
-                    <td class="section-cell">${this.escapeHtml(result.section || 'N/A')}</td>
-                    <td class="number-cell">${result.question_number || ''}</td>
-                    <td class="question-cell">${this.escapeHtml(result.question || 'N/A')}</td>
-                    <td class="answer-cell">${this.escapeHtml(result.answer || 'No answer found')}</td>
-                    <td>${this.escapeHtml(result.pdf_page || (result.chunk_number ? `Chunk ${result.chunk_number}` : 'N/A'))}</td>
-                    <td>${this.escapeHtml(result.citation || 'N/A')}</td>
-                    <td>${this.escapeHtml(result.footnote || '')}</td>
+                    <td class="section-cell">${this.escapeHtml(q.section_header || 'N/A')}</td>
+                    <td class="number-cell">${q.number || ''}</td>
+                    <td class="question-cell">${this.escapeHtml(q.question || 'N/A')}</td>
+                    <td class="answer-cell">${this.escapeHtml(q.answer || 'Not yet found')}</td>
+                    <td>${this.escapeHtml(pdfPages)}</td>
+                    <td>${this.escapeHtml(citations)}</td>
+                    <td style="text-align: center;">${this.escapeHtml(q.confidence || 'pending')}</td>
                 </tr>`;
                 });
 
                 html += `
             </tbody>
-        </table>
+        </table>`;
 
+                // Add footnotes section if any
+                if (footnotes && footnotes.length > 0) {
+                    html += `
+        <div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+            <h2 style="color: #1E3A8A; margin-bottom: 15px;">📝 Document Footnotes</h2>
+            <ol style="line-height: 1.8;">`;
+
+                    footnotes.forEach((fn, idx) => {
+                        html += `<li style="margin: 8px 0;">${this.escapeHtml(fn)}</li>`;
+                    });
+
+                    html += `
+            </ol>
+        </div>`;
+                }
+
+                html += `
         <div class="footer">
             <p>Generated by Municipal Pipe Tool - CIPP Bid-Spec Analyzer</p>
             <p>Report generated automatically - verify all information with original documents</p>
@@ -3194,27 +3493,32 @@ ${text}
                 return html;
             }
 
-            exportAsJSON(results) {
+            exportAsJSON(questions, footnotes) {
+                const answered = questions.filter(q => q.answer !== 'Not yet found').length;
+                const completion = ((answered / questions.length) * 100).toFixed(1);
+
                 const exportData = {
                     metadata: {
                         generated: new Date().toISOString(),
                         document: this.currentFile?.name || 'Unknown',
-                        total_results: results.length,
-                        sections: [...new Set(results.map(r => r.section))],
-                        version: '1.0.0'
+                        total_questions: questions.length,
+                        answered_questions: answered,
+                        completion_rate: completion + '%',
+                        total_footnotes: footnotes.length,
+                        sections: [...new Set(questions.map(q => q.section_header))],
+                        version: '2.0.0 (Multi-Layer Architecture)'
                     },
-                    results: results.map(result => ({
-                        section_header: result.section || 'N/A',
-                        question_number: result.question_number || null,
-                        question: result.question || 'N/A',
-                        answer: result.answer || 'No answer found',
-                        pdf_page: result.pdf_page || (result.chunk_number ? `Chunk ${result.chunk_number}` : 'N/A'),
-                        inline_citation: result.citation || 'N/A',
-                        footnote: result.footnote || '',
-                        confidence: result.confidence || 'medium',
-                        chunk_number: result.chunk_number || null,
-                        timestamp: result.analysis_timestamp || null
-                    }))
+                    questions: questions.map(q => ({
+                        section_header: q.section_header || 'N/A',
+                        question_number: q.number || null,
+                        question: q.question || 'N/A',
+                        answer: q.answer || 'Not yet found',
+                        pdf_pages: q.pdf_pages || [],
+                        inline_citations: q.inline_citations || [],
+                        question_footnotes: q.footnotes || [],
+                        confidence: q.confidence || 'pending'
+                    })),
+                    document_footnotes: footnotes
                 };
 
                 return JSON.stringify(exportData, null, 2);
