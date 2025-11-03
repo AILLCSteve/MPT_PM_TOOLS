@@ -1091,8 +1091,20 @@
             loadSettings() {
                 try {
                     const saved = localStorage.getItem('cipp_analyzer_settings');
+
                     if (saved) {
                         const parsed = JSON.parse(saved);
+
+                        // FORCE FIX: If maxTokensPerRequest is wrong, override it immediately
+                        if (parsed.maxTokensPerRequest && parsed.maxTokensPerRequest < 80000) {
+                            Logger.warning(`🔧 FORCE FIXING max_tokens: ${parsed.maxTokensPerRequest} → 85000`);
+                            parsed.maxTokensPerRequest = 85000;
+                            parsed.version = this.SETTINGS_VERSION;
+                            this.settings = { ...this.defaultSettings, ...parsed };
+                            this.saveSettings();
+                            Logger.success('✅ Settings force-fixed and saved');
+                            return;
+                        }
 
                         // Check if settings need migration
                         if (!parsed.version || parsed.version < this.SETTINGS_VERSION) {
@@ -1105,9 +1117,8 @@
                             }
 
                             // Set appropriate max_tokens for 100-question comprehensive analysis
-                            // gpt-4o has 128K limit, allocate 85K for output (leaves room for input)
                             if (!parsed.maxTokensPerRequest || parsed.maxTokensPerRequest < 80000) {
-                                Logger.warning(`⬆️ Increasing max_tokens for comprehensive analysis: ${parsed.maxTokensPerRequest || 3000} → 85000`);
+                                Logger.warning(`⬆️ Increasing max_tokens: ${parsed.maxTokensPerRequest || 3000} → 85000`);
                                 parsed.maxTokensPerRequest = 85000;
                             }
 
@@ -1123,6 +1134,8 @@
                             // Normal load
                             this.settings = { ...this.defaultSettings, ...parsed };
                         }
+                    } else {
+                        this.settings = { ...this.defaultSettings };
                     }
                 } catch (error) {
                     Logger.warning('Could not load saved settings, using defaults');
@@ -1318,7 +1331,10 @@
                 // CRITICAL: For 100-question comprehensive analysis, allow 80-90K token output
                 // gpt-4o has 128K context limit, so 85K output + ~15K input = ~100K total (safe)
                 if (maxTokens === null) {
-                    maxTokens = app.settingsManager.get('maxTokensPerRequest') || 85000;
+                    const settingValue = app.settingsManager.get('maxTokensPerRequest');
+                    maxTokens = settingValue || 85000;
+                    Logger.debug(`🔧 max_tokens source: ${settingValue ? `settings (${settingValue})` : 'fallback (85000)'}`);
+                    Logger.debug(`🔧 Final max_tokens value: ${maxTokens}`);
                 }
 
                 Logger.api(`🔬 Layer 2: Analyzing pages ${pageRange} against ALL ${allQuestions.length} questions (attempt ${retryCount + 1}, network retry ${networkRetryCount})`);
