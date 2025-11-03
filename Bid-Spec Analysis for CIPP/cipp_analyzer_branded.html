@@ -2174,6 +2174,49 @@ ${text}
                 return similarity >= 0.85; // 85% word overlap threshold (stricter)
             }
 
+            // Check if answer is substantially different (for answer deduplication)
+            isSubstantiallyDifferent(existingAnswer, newAnswer) {
+                if (!existingAnswer || !newAnswer) return true;
+                if (existingAnswer === newAnswer) return false;
+
+                // Normalize for comparison (similar to footnotes)
+                const normalize = (text) => text
+                    .toLowerCase()
+                    .replace(/\*\*\[additional finding\]\*\*/gi, '') // Remove our own markers
+                    .replace(/pdf pg \d+/g, '') // Remove specific page numbers
+                    .replace(/section \d+(\.\d+)*/g, 'section') // Normalize section references
+                    .replace(/\s+/g, ' ') // Normalize whitespace
+                    .replace(/[.,;:!?]/g, '') // Remove punctuation
+                    .trim();
+
+                const norm1 = normalize(existingAnswer);
+                const norm2 = normalize(newAnswer);
+
+                // Exact match after normalization means NOT different
+                if (norm1 === norm2) return false;
+
+                // Check if new answer is a substring of existing (already covered)
+                if (norm1.length > 50 && norm2.length > 50) {
+                    if (norm1.includes(norm2) || norm2.includes(norm1)) {
+                        return false; // Not different, already have this info
+                    }
+                }
+
+                // Word-set similarity: if they share 80%+ of words, consider same
+                const words1 = new Set(norm1.split(' ').filter(w => w.length > 2));
+                const words2 = new Set(norm2.split(' ').filter(w => w.length > 2));
+
+                if (words1.size === 0 || words2.size === 0) return true;
+
+                const intersection = new Set([...words1].filter(w => words2.has(w)));
+                const union = new Set([...words1, ...words2]);
+
+                const similarity = intersection.size / union.size;
+
+                // If similarity >= 80%, they're the same (NOT different)
+                return similarity < 0.80;
+            }
+
             // Add footnote with deduplication
             addFootnote(footnote) {
                 if (!footnote || footnote.trim() === '') return false;
@@ -2243,12 +2286,19 @@ ${text}
                     );
 
                     if (!isNotFound && finding.answer) {
-                        // APPEND to existing answer (never overwrite)
+                        // APPEND to existing answer (never overwrite) - with semantic deduplication
                         if (question.answer === "Not yet found" || question.answer === "") {
                             question.answer = finding.answer;
                         } else {
-                            // Append with page marker
-                            question.answer += `\n\n**[Additional finding]** ${finding.answer}`;
+                            // Check if this finding is substantially different from existing answer
+                            // to avoid repeating the same information
+                            if (this.isSubstantiallyDifferent(question.answer, finding.answer)) {
+                                // Append with page marker
+                                question.answer += `\n\n**[Additional finding]** ${finding.answer}`;
+                                Logger.info(`✅ Appended new unique answer to question ${questionNum}`);
+                            } else {
+                                Logger.info(`⏭️  Skipped duplicate answer for question ${questionNum} (semantically similar)`);
+                            }
                         }
 
                         // Accumulate page numbers (avoid duplicates)
