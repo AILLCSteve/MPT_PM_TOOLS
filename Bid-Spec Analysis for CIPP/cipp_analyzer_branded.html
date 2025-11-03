@@ -1886,14 +1886,21 @@ ${text}
 
                 tableHTML += '</tbody></table>';
 
-                // Add footnotes if any
+                // Add footnotes if any (with better formatting)
                 if (footnotes.length > 0) {
                     tableHTML += `
                         <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
-                            <h4 style="margin-top: 0; color: #1E3A8A;">📝 Footnotes</h4>
-                            <ol style="margin: 10px 0; padding-left: 20px;">
-                                ${footnotes.map(f => `<li style="margin: 5px 0;">${f}</li>`).join('')}
+                            <h4 style="margin-top: 0; color: #1E3A8A;">📝 Footnotes (PDF Pages & Section References)</h4>
+                            <ol style="margin: 10px 0; padding-left: 20px; line-height: 1.8;">
+                                ${footnotes.map(f => {
+                                    // Ensure footnote text is properly formatted
+                                    // The AI should include both PDF page and section, but let's ensure it displays well
+                                    return `<li style="margin: 8px 0; color: #333;">${f}</li>`;
+                                }).join('')}
                             </ol>
+                            <p style="margin-top: 15px; font-size: 0.9em; color: #666; font-style: italic;">
+                                Note: Each footnote includes the PDF page number (&lt;PDF pg #&gt;) and contract section number where information was found.
+                            </p>
                         </div>
                     `;
                 }
