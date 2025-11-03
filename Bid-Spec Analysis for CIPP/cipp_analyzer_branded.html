@@ -1591,8 +1591,60 @@ ${text}
         class AnswerAccumulator {
             constructor() {
                 this.doc_review_glocom = [];  // Master list of all 105 questions
-                this.doc_footnotes = [];       // Accumulated footnotes
+                this.doc_footnotes = [];       // Accumulated footnotes (deduplicated)
                 this.initialized = false;
+            }
+
+            // Semantic similarity checker for footnotes
+            areFootnotesSimilar(footnote1, footnote2) {
+                if (!footnote1 || !footnote2) return false;
+                if (footnote1 === footnote2) return true;
+
+                // Normalize for comparison
+                const normalize = (text) => text
+                    .toLowerCase()
+                    .replace(/[<>]/g, '') // Remove angle brackets from <PDF pg #>
+                    .replace(/\s+/g, ' ') // Normalize whitespace
+                    .replace(/[.,;:!?]/g, '') // Remove punctuation
+                    .trim();
+
+                const norm1 = normalize(footnote1);
+                const norm2 = normalize(footnote2);
+
+                // Exact match after normalization
+                if (norm1 === norm2) return true;
+
+                // Check if one contains the other (substring match)
+                if (norm1.includes(norm2) || norm2.includes(norm1)) {
+                    return true;
+                }
+
+                // Word-set similarity: if they share 80%+ of words, consider similar
+                const words1 = new Set(norm1.split(' '));
+                const words2 = new Set(norm2.split(' '));
+
+                const intersection = new Set([...words1].filter(w => words2.has(w)));
+                const union = new Set([...words1, ...words2]);
+
+                const similarity = intersection.size / union.size;
+                return similarity >= 0.8; // 80% word overlap threshold
+            }
+
+            // Add footnote with deduplication
+            addFootnote(footnote) {
+                if (!footnote || footnote.trim() === '') return false;
+
+                // Check if semantically similar footnote already exists
+                for (const existing of this.doc_footnotes) {
+                    if (this.areFootnotesSimilar(existing, footnote)) {
+                        Logger.debug(`Skipping duplicate footnote: "${footnote.substring(0, 50)}..."`);
+                        return false; // Don't add duplicate
+                    }
+                }
+
+                // New unique footnote
+                this.doc_footnotes.push(footnote);
+                return true;
             }
 
             initialize(questionSections) {
@@ -1673,12 +1725,13 @@ ${text}
                             }
                         }
 
-                        // Add footnotes
+                        // Add footnotes with deduplication
                         if (finding.footnote) {
+                            // Always add to question-specific footnotes (per-question tracking)
                             question.footnotes.push(finding.footnote);
-                            if (!this.doc_footnotes.includes(finding.footnote)) {
-                                this.doc_footnotes.push(finding.footnote);
-                            }
+
+                            // Add to global footnotes only if unique (semantic deduplication)
+                            this.addFootnote(finding.footnote);
                         }
 
                         question.confidence = finding.confidence || "medium";
