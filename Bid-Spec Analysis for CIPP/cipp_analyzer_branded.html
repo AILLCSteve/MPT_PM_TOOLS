@@ -523,9 +523,72 @@
             <p>Professional bid specification analysis powered by AI</p>
         </div>
 
+        <!-- File Upload Section -->
+        <div class="section">
+            <h3>📄 Document Upload</h3>
+            <div class="file-upload" id="fileUpload" onclick="document.getElementById('fileInput').click()">
+                <input type="file" id="fileInput" style="display: none;" accept=".pdf,.txt,.docx,.rtf" onchange="handleFileSelect(event)">
+                <p><strong>Click to select file</strong> or drag and drop</p>
+                <p>Supported formats: PDF, TXT, DOCX, RTF</p>
+            </div>
+            <div id="fileInfo" style="margin-top: 10px; display: none;">
+                <p><strong>Selected file:</strong> <span id="fileName"></span></p>
+                <p><strong>Size:</strong> <span id="fileSize"></span></p>
+            </div>
+            <button class="btn btn-test" onclick="loadTestDocument()" style="margin-top: 10px;">📋 Load Test Document</button>
+        </div>
+
+        <!-- Question Management Section -->
+        <div class="section">
+            <h3>❓ Question Configuration</h3>
+            <div class="form-group">
+                <label>Question Sections (Click to enable/disable):</label>
+                <div id="questionSections" class="question-sections"></div>
+            </div>
+            <div class="form-group">
+                <label>Active Questions: <span id="activeQuestionCount">0</span> questions selected</label>
+            </div>
+            <button class="btn btn-secondary" onclick="showQuestionManager()">📝 Manage Questions</button>
+            <button class="btn btn-secondary" onclick="addQuestionSection()">➕ Add Custom Section</button>
+            <button class="btn btn-secondary" onclick="exportQuestions()">📤 Export Questions</button>
+            <button class="btn btn-secondary" onclick="showSettings()">⚙️ Settings</button>
+        </div>
+
+        <!-- Analysis Controls & Debug Tools -->
+        <div class="section">
+            <h3>🎯 Analysis Controls</h3>
+            <button class="btn" id="analyzeBtn" onclick="startAnalysis()" disabled>🚀 Start Analysis</button>
+            <button class="btn btn-danger" id="stopBtn" onclick="stopAnalysis()" disabled>⏹️ Stop Analysis</button>
+            <button class="btn btn-secondary" onclick="clearResults()">🗑️ Clear Results</button>
+            <div class="btn-group" style="display: inline-block; position: relative;">
+                <button class="btn btn-secondary" onclick="showExportMenu()" id="exportBtn" disabled>📊 Export Results ▼</button>
+                <div id="exportMenu" style="display: none; position: absolute; background: white; border: 2px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 200px; top: 100%; left: 0; margin-top: 5px;">
+                    <button onclick="exportResults('csv')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📄 CSV (Excel)</button>
+                    <button onclick="exportResults('markdown')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📝 Markdown Table</button>
+                    <button onclick="exportResults('html')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">🌐 HTML Report</button>
+                    <button onclick="exportResults('json')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer;">📋 JSON Data</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Collapsible Debug/Development Panel -->
         <div class="debug-panel">
-            <h3 style="text-align: center; color: #495057; margin-bottom: 20px;">🛠️ Debug & Development Tools</h3>
+            <h3 style="text-align: center; color: #495057; margin-bottom: 20px;">🛠️ Advanced Configuration & Debug Tools</h3>
+
+            <!-- Analysis Configuration (Collapsible) -->
+            <div class="debug-section">
+                <div class="debug-section-header collapsed" onclick="toggleDebugSection('analysisConfigSection')">
+                    <span>⚙️ Analysis Configuration</span>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div id="analysisConfigSection" class="debug-section-content">
+                    <div class="form-group">
+                        <label for="chunkSize">Characters per Analysis Chunk:</label>
+                        <input type="number" id="chunkSize" value="1500" min="500" max="2000">
+                        <small>Recommended: 1500 characters per chunk to stay within token limits</small>
+                    </div>
+                </div>
+            </div>
 
             <!-- PDF Service Status (Collapsible) -->
             <div class="debug-section">
@@ -571,59 +634,6 @@
                     <div class="log-container" id="logContainer" style="display: block; margin-top: 15px;">
                         <div id="logContent"></div>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- File Upload Section -->
-        <div class="section">
-            <h3>📄 Document Upload</h3>
-            <div class="file-upload" id="fileUpload" onclick="document.getElementById('fileInput').click()">
-                <input type="file" id="fileInput" style="display: none;" accept=".pdf,.txt,.docx,.rtf" onchange="handleFileSelect(event)">
-                <p><strong>Click to select file</strong> or drag and drop</p>
-                <p>Supported formats: PDF, TXT, DOCX, RTF</p>
-            </div>
-            <div id="fileInfo" style="margin-top: 10px; display: none;">
-                <p><strong>Selected file:</strong> <span id="fileName"></span></p>
-                <p><strong>Size:</strong> <span id="fileSize"></span></p>
-            </div>
-            <button class="btn btn-test" onclick="loadTestDocument()" style="margin-top: 10px;">📋 Load Test Document</button>
-        </div>
-
-        <!-- Question Management Section -->
-        <div class="section">
-            <h3>❓ Question Configuration</h3>
-            <div class="form-group">
-                <label>Question Sections (Click to enable/disable):</label>
-                <div id="questionSections" class="question-sections"></div>
-            </div>
-            <div class="form-group">
-                <label>Active Questions: <span id="activeQuestionCount">0</span> questions selected</label>
-            </div>
-            <button class="btn btn-secondary" onclick="showQuestionManager()">📝 Manage Questions</button>
-            <button class="btn btn-secondary" onclick="addQuestionSection()">➕ Add Custom Section</button>
-            <button class="btn btn-secondary" onclick="exportQuestions()">📤 Export Questions</button>
-            <button class="btn btn-secondary" onclick="showSettings()">⚙️ Settings</button>
-        </div>
-
-        <!-- Analysis Controls -->
-        <div class="section">
-            <h3>🎯 Analysis Configuration</h3>
-            <div class="form-group">
-                <label for="chunkSize">Characters per Analysis Chunk:</label>
-                <input type="number" id="chunkSize" value="1500" min="500" max="2000">
-                <small>Recommended: 1500 characters per chunk to stay within token limits (lowered due to GPT-4 constraints)</small>
-            </div>
-            <button class="btn" id="analyzeBtn" onclick="startAnalysis()" disabled>🚀 Start Analysis</button>
-            <button class="btn btn-danger" id="stopBtn" onclick="stopAnalysis()" disabled>⏹️ Stop Analysis</button>
-            <button class="btn btn-secondary" onclick="clearResults()">🗑️ Clear Results</button>
-            <div class="btn-group" style="display: inline-block; position: relative;">
-                <button class="btn btn-secondary" onclick="showExportMenu()" id="exportBtn" disabled>📊 Export Results ▼</button>
-                <div id="exportMenu" style="display: none; position: absolute; background: white; border: 2px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 200px; top: 100%; left: 0; margin-top: 5px;">
-                    <button onclick="exportResults('csv')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📄 CSV (Excel)</button>
-                    <button onclick="exportResults('markdown')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📝 Markdown Table</button>
-                    <button onclick="exportResults('html')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">🌐 HTML Report</button>
-                    <button onclick="exportResults('json')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer;">📋 JSON Data</button>
                 </div>
             </div>
         </div>
@@ -1263,14 +1273,17 @@ CRITICAL ANSWERING INSTRUCTIONS:
    - Medium: Indirect reference or inferred from related clause
    - Low: Partially addressed or requires clarification from engineer
 
-6. FOOTNOTE GUIDANCE:
-   - Always include PDF page number(s) where information was found
-   - Always include contract section numbers (e.g., Division 02, Section 02505, Part 3.2.1)
+6. FOOTNOTE GUIDANCE (CRITICAL - MUST FOLLOW EXACTLY):
+   - MANDATORY: Every footnote MUST start with "Found on <PDF pg #>"
+   - The PDF page number is REQUIRED - use the pdf_page value from your finding
+   - After PDF page, include contract section numbers (e.g., Division 02, Section 02505, Part 3.2.1)
    - Provide additional context that affects bidding decisions
    - Note cross-references to other specification sections
    - Flag ambiguities or items requiring clarification
    - Identify deviations from standard industry practice
-   - Format: "Found on <PDF pg #>, Section X.X.X: [additional context]"
+   - EXACT FORMAT REQUIRED: "Found on <PDF pg #>, Section X.X.X: [additional context]"
+   - EXAMPLE: "Found on <PDF pg 42>, Division 02, Section 02505: Liner thickness must be 6.5mm minimum per ASTM F1216."
+   - DO NOT omit the PDF page number - it is critical for contractor reference
 
 JSON OUTPUT STRUCTURE:
 Return a JSON object with exactly this structure. Include ALL ${allQuestions.length} questions in your response, even if not found on these pages.
@@ -3698,10 +3711,27 @@ IMPORTANT:
 - Maintain professional tone and technical accuracy
 - Return the minimal set of unique, informative footnotes`;
 
-                // Call OpenAI API for intelligent deduplication
-                const apiKey = app.settingsManager.get('apiKey');
-                if (!apiKey) {
-                    alert('API key not configured. Please configure in Settings.');
+                // Get API key from backend environment (same as main app)
+                let apiKey;
+                try {
+                    const keyResponse = await fetch('/api/config/apikey', {
+                        method: 'GET',
+                        signal: AbortSignal.timeout(5000)
+                    });
+
+                    if (!keyResponse.ok) {
+                        throw new Error('Failed to fetch API key from server');
+                    }
+
+                    const keyData = await keyResponse.json();
+                    if (!keyData.success || !keyData.key) {
+                        throw new Error('API key not configured in server environment');
+                    }
+
+                    apiKey = keyData.key;
+                } catch (keyError) {
+                    Logger.error(`Failed to get API key: ${keyError.message}`);
+                    alert('API key not configured. Please check server environment variables.');
                     return;
                 }
 
