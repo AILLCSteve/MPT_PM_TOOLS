@@ -2232,6 +2232,9 @@ ${text}
             addFootnote(footnote) {
                 if (!footnote || footnote.trim() === '') return false;
 
+                // DEBUG: Log what footnote we're adding to browser display
+                Logger.info(`📝 Adding footnote to browser display: "${footnote.substring(0, 100)}..."`);
+
                 // Check if semantically similar footnote already exists
                 for (const existing of this.doc_footnotes) {
                     if (this.areFootnotesSimilar(existing, footnote)) {
@@ -2242,6 +2245,7 @@ ${text}
 
                 // New unique footnote
                 this.doc_footnotes.push(footnote);
+                Logger.success(`✅ Footnote added to browser array (total: ${this.doc_footnotes.length})`);
                 return true;
             }
 
@@ -2350,6 +2354,7 @@ ${text}
                         // Add footnotes with deduplication and PDF page number injection
                         if (finding.footnote) {
                             let footnote = finding.footnote;
+                            const originalFootnote = footnote; // Store original for debugging
 
                             // CRITICAL FIX: Extract PDF page numbers from the answer text itself
                             // The answer contains <PDF pg #> markers - extract them for footnote injection
@@ -2371,6 +2376,9 @@ ${text}
                                     ? (Array.isArray(finding.pdf_page) ? finding.pdf_page : [finding.pdf_page])
                                     : []);
 
+                            Logger.debug(`📄 Footnote BEFORE injection: "${originalFootnote.substring(0, 80)}..."`);
+                            Logger.debug(`📄 Available pages for injection: [${availablePages.join(', ')}]`);
+
                             // Inject PDF page number into footnote if missing
                             if (footnote.includes("Found on,") || footnote.match(/Found on\s*,/i)) {
                                 // Footnote is missing the page number - inject it
@@ -2387,6 +2395,8 @@ ${text}
                                     Logger.info(`✅ Prepended PDF page ${pageNum} to footnote (from answer text)`);
                                 }
                             }
+
+                            Logger.debug(`📄 Footnote AFTER injection: "${footnote.substring(0, 80)}..."`);
 
                             // Always add to question-specific footnotes (per-question tracking)
                             question.footnotes.push(footnote);
