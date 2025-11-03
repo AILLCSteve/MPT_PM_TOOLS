@@ -881,10 +881,19 @@
             </div>
         </div>
 
-        <!-- CIPP Industry Dashboards Section -->
-        <div class="results-section" id="dashboardSection" style="display: none;">
-            <h3>📊 CIPP Industry Intelligence Dashboards</h3>
-            <p style="color: #fff; margin-bottom: 20px;">Visual insights extracted from your bid specification analysis</p>
+        <!-- Industry Intelligence Dashboard - Collapsible Container -->
+        <div style="text-align: center; margin: 30px 0;" id="dashboardButtonContainer" style="display: none;">
+            <button class="btn" onclick="toggleDashboardPanel()" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 15px 32px; font-size: 18px; font-weight: 600; border: none; box-shadow: 0 6px 20px rgba(17, 153, 142, 0.4); transition: all 0.3s ease;">
+                <span id="dashboardToggleIcon">📊</span> <span id="dashboardToggleText">Show Industry Intelligence Dashboards</span>
+            </button>
+            <p style="color: #6c757d; margin-top: 10px; font-size: 14px;">Interactive visualizations of your bid specification analysis</p>
+        </div>
+
+        <div class="results-section" id="dashboardSection" style="display: none; padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h2 style="color: #fff; font-size: 2em; margin-bottom: 10px;">📊 CIPP Industry Intelligence Dashboards</h2>
+                <p style="color: rgba(255,255,255,0.9); font-size: 1.1em;">Visual insights extracted from your bid specification analysis</p>
+            </div>
 
             <!-- Dashboard Grid -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 20px; margin-top: 20px;">
@@ -3883,33 +3892,33 @@ ${text}
 
             renderDashboards() {
                 try {
-                    Logger.info("🎨 Starting dashboard rendering...");
+                    Logger.info("🎨 Starting dashboard rendering (live update mode)...");
 
-                    // Display dashboard section
-                    const dashboardSection = document.getElementById('dashboardSection');
-                    if (!dashboardSection) {
-                        Logger.error("Dashboard section element not found in DOM");
-                        return;
+                    // Show the dashboard button
+                    const buttonContainer = document.getElementById('dashboardButtonContainer');
+                    if (buttonContainer) {
+                        buttonContainer.style.display = 'block';
                     }
-                    dashboardSection.style.display = 'block';
-                    Logger.info("✅ Dashboard section displayed");
 
                     // Extract data from analysis results
                     const questions = this.answerAccumulator?.doc_review_glocom || [];
                     Logger.info(`📊 Questions available for dashboards: ${questions.length}`);
 
-                    if (questions.length === 0) {
-                        Logger.warning("No data available for dashboards");
+                    // Check if Chart.js is available
+                    if (typeof Chart === 'undefined') {
+                        Logger.error("❌ Chart.js library not loaded!");
                         return;
+                    } else {
+                        Logger.info("✅ Chart.js detected - version: " + Chart.version);
                     }
 
-                    // Render each dashboard with individual error handling
+                    // Render each dashboard (empty if no data, live updates as data arrives)
                     try {
-                        Logger.info("Rendering Risk Assessment Matrix...");
                         this.renderRiskAssessmentMatrix(questions);
                         Logger.success("✅ Risk Assessment Matrix rendered");
                     } catch (error) {
                         Logger.error(`❌ Risk Assessment Matrix failed: ${error.message}`);
+                        console.error(error);
                     }
 
                     try {
@@ -3918,6 +3927,7 @@ ${text}
                         Logger.success("✅ Cost Driver Breakdown rendered");
                     } catch (error) {
                         Logger.error(`❌ Cost Driver Breakdown failed: ${error.message}`);
+                        console.error(error);
                     }
 
                     try {
@@ -3926,6 +3936,7 @@ ${text}
                         Logger.success("✅ Compliance Scorecard rendered");
                     } catch (error) {
                         Logger.error(`❌ Compliance Scorecard failed: ${error.message}`);
+                        console.error(error);
                     }
 
                     try {
@@ -3934,6 +3945,7 @@ ${text}
                         Logger.success("✅ Timeline & Milestones rendered");
                     } catch (error) {
                         Logger.error(`❌ Timeline & Milestones failed: ${error.message}`);
+                        console.error(error);
                     }
 
                     try {
@@ -3942,9 +3954,11 @@ ${text}
                         Logger.success("✅ Competitiveness Gauge rendered");
                     } catch (error) {
                         Logger.error(`❌ Competitiveness Gauge failed: ${error.message}`);
+                        console.error(error);
                     }
 
-                    Logger.success("📊 Dashboard rendering complete");
+                    const answeredCount = questions.filter(q => q.answer !== "Not yet found").length;
+                    Logger.success(`📊 All 5 dashboards rendered (${answeredCount}/${questions.length} questions analyzed)`);
                 } catch (error) {
                     Logger.error(`❌ Dashboard rendering failed completely: ${error.message}`);
                     console.error("Dashboard error stack:", error.stack);
@@ -5579,6 +5593,30 @@ ${text}
                 icon.textContent = '🛠️';
                 text.textContent = 'Show Debug Tools';
                 Logger.info('🛠️ Debug tools closed');
+            }
+        }
+
+        // Dashboard Panel Toggle Function
+        function toggleDashboardPanel() {
+            const panel = document.getElementById('dashboardSection');
+            const icon = document.getElementById('dashboardToggleIcon');
+            const text = document.getElementById('dashboardToggleText');
+
+            if (panel.style.display === 'none' || !panel.style.display) {
+                // Show dashboard panel
+                panel.style.display = 'block';
+                icon.textContent = '📈';
+                text.textContent = 'Hide Industry Intelligence Dashboards';
+                Logger.success('📊 Dashboards opened - Charts rendering...');
+
+                // Scroll dashboard into view smoothly
+                panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                // Hide dashboard panel
+                panel.style.display = 'none';
+                icon.textContent = '📊';
+                text.textContent = 'Show Industry Intelligence Dashboards';
+                Logger.info('📊 Dashboards closed');
             }
         }
 
