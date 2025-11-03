@@ -869,48 +869,8 @@
             <div class="progress-text" id="progressText">Ready</div>
         </div>
 
-        <!-- Industry Dashboard Section -->
-        <div class="dashboard-container" id="dashboardContainer">
-            <div class="dashboard-header">
-                <h2>📊 Bid Intelligence Dashboard</h2>
-                <p>Real-time insights for competitive CIPP bidding and risk management</p>
-            </div>
-
-            <div class="dashboard-grid">
-                <!-- Dashboard 1: Risk Assessment Matrix -->
-                <div class="dashboard-panel">
-                    <h3>🎯 Risk Assessment Matrix</h3>
-                    <canvas id="riskMatrixChart"></canvas>
-                </div>
-
-                <!-- Dashboard 2: Cost Driver Breakdown -->
-                <div class="dashboard-panel">
-                    <h3>💰 Cost Driver Breakdown</h3>
-                    <canvas id="costDriverChart"></canvas>
-                </div>
-
-                <!-- Dashboard 3: Compliance Scorecard -->
-                <div class="dashboard-panel">
-                    <h3>✅ Compliance Scorecard</h3>
-                    <canvas id="complianceChart"></canvas>
-                </div>
-
-                <!-- Dashboard 4: Timeline & Milestones -->
-                <div class="dashboard-panel">
-                    <h3>📅 Timeline & Milestones</h3>
-                    <div id="timelineMetrics"></div>
-                </div>
-
-                <!-- Dashboard 5: Bid Competitiveness Gauge (Full Width) -->
-                <div class="dashboard-panel dashboard-full-width">
-                    <h3>🏆 Bid Readiness Score</h3>
-                    <div style="display: flex; align-items: center; gap: 30px;">
-                        <canvas id="readinessGaugeChart" style="max-width: 300px; max-height: 200px;"></canvas>
-                        <div id="readinessMetrics" style="flex: 1;"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Legacy Dashboard Section REMOVED - Replaced by dashboardSection below (lines 924-980) -->
+        <!-- REASON: Duplicate canvas IDs caused Chart.js render conflicts -->
 
         <!-- Live Results Section -->
         <div class="results-section" id="resultsSection" style="display: none;">
@@ -2324,14 +2284,31 @@ ${text}
                         }
 
                         // Accumulate page numbers (avoid duplicates)
-                        if (finding.pdf_page) {
-                            const pages = Array.isArray(finding.pdf_page) ? finding.pdf_page : [finding.pdf_page];
-                            pages.forEach(page => {
-                                if (!question.pdf_pages.includes(page)) {
-                                    question.pdf_pages.push(page);
-                                }
-                            });
+                        // ENHANCED: Extract page numbers from answer text (<PDF pg #> markers)
+                        const pagesFromAnswer = [];
+                        if (finding.answer) {
+                            const pageMatches = finding.answer.match(/<PDF pg (\d+)>/gi);
+                            if (pageMatches) {
+                                pageMatches.forEach(match => {
+                                    const num = match.match(/\d+/);
+                                    if (num) pagesFromAnswer.push(parseInt(num[0]));
+                                });
+                            }
                         }
+
+                        // Combine pages from answer text and explicit pdf_page field
+                        const allPages = [...pagesFromAnswer];
+                        if (finding.pdf_page) {
+                            const explicitPages = Array.isArray(finding.pdf_page) ? finding.pdf_page : [finding.pdf_page];
+                            allPages.push(...explicitPages);
+                        }
+
+                        // Add unique page numbers to question
+                        allPages.forEach(page => {
+                            if (!question.pdf_pages.includes(page)) {
+                                question.pdf_pages.push(page);
+                            }
+                        });
 
                         // Accumulate citations
                         if (finding.citation || finding.inline_citation) {
@@ -2345,20 +2322,41 @@ ${text}
                         if (finding.footnote) {
                             let footnote = finding.footnote;
 
-                            // CRITICAL FIX: Ensure footnote has PDF page number
-                            // If footnote starts with "Found on," but has no actual page number, inject it
-                            if (footnote.includes("Found on,") || footnote.match(/Found on\s*,/i)) {
-                                // Footnote is missing the page number - inject it from pdf_page
-                                if (finding.pdf_page) {
-                                    const pageNum = Array.isArray(finding.pdf_page) ? finding.pdf_page[0] : finding.pdf_page;
-                                    footnote = footnote.replace(/Found on\s*,/i, `Found on <PDF pg ${pageNum}>,`);
-                                    Logger.info(`✅ Injected PDF page ${pageNum} into footnote`);
+                            // CRITICAL FIX: Extract PDF page numbers from the answer text itself
+                            // The answer contains <PDF pg #> markers - extract them for footnote injection
+                            let pageNumbersFromAnswer = [];
+                            if (finding.answer) {
+                                const pageMatches = finding.answer.match(/<PDF pg (\d+)>/gi);
+                                if (pageMatches) {
+                                    pageNumbersFromAnswer = pageMatches.map(match => {
+                                        const num = match.match(/\d+/);
+                                        return num ? parseInt(num[0]) : null;
+                                    }).filter(n => n !== null);
                                 }
-                            } else if (!footnote.match(/Found on <PDF pg \d+>/i) && finding.pdf_page) {
-                                // Footnote doesn't start with "Found on" at all - prepend it
-                                const pageNum = Array.isArray(finding.pdf_page) ? finding.pdf_page[0] : finding.pdf_page;
-                                footnote = `Found on <PDF pg ${pageNum}>: ${footnote}`;
-                                Logger.info(`✅ Prepended PDF page ${pageNum} to footnote`);
+                            }
+
+                            // Use page numbers from answer text, fallback to finding.pdf_page
+                            const availablePages = pageNumbersFromAnswer.length > 0
+                                ? pageNumbersFromAnswer
+                                : (finding.pdf_page
+                                    ? (Array.isArray(finding.pdf_page) ? finding.pdf_page : [finding.pdf_page])
+                                    : []);
+
+                            // Inject PDF page number into footnote if missing
+                            if (footnote.includes("Found on,") || footnote.match(/Found on\s*,/i)) {
+                                // Footnote is missing the page number - inject it
+                                if (availablePages.length > 0) {
+                                    const pageNum = availablePages[0];
+                                    footnote = footnote.replace(/Found on\s*,/i, `Found on <PDF pg ${pageNum}>,`);
+                                    Logger.info(`✅ Injected PDF page ${pageNum} into footnote (from answer text)`);
+                                }
+                            } else if (!footnote.match(/Found on <PDF pg \d+>/i)) {
+                                // Footnote doesn't have "Found on <PDF pg #>" format - add it
+                                if (availablePages.length > 0) {
+                                    const pageNum = availablePages[0];
+                                    footnote = `Found on <PDF pg ${pageNum}>: ${footnote}`;
+                                    Logger.info(`✅ Prepended PDF page ${pageNum} to footnote (from answer text)`);
+                                }
                             }
 
                             // Always add to question-specific footnotes (per-question tracking)
@@ -3033,6 +3031,15 @@ ${text}
                 this.unitaryLogCompiler = new UnitaryLogCompiler(); // Layer 4
                 this.pdfPages = [];  // Store PDF pages with numbers (Layer 1 output)
                 this.currentPageIndex = 0;
+
+                // Chart.js instance tracking for proper cleanup
+                this.activeCharts = {
+                    riskMatrix: null,
+                    costDriver: null,
+                    compliance: null,
+                    timeline: null,
+                    competitiveness: null
+                };
 
                 this.initializeEventListeners();
                 this.loadDefaultQuestions();
@@ -3951,7 +3958,12 @@ ${text}
                 const ctx = document.getElementById('riskMatrixChart');
                 if (!ctx) return;
 
-                new Chart(ctx, {
+                // Destroy existing chart if it exists
+                if (this.activeCharts.riskMatrix) {
+                    this.activeCharts.riskMatrix.destroy();
+                }
+
+                this.activeCharts.riskMatrix = new Chart(ctx, {
                     type: 'bubble',
                     data: {
                         datasets: [{
@@ -4029,7 +4041,12 @@ ${text}
                 const ctx = document.getElementById('costDriverChart');
                 if (!ctx) return;
 
-                new Chart(ctx, {
+                // Destroy existing chart if it exists
+                if (this.activeCharts.costDriver) {
+                    this.activeCharts.costDriver.destroy();
+                }
+
+                this.activeCharts.costDriver = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
                         labels: costData.labels,
@@ -4078,7 +4095,12 @@ ${text}
                 const ctx = document.getElementById('complianceChart');
                 if (!ctx) return;
 
-                new Chart(ctx, {
+                // Destroy existing chart if it exists
+                if (this.activeCharts.compliance) {
+                    this.activeCharts.compliance.destroy();
+                }
+
+                this.activeCharts.compliance = new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: complianceData.categories,
@@ -4141,7 +4163,12 @@ ${text}
                 const ctx = document.getElementById('timelineChart');
                 if (!ctx) return;
 
-                new Chart(ctx, {
+                // Destroy existing chart if it exists
+                if (this.activeCharts.timeline) {
+                    this.activeCharts.timeline.destroy();
+                }
+
+                this.activeCharts.timeline = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: timelineData.milestones,
@@ -4201,7 +4228,12 @@ ${text}
                 const ctx = document.getElementById('competitivenessGauge');
                 if (!ctx) return;
 
-                new Chart(ctx, {
+                // Destroy existing chart if it exists
+                if (this.activeCharts.competitiveness) {
+                    this.activeCharts.competitiveness.destroy();
+                }
+
+                this.activeCharts.competitiveness = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
                         datasets: [{
@@ -4316,11 +4348,12 @@ ${text}
                 const scores = categories.map(() => Math.floor(Math.random() * 20) + 75); // 75-95% range
 
                 // Adjust based on actual question coverage
-                const complianceQuestions = questions.filter(q =>
-                    q.section.toLowerCase().includes('specification') ||
-                    q.section.toLowerCase().includes('standard') ||
-                    q.section.toLowerCase().includes('requirement')
-                );
+                const complianceQuestions = questions.filter(q => {
+                    const section = (q.section_header || q.section || '').toLowerCase();
+                    return section.includes('specification') ||
+                           section.includes('standard') ||
+                           section.includes('requirement');
+                });
 
                 // Higher score if more compliance questions answered
                 if (complianceQuestions.length > 10) {
@@ -4355,7 +4388,7 @@ ${text}
                 let score = 50; // Base score
 
                 // Add points for thoroughness
-                const sectionsAnalyzed = new Set(questions.map(q => q.section)).size;
+                const sectionsAnalyzed = new Set(questions.map(q => q.section_header || 'Uncategorized')).size;
                 score += Math.min(20, sectionsAnalyzed * 2);
 
                 // Add points for high-confidence answers
