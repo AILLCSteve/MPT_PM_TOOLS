@@ -1073,7 +1073,7 @@
         // Settings Manager
         class SettingsManager {
             constructor() {
-                this.SETTINGS_VERSION = 2; // Increment when breaking changes made
+                this.SETTINGS_VERSION = 3; // v3: Increased max_tokens to 85K for comprehensive analysis
                 this.defaultSettings = {
                     version: this.SETTINGS_VERSION,
                     apiKey: '', // User must provide their own OpenAI API key
@@ -1082,7 +1082,7 @@
                     analysisTimeout: 60,
                     autoRetry: true,
                     rateLimitDelay: 2000,
-                    maxTokensPerRequest: 3000 // Reduced from 6000
+                    maxTokensPerRequest: 85000 // Increased from 3000 to support 100-question analysis
                 };
                 this.settings = { ...this.defaultSettings };
                 this.loadSettings();
