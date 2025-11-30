@@ -26,11 +26,11 @@ from .layers import (
     DocumentIngestionLayer,
     ConfigurationLoader,
     ExpertPersonaGenerator,
-    MultiExpertProcessor,
-    SmartAccumulator,
-    TokenBudgetManager,
-    OutputCompiler
+    TokenBudgetManager
 )
+from .multi_expert_processor import MultiExpertProcessor
+from .smart_accumulator import SmartAccumulator
+from .output_compiler import OutputCompiler
 
 __all__ = [
     'HotdogOrchestrator',
