@@ -1,482 +1,716 @@
-# Claude Code Development Guide
+Here’s the fully expanded version, tuned as a **training-grade markdown prompt file** for an LLM (Claude, GPT, etc.). It:
 
-## Purpose & Philosophy
+* Spells out **every acronym**
+* Explains **every referenced principle in depth** (with researched backing) ([Wikipedia][1])
+* Uses a **“chain-of-thought style pattern”** for teaching: *not* leaking hidden system reasoning, but giving explicit, stepwise reasoning instructions the model should follow.
+* Gives **three reinforcing passes** (“iterations”) for each principle:
 
-This guide establishes sound coding practices for reviewing, refactoring, and evolving existing codebases. It balances **proven engineering principles** with **creative problem-solving** and **experimental innovation**. When working on existing programs, prioritize understanding before changing, and always consider both immediate improvements and long-term maintainability.
+  1. Conceptual definition
+  2. Anti-pattern → refactor
+  3. How to apply it as an LLM when generating / reviewing code
+* Includes **concrete code snippets + prompt templates** wired to your NEXUS V3.5 / multi-agent context.
 
-**Core Values:**
-- Clarity over cleverness
-- Simplicity over complexity
-- Adaptability over rigidity
-- Collaboration over isolation
-- Experimentation within structure
-
----
-
-## I. SOLID Principles
-
-The SOLID principles form the foundation of maintainable object-oriented design. Apply these when refactoring classes and interfaces.
-
-### Single Responsibility Principle (SRP)
-**A class should have only one reason to change.**
-
-- Each class should focus on a single concern or responsibility
-- If you can describe a class's purpose with "and" or "or", it likely violates SRP
-- Separate data access, business logic, and presentation concerns
-- High cohesion within modules leads to easier testing and maintenance
-
-**When reviewing:** Look for classes doing multiple unrelated things. Extract responsibilities into focused, purpose-driven classes.
-
-### Open/Closed Principle (OCP)
-**Software entities should be open for extension but closed for modification.**
-
-- Design systems that can grow through extension rather than modification
-- Use abstraction (interfaces, abstract classes) to enable new behavior
-- Protect stable code from changes when adding features
-- Leverage composition and dependency injection
-
-**When reviewing:** If adding features requires modifying existing stable code, consider introducing abstractions or extension points.
-
-### Liskov Substitution Principle (LSP)
-**Subtypes must be substitutable for their base types without altering program correctness.**
-
-- Derived classes should honor the contract established by base classes
-- Don't strengthen preconditions or weaken postconditions in subclasses
-- Avoid surprising behavior in inheritance hierarchies
-- If a subtype can't properly replace its parent, reconsider the inheritance
-
-**When reviewing:** Check if polymorphic code would break with different subtype implementations. Ensure derived classes don't violate base class contracts.
-
-### Interface Segregation Principle (ISP)
-**Clients should not be forced to depend on interfaces they don't use.**
-
-- Create focused, client-specific interfaces rather than large, general-purpose ones
-- Many small interfaces are better than one large interface
-- Reduces coupling and makes systems more flexible
-- Prevents "fat interfaces" that burden implementers with unused methods
-
-**When reviewing:** Look for interfaces forcing implementations to define methods they don't need. Split into smaller, more cohesive interfaces.
-
-### Dependency Inversion Principle (DIP)
-**High-level modules should not depend on low-level modules. Both should depend on abstractions.**
-
-- Depend on interfaces/abstractions, not concrete implementations
-- Reduces coupling between components
-- Enables easier testing through dependency injection
-- Facilitates swapping implementations without changing consumers
-
-**When reviewing:** Check if high-level logic directly instantiates or depends on low-level details. Introduce abstractions to invert the dependency.
+You can drop this in as `CLAUDE.md` for your Rotary app / NEXUS stack.
 
 ---
 
-## II. Fundamental Code Quality Principles
+# CLAUDE.md — Deep Pragmatic Engineering + NEXUS V3.5 Ideology (Training Edition)
 
-### DRY (Don't Repeat Yourself)
-**Every piece of knowledge must have a single, unambiguous, authoritative representation.**
+You are an AI assistant working inside a production system (e.g. Rotary Network / NEXUS V3.5).
+This file is your **operating manual** for writing, reviewing, and reasoning about code and AI-driven architecture.
 
-- Duplication isn't just about identical code—it's about duplicated intent
-- When the same knowledge exists in multiple places, changes require multiple updates
-- Extract common patterns into reusable functions, classes, or modules
-- Use abstraction to eliminate redundancy while maintaining clarity
-
-**Application:**
-- Identify duplicated business logic and centralize it
-- Create utility functions for repeated operations
-- Use configuration over hard-coded values
-- Balance DRY with readability—abstraction should clarify, not obscure
-
-**When reviewing:** If you see similar code in multiple locations, ask: "Is this the same knowledge?" If yes, consolidate. If no, similar code serving different purposes may be acceptable.
-
-### KISS (Keep It Simple, Stupid)
-**Simplicity should be a key goal in design; unnecessary complexity should be avoided.**
-
-- Simple solutions are easier to understand, test, and maintain
-- Avoid over-engineering and premature optimization
-- Straightforward code is less prone to bugs than clever code
-- Use the simplest approach that solves the problem effectively
-
-**Application:**
-- Choose clarity over cleverness in implementation
-- Avoid unnecessary abstractions and patterns
-- Write code as if the next person to maintain it knows less than you
-- Refactor complex logic into smaller, understandable pieces
-
-**Important:** Simple ≠ Easy. Simple means few moving parts and low complexity. Achieving simplicity often requires significant thought and effort.
-
-**When reviewing:** If you can't explain how code works in 30 seconds, it may be too complex. Simplify logic, improve naming, or add clarifying comments.
-
-### YAGNI (You Aren't Gonna Need It)
-**Don't implement functionality until it's actually needed.**
-
-- Avoid building features "just in case" or for hypothetical future needs
-- Focus on current requirements and iterate based on real needs
-- Reduces code complexity and maintenance burden
-- Supports agile, iterative development
-
-**Application:**
-- Implement only what's required for current user stories/tasks
-- Resist the temptation to add "nice to have" features
-- Trust that you can add functionality later when truly needed
-- Keep the codebase lean and focused
-
-**When reviewing:** Question any code that isn't serving a current, concrete need. If it's speculative, consider removing it until it's actually required.
+Read this as binding instructions.
 
 ---
 
-## III. Clean Code Principles (Robert C. Martin)
+## 1) North Stars (Guiding Mindset)
 
-Clean Code emphasizes craftsmanship—writing code that reads like well-written prose and clearly communicates intent.
+### 1.1 Clarity Over Cleverness
 
-### Meaningful Names
-**Names should reveal intent without requiring additional explanation.**
+**Definition**
 
-- Use intention-revealing names: `getUserAccountBalance()` not `getData()`
-- Make names searchable: `DAYS_PER_WEEK` not `7`
-- Avoid mental mapping: explicit names beat abbreviations
-- Use problem-domain or solution-domain terminology consistently
-- Classes should be nouns; methods should be verbs
+* Prefer code and explanations that a careful mid-level engineer can understand at a glance.
+* Avoid clever abstractions that obscure intent.
 
-### Functions
-**Functions should be small and do one thing well.**
+**Iteration 1 — Concept**
 
-- Functions should do one thing at one level of abstraction
-- Keep functions short—ideally under 20 lines, definitely under 50
-- Extract complex logic into well-named helper functions
-- Minimize function arguments (0-2 ideal, 3 acceptable, 4+ requires refactoring)
-- Avoid side effects—functions should not surprise the caller
-- Command-Query Separation: functions either change state OR return information, not both
+* If a function name + body require mental gymnastics to decode, it is **too clever**.
+* Clarity makes debugging, collaboration, and AI assistance dramatically easier.
 
-### Comments
-**Good code mostly documents itself; comments explain the "why," not the "what."**
+**Iteration 2 — Code Example**
 
-- Prefer expressive code over explanatory comments
-- Use comments to explain intent, rationale, or consequences
-- Avoid obvious comments that just restate code
-- Remove commented-out code (version control preserves history)
-- TODOs are acceptable but should be tracked and resolved
+❌ **Bad (clever, cryptic)**
 
-### Error Handling
-**Use exceptions rather than return codes; provide meaningful context.**
+```ts
+const f = (a,b,c) => x(a) ? y(b) : z(c);
+```
 
-- Use exceptions for exceptional conditions
-- Write try-catch-finally blocks first when handling errors
-- Provide context with exceptions (what failed and why)
-- Don't return or pass null—use Optional/Maybe or empty collections
-- Define exception classes based on caller needs, not implementation details
+✅ **Good (clear, intention-revealing)**
 
-### Formatting
-**Consistent formatting aids readability and reduces cognitive load.**
+```ts
+function pickBestMatchScore(candidate: CandidatePair): number {
+  const hasStrongMutualFit = scoreMutualFit(candidate) > 0.8;
+  return hasStrongMutualFit
+    ? scoreHighConviction(candidate)
+    : scoreExploratory(candidate);
+}
+```
 
-- Vertical formatting: related concepts close together, blank lines separate sections
-- Keep files focused and reasonably sized
-- Horizontal formatting: avoid long lines, use whitespace for clarity
-- Team should agree on and enforce formatting rules (use automated formatters)
+**Iteration 3 — LLM Chain-of-Thought Prompt**
 
-### Objects and Data Structures
-**Hide internal structure; expose operations.**
+> When generating or refactoring code:
+>
+> 1. Identify the **intent** in plain English.
+> 2. Choose names that say that intent directly.
+> 3. Expand one-liners into readable conditionals if it improves comprehension.
 
-- Objects hide data and expose operations (methods)
-- Data structures expose data and have minimal operations
-- Avoid hybrid structures that are neither clear objects nor clear data structures
-- The Law of Demeter: objects should only talk to immediate friends, not strangers
-  - `object.getA().getB().doSomething()` violates this (train wreck)
-  - Better: `object.doSomething()` (tell, don't ask)
-
-### Testing
-**Tests are as important as production code.**
-
-- Write tests first when possible (TDD: Test-Driven Development)
-- Tests should be F.I.R.S.T.:
-  - **Fast**: Run quickly
-  - **Independent**: No interdependencies between tests
-  - **Repeatable**: Same result every time
-  - **Self-validating**: Pass or fail, no manual checking
-  - **Timely**: Written just before production code
-- One assert per test concept (not necessarily one assert call)
-- Clean tests follow the same principles as clean code
+Always choose the version a human can safely change at 2am without breaking everything.
 
 ---
 
-## IV. Domain-Driven Design (DDD) Principles
+### 1.2 Accuracy Before Speed
 
-DDD provides patterns for modeling complex business domains and keeping code aligned with business reality. Particularly valuable when working on business-critical or domain-heavy applications.
+**Definition**
 
-### Ubiquitous Language
-**Create a shared language between developers and domain experts.**
+* Prioritize **correctness, verifiability, and evidence** before micro-optimizing latency.
 
-- Use business terminology in code (classes, methods, variables)
-- The code should read like the business speaks
-- Avoid technical jargon in domain models
-- When the language evolves, refactor code to match
-- Continuously refine the model through conversation with domain experts
+**Iterations**
 
-### Model-Driven Design
-**The code IS the model; the model IS the code.**
+1. First ensure algorithm, data handling, and edge cases are right.
+2. Only then use caching, batching, parallelism, or early-exit for speed.
+3. When forced to trade off, degrade **gracefully** (partial, clearly labeled results; no fake answers).
 
-- Domain model should drive the software design
-- Changes to the model should directly translate to code changes
-- Keep the model and implementation tightly synchronized
-- Use domain objects to encapsulate business logic
-- Iterate on the model as you gain deeper domain insight
+**LLM Prompt Pattern**
 
-### Building Blocks
-
-#### Entities
-- Objects with a distinct identity that persists over time
-- Identity matters more than attributes
-- Examples: User, Order, Product
-- Implement equals/hashCode based on ID, not attributes
-
-#### Value Objects
-- Objects defined by their attributes, not identity
-- Immutable by design
-- Examples: Money, DateRange, Address
-- No concept of "same instance"—equality based on values
-
-#### Aggregates
-- Cluster of entities and value objects treated as a unit
-- One entity is the aggregate root; external references only through the root
-- Enforce invariants and business rules within the aggregate
-- Aggregate boundaries define transactional consistency boundaries
-
-#### Services
-- Operations that don't naturally belong to entities or value objects
-- Stateless operations that represent domain activities
-- Named using verbs from the ubiquitous language
-- Examples: PaymentProcessor, ShippingCalculator
-
-#### Repositories
-- Provide collection-like access to aggregates
-- Abstract away data access concerns from domain logic
-- Query and retrieve aggregates by identity or criteria
-- Only repositories for aggregate roots
-
-#### Factories
-- Encapsulate complex creation logic for entities and aggregates
-- Ensure objects are created in valid states
-- Use when construction requires significant logic or invariant enforcement
-
-### Strategic Design
-
-#### Bounded Contexts
-- Explicit boundaries within which a model applies
-- Different contexts may have different models for the same concept
-- Reduces complexity by limiting model scope
-- Clear boundaries enable teams to work independently
-
-#### Context Mapping
-- Define relationships between bounded contexts
-- Patterns: Partnership, Shared Kernel, Customer/Supplier, Conformist, Anti-Corruption Layer
-- Makes integration points and translation needs explicit
-
-### DDD and Refactoring
-**Refactor toward deeper insight as you learn more about the domain.**
-
-- Domain understanding evolves throughout the project
-- Refactor not just code structure, but the model itself
-- Breakthrough insights often come late in development
-- Continuous refactoring keeps the model aligned with reality
+> Before optimizing:
+>
+> * Summarize what is being computed.
+> * List possible failure modes (wrong data, partial data, stale cache).
+> * Ensure each is handled or explicitly left as a TODO with clear labeling.
 
 ---
 
-## V. Balancing Principles: Pragmatism & Creativity
+### 1.3 Small Surfaces, Strong Contracts
 
-### When Principles Conflict
-Coding principles are guidelines, not absolute laws. They sometimes conflict, and judgment is required.
+**Definition**
 
-**Common Tensions:**
-- **DRY vs. KISS**: Excessive abstraction can make code complex. Sometimes small duplication is clearer.
-- **YAGNI vs. OCP**: Designing for extension can feel speculative. Balance current needs with reasonable extensibility.
-- **Clean Code vs. Performance**: Readable code is usually fast enough. Optimize only when profiling reveals actual bottlenecks.
+* “Surface” = public API of modules/functions.
+* Small surfaces: fewer, simpler entry points.
+* Strong contracts: explicit types, schemas, invariants.
 
-**Resolution Strategy:**
-1. Understand the trade-offs involved
-2. Prioritize based on the specific context
-3. Document decisions when deviating from principles
-4. Revisit decisions as circumstances change
+**LLM Behavior**
 
-### Encouraging Creativity & Experimentation
-
-**Refactoring as Creative Problem-Solving:**
-- View legacy code as a puzzle to solve, not a burden to carry
-- Explore multiple solutions before committing to one
-- Use small, reversible experiments to test approaches
-- Celebrate elegant solutions that simplify complex problems
-
-**Safe Experimentation:**
-- Use feature flags to deploy experimental code safely
-- Create spike branches to explore risky changes
-- Write tests before refactoring to ensure behavior preservation
-- Pair program to combine creative exploration with critical review
-
-**Innovation Within Structure:**
-- Principles provide guardrails, not cages
-- Feel free to break rules when you understand why they exist
-- Document intentional deviations with rationale
-- Share learnings with the team to evolve collective understanding
+> When designing or editing:
+>
+> * Prefer a small number of well-typed functions over many ad-hoc ones.
+> * Always define the input/output schema for cross-agent calls.
 
 ---
 
-## VI. Practical Application: Code Review Checklist
+### 1.4 Observable From Day 1
 
-When reviewing or refactoring existing code, use this systematic approach:
+**Definition**
 
-### Architecture & Design
-- [ ] Does the code follow SOLID principles appropriately?
-- [ ] Are concerns properly separated (domain, UI, data access)?
-- [ ] Is the dependency direction correct (high-level → abstractions ← low-level)?
-- [ ] Are bounded contexts and module boundaries clear?
+* Build **logging, tracing, and metrics** into the design, not as an afterthought.
 
-### Code Quality
-- [ ] Are names meaningful and intention-revealing?
-- [ ] Are functions small and focused on doing one thing?
-- [ ] Is duplication eliminated without sacrificing clarity (DRY)?
-- [ ] Is the code as simple as possible (KISS)?
-- [ ] Does the code serve current needs without speculation (YAGNI)?
+**LLM Behavior**
 
-### Domain Modeling (if applicable)
-- [ ] Does code use ubiquitous language from the business domain?
-- [ ] Are entities, value objects, and aggregates properly distinguished?
-- [ ] Are invariants and business rules enforced?
-- [ ] Is the domain logic isolated from infrastructure concerns?
+> For every new component:
+>
+> 1. How will we know it’s working?
+> 2. How will we see when it’s slow or failing?
+> 3. What minimal logs/metrics/traces should be added?
 
-### Maintainability
-- [ ] Can someone unfamiliar with the code understand it quickly?
-- [ ] Are error conditions handled gracefully with meaningful messages?
-- [ ] Is the code testable with clear, independent tests?
-- [ ] Are dependencies injected rather than hard-coded?
-
-### Performance & Scalability
-- [ ] Are there obvious performance issues or bottlenecks?
-- [ ] Is data fetched efficiently (avoiding N+1 queries, etc.)?
-- [ ] Are resources (connections, files, memory) properly managed?
+If we can’t see it, we can’t fix it.
 
 ---
 
-## VII. Working with Legacy Code
+## 2) Core Codecraft — Principles Explained in Depth
 
-When revising programs already in development, follow these strategies:
-
-### Understanding Before Changing
-1. **Read the code** as you would read a book—understand the narrative
-2. **Map dependencies** to see how components interact
-3. **Identify seams** where changes can be made safely
-4. **Write characterization tests** to capture current behavior
-
-### Incremental Improvement
-- **The Boy Scout Rule**: Leave code cleaner than you found it
-- Make small, focused changes rather than massive rewrites
-- Refactor in small steps with tests confirming each step
-- Prioritize high-value, high-impact improvements
-
-### Dealing with Technical Debt
-- **Acknowledge debt explicitly** rather than ignoring it
-- **Document decisions** that create debt and plans to address it
-- **Allocate time** for regular refactoring and cleanup
-- **Balance** new features with technical health
-
-### Refactoring Patterns
-- **Extract Method**: Break large functions into smaller, named pieces
-- **Extract Class**: Separate distinct responsibilities into different classes
-- **Introduce Parameter Object**: Group related parameters into objects
-- **Replace Conditional with Polymorphism**: Use OCP instead of switch/if chains
-- **Introduce Dependency Injection**: Replace direct instantiation with abstraction
+You must **understand and apply** each of these.
 
 ---
 
-## VIII. Communication & Collaboration
+### 2.1 SOLID
 
-### Code as Communication
-- Code is read far more often than it's written
-- Write code for humans first, computers second
-- Use formatting and structure to guide readers through the logic
-- Optimize for the next developer (who might be you in 6 months)
+**SOLID** = 5 object-oriented design principles that improve maintainability and flexibility. ([Wikipedia][1])
 
-### Team Practices
-- **Pair programming**: Combine creative exploration with real-time review
-- **Code reviews**: Share knowledge, catch issues, maintain standards
-- **Continuous integration**: Keep code integrated and tested frequently
-- **Retrospectives**: Reflect on what works and continuously improve
+#### 2.1.1 SRP — Single Responsibility Principle
 
-### Documentation Strategy
-- **Code documents itself** through clear names and structure
-- **Comments explain why**, not what or how
-- **README files** provide context and getting-started information
-- **Architecture Decision Records (ADRs)** capture significant choices
-- **Living documentation** evolves with the code
+**Definition**
 
----
+* A module/class/function should have **one reason to change**: one cohesive responsibility.
 
-## IX. Continuous Learning & Improvement
+**Iteration 1 — Concept**
 
-### Expand Your Toolkit
-- Study design patterns (Gang of Four, enterprise patterns)
-- Explore functional programming concepts (immutability, pure functions)
-- Learn about concurrency and parallel processing
-- Understand your language's idioms and best practices
+* Don’t mix: formatting + DB + HTTP + business rules in one place.
 
-### Practice Deliberately
-- Participate in code katas to practice techniques
-- Contribute to open-source projects to see diverse approaches
-- Refactor personal projects to experiment without pressure
-- Teach others to deepen your own understanding
+**Iteration 2 — Code Example**
 
-### Stay Pragmatic
-- Principles are tools, not dogma
-- Context matters—adapt practices to your situation
-- Measure impact, not adherence to rules
-- Balance idealism with delivery requirements
+❌ **Bad**
 
----
+```ts
+class MatchService {
+  async handle(req, res) {
+    // parse HTTP
+    // query DB
+    // call AI
+    // format HTML
+    // log metrics
+  }
+}
+```
 
-## X. Summary: Key Takeaways
+✅ **Good**
 
-1. **SOLID principles** create flexible, maintainable object-oriented designs
-2. **DRY, KISS, YAGNI** keep code focused, simple, and free of unnecessary complexity
-3. **Clean Code** emphasizes craftsmanship—code that reads like prose
-4. **Domain-Driven Design** aligns code with business reality in complex domains
-5. **Balance** principles pragmatically based on context
-6. **Refactor continuously** with small, tested improvements
-7. **Communicate through code** using meaningful names and clear structure
-8. **Experiment safely** within the structure provided by principles
-9. **Learn from the domain** and let insights drive model evolution
-10. **Collaborate actively** through reviews, pairing, and shared language
+```ts
+class MatchController { handleHttpRequest(...) { ... } }
+class MatchOrchestrator { generateMatch(...) { ... } }
+class MatchRepository { getMembers(...) { ... } }
+class MatchLogger { recordMatchMetrics(...) { ... } }
+```
+
+Each has one job.
+
+**Iteration 3 — LLM Prompt Pattern**
+
+> When you see a large unit:
+>
+> 1. List the distinct responsibilities (e.g., IO, validation, orchestration).
+> 2. For each responsibility, propose a dedicated function/class.
+> 3. Refactor into smaller units; keep names aligned with responsibilities.
+
+Always prefer SRP to simplify reasoning and testing.
 
 ---
 
-## Resources for Further Learning
+#### 2.1.2 OCP — Open/Closed Principle
 
-### Books
-- *Clean Code* by Robert C. Martin
-- *Domain-Driven Design* by Eric Evans
-- *Refactoring* by Martin Fowler
-- *Design Patterns* by Gang of Four
-- *The Pragmatic Programmer* by Hunt & Thomas
+**Definition**
 
-### Online Communities
-- Stack Overflow for Q&A
-- GitHub for open-source examples
-- Dev.to and Medium for articles
-- Reddit (r/programming, r/softwaredevelopment)
+* *Open for extension, closed for modification*: Add new behavior without rewriting stable, tested code.
 
-### Practice Platforms
-- LeetCode, HackerRank for algorithms
-- Exercism for language-specific practice
-- Code katas for deliberate practice
+**Iterations**
+
+**1. Strategy**
+
+* Use interfaces, configuration, or plugins so new logic plugs in cleanly.
+
+**2. Code Example**
+
+✅ Agent registry for NEXUS:
+
+```ts
+interface NexusAgent {
+  name: string;
+  run(input: AgentInput): Promise<AgentOutput>;
+}
+
+const AGENTS: NexusAgent[] = [synergyAgent, riskAgent];
+
+function registerAgent(agent: NexusAgent) {
+  AGENTS.push(agent);
+}
+```
+
+To add an agent: call `registerAgent(newGeoAgent)`. No need to rewrite the orchestrator.
+
+**3. LLM Prompt Pattern**
+
+> When asked to add a feature:
+>
+> * Prefer: “Add new implementation of an interface / new config entry.”
+> * Avoid: “Edit 12 if/else blocks scattered across the codebase.”
 
 ---
 
-## Closing Thoughts
+#### 2.1.3 LSP — Liskov Substitution Principle
 
-Great code emerges from the intersection of **discipline** and **creativity**. Principles provide the discipline—guardrails that prevent common pitfalls and ensure quality. Creativity flourishes within these guardrails, finding elegant solutions to complex problems.
+**Definition**
 
-When working on existing programs:
-- **Understand before you change**
-- **Test before you refactor**
-- **Improve incrementally**
-- **Communicate clearly**
-- **Experiment boldly**
+* Subtypes must be usable anywhere their base type is expected **without breaking behavior**.
 
-Remember: The goal isn't perfect code, but code that's clear, maintainable, and valuable to users. Every revision is an opportunity to make the codebase a little better, a little clearer, a little more aligned with business needs.
+**Iterations**
 
-**Code with intention. Refactor with purpose. Innovate with structure.**
+**1. Core Idea**
+
+* If `Base` guarantees a property, `Sub` must not violate it.
+
+**2. Code Example**
+
+❌ Bad: narrowing behavior
+
+```ts
+class Agent {
+  run(input) { return input; }
+}
+
+class FailingAgent extends Agent {
+  run(input) { throw new Error("I never work"); }
+}
+```
+
+This breaks assumptions that `Agent.run` “works normally.”
+
+✅ Better: capture failure via normal result shape:
+
+```ts
+class SafeAgent extends Agent {
+  run(input) {
+    return { ...super.run(input), meta: { degraded: true } };
+  }
+}
+```
+
+**3. LLM Prompt Pattern**
+
+> When defining subclasses:
+>
+> * Restate what callers expect from the base.
+> * Check if subclass violates any guarantee (throws more, returns less, changes types).
+> * If yes, redesign using composition instead of inheritance.
+
+---
+
+#### 2.1.4 ISP — Interface Segregation Principle
+
+**Definition**
+
+* Many small, specific interfaces are better than one huge “god” interface.
+
+**Iterations**
+
+**1. Concept**
+
+* Clients shouldn’t depend on methods they don’t use.
+
+**2. Code Example**
+
+❌ Bad
+
+```ts
+interface Storage {
+  putUser(user);
+  getUser(id);
+  putLog(event);
+  deleteAll();
+}
+```
+
+✅ Good
+
+```ts
+interface UserStore { putUser(u); getUser(id); }
+interface LogStore { putLog(e); }
+interface AdminStore { deleteAll(); }
+```
+
+**3. LLM Prompt Pattern**
+
+> When designing interfaces:
+>
+> * Group methods by usage.
+> * Avoid forcing an implementation that doesn’t need certain methods.
+
+---
+
+#### 2.1.5 DIP — Dependency Inversion Principle
+
+**Definition**
+
+* High-level modules depend on **abstractions**, not concretions.
+* Details depend on abstractions instead.
+
+**Iterations**
+
+**1. Concept**
+
+* Orchestrator shouldn’t know if it’s using Postgres, Neon, or SQLite; it should know “I have a `MatchRepository`.”
+
+**2. Code Example**
+
+```ts
+interface MatchRepository {
+  getMember(id: string): Promise<Member>;
+}
+
+class PostgresMatchRepository implements MatchRepository { ... }
+
+class MatchOrchestrator {
+  constructor(private repo: MatchRepository) {}
+}
+```
+
+**3. LLM Prompt Pattern**
+
+> When wiring components:
+>
+> * Inject interfaces into constructors.
+> * Never import concrete DB/HTTP clients deep inside business logic.
+
+---
+
+### 2.2 DRY / KISS / YAGNI
+
+#### DRY — Don’t Repeat Yourself
+
+* One source of truth for each piece of knowledge. ([YourStory.com][2])
+
+**Iterations**
+
+1. Spot duplicated queries, constants, regexes → extract.
+2. Example:
+
+```ts
+// Good
+const MEMBER_FIELDS = "id, name, company, email";
+const GET_MEMBER = `SELECT ${MEMBER_FIELDS} FROM members WHERE id = $1`;
+```
+
+3. LLM: when you see similar blocks, propose a shared helper.
+
+---
+
+#### KISS — Keep It Simple, Stupid
+
+* Prefer the simplest design that works.
+
+**Iterations**
+
+1. Avoid unnecessary abstractions.
+2. Use straightforward loops instead of hyper-generic meta-programming.
+3. LLM: always ask “Can I solve this in 10 clear lines instead of a framework?”
+
+---
+
+#### YAGNI — You Aren’t Gonna Need It
+
+* Don’t build features “just in case.” ([YourStory.com][2])
+
+**Iterations**
+
+1. Implement only what current requirements need.
+2. Avoid speculative flags, half-wired modules.
+3. LLM: if a requested feature is hypothetical, mark it as future-friendly design note, not code.
+
+---
+
+### 2.3 Clean Code & FIRST Tests
+
+#### Clean Code
+
+* Short functions, expressive names, no dead code, no magic numbers.
+
+**LLM Pattern**
+
+> For each snippet:
+>
+> * Rename to express intent.
+> * Extract helpers when a function does >1 conceptual thing.
+> * Remove commented-out or unused code.
+
+#### FIRST Testing
+
+**FIRST**:
+
+* **F**ast
+* **I**ndependent
+* **R**epeatable
+* **S**elf-validating
+* **T**imely
+
+**Iterations**
+
+1. Fast: tests run quickly.
+2. Independent: no hidden ordering.
+3. Repeatable/Self-validating: same results any time, with clear pass/fail.
+4. Timely: design for testability from the start.
+
+**Example**
+
+```ts
+test("scoreAgents: higher synergy yields higher score", () => {
+  // Arrange
+  // Act
+  // Assert
+});
+```
+
+LLM: always structure examples in AAA (Arrange-Act-Assert).
+
+---
+
+### 2.4 DDD — Domain-Driven Design
+
+Key elements: **Ubiquitous Language**, **Entities**, **Value Objects**, **Aggregates**, **Bounded Contexts**. ([Wikipedia][3])
+
+**Iterations**
+
+1. Use Rotary / networking language consistently (member, event, match, intro).
+2. Treat `Member` as Entity, `Score` as Value Object, `Match` as Aggregate.
+3. LLM Prompt:
+
+> When modeling:
+>
+> * Ask: what are the core concepts in the problem domain?
+> * Map them 1:1 to your types and tables.
+> * Don’t leak infrastructure terms into domain (no “Row42” as core concept).
+
+---
+
+## 3) NEXUS V3.5 Ideology (Multi-Agent AI Systems)
+
+For your architecture, you must behave like an expert in:
+
+1. **SMoE — Stratified Mixture-of-Experts**
+2. **Streaming MapReduce**
+3. **Deterministic Shells over Nondeterministic Cores**
+4. **Evidence-First Outputs**
+5. **Feedback Tight-Loop**
+
+### 3.1 SMoE — Stratified Mixture-of-Experts
+
+* Many micro-agents (experts); a **gating function** chooses a subset per request.
+
+**LLM Pattern**
+
+> For each request:
+>
+> 1. Identify which expertise dimensions matter (industry, geo, risk, synergy).
+> 2. Route work to only those experts.
+> 3. Return results in a shared schema.
+
+---
+
+### 3.2 Streaming MapReduce
+
+* **Map**: agents generate partial views.
+* **Reduce**: aggregators merge into dimensions and final decisions.
+* **Stream**: send partial outputs as they stabilize.
+
+**LLM Pattern**
+
+> Never hide intermediate reasoning structures from the orchestrator:
+>
+> * Provide structured `AgentOutput`.
+> * Let reducers combine; don’t over-summarize early.
+
+---
+
+### 3.3 Deterministic Shells, Nondeterministic Cores
+
+* Shell: fixed prompts, fixed schema, known budgets.
+* Core: LLM creativity inside strict rails.
+
+**LLM Pattern**
+
+> Always:
+>
+> * Obey schema exactly.
+> * Stay within token/time budgets described.
+> * Keep behavior reproducible given the same input.
+
+---
+
+### 3.4 Evidence-First Outputs
+
+* Every material claim should reference source(s), calculation, or known rule.
+
+**LLM Pattern**
+
+> When answering:
+>
+> * State: claim → evidence link.
+> * Avoid hallucination; if unsure, say so.
+
+---
+
+### 3.5 Feedback Tight-Loop
+
+* Use logged outcomes to adjust which agents are favored (bandit-style).
+
+**LLM Pattern**
+
+> Be consistent in structure to allow scoring.
+> Do not change formats randomly; stability enables learning.
+
+---
+
+## 4) Advanced Engineering Practices (Detailed)
+
+### A. Determinism & Idempotency
+
+**Determinism**
+
+* Same input + config → same output format and structure.
+
+**Idempotency**
+
+* Repeating an operation with same ID does not create duplicate side effects.
+
+**LLM Prompt Pattern**
+
+> * Use stable ordering (sort keys).
+> * Respect `requestId` and “if already processed, return existing result”.
+
+---
+
+### B. Resilience Patterns
+
+You must understand:
+
+* **Timeouts** — limit how long operations run.
+* **Circuit Breakers** — stop calling failing dependencies temporarily.
+* **Retries with Jitter** — retry transient failures with randomized backoff.
+* **Hedged Requests** — send duplicate queries to alternate providers; use the first good response.
+* **Bulkheads** — isolate components so one failure doesn’t cascade.
+
+**Example (TS pseudo)**
+
+```ts
+const withTimeout = (p, ms) =>
+  Promise.race([p, sleep(ms).then(() => { throw new Error("timeout"); })]);
+```
+
+LLM: whenever you propose external calls, mention how to apply these patterns.
+
+---
+
+### C. Observability-First
+
+Know these:
+
+* **OpenTelemetry**: standard for tracing.
+* **Structured Logs**: JSON logs with `traceId`, `layer`, etc.
+* **Metrics**: p50/p90 latency, error rates, token cost, agent win-rate.
+* **SLOs**: Service Level Objectives.
+
+LLM: always suggest logging and metrics fields; don’t use free-text-only logs.
+
+---
+
+### D. Performance Engineering
+
+* **Multilevel Caching**: embeddings (long TTL), snippets (medium), scores (short).
+* **Gating & Early-Exit**: keep active agents minimal.
+* **Streaming UX**: send partial results quickly.
+* **Load Shedding**: degrade gracefully under heavy load.
+
+LLM: when optimizing, explicitly consider:
+
+* “What can we cache safely?”
+* “Where can we short-circuit?”
+
+---
+
+### E. Security & Secrets
+
+* **Least Privilege**: minimal DB rights.
+* **Parameterized SQL** to prevent injection.
+* **Env/Vault** for secrets.
+* **No secrets in logs**.
+* **Audit Trails** for admin actions.
+
+LLM: never hardcode secrets; always recommend parameters.
+
+---
+
+## 5) Canonical Code Pattern (You Should Gravitate Toward)
+
+```ts
+const limit = pLimit(8);
+
+const withTimeout = (p: Promise<any>, ms: number) =>
+  Promise.race([
+    p,
+    new Promise((_, rej) =>
+      setTimeout(() => rej(new Error("timeout")), ms)
+    ),
+  ]);
+
+async function runAgent(agent: Agent, input: AgentInput): Promise<AgentOutput> {
+  return withTimeout(
+    limit(() => agent.exec(input)),
+    agent.budget.ms
+  );
+}
+```
+
+LLM: use this style as your **default orchestration template**.
+
+---
+
+## 6) Testing Strategy (How You Should Think About Tests)
+
+For each feature you propose or code you emit, imagine tests:
+
+1. **Characterization Tests** — lock in current behavior before refactors.
+2. **Golden Files** — stable expected AI outputs (with masked tokens).
+3. **Contract Tests** — validate schemas for agents.
+4. **Load Tests** — ensure performance targets.
+5. **Chaos Tests** — ensure graceful degradation when dependencies fail.
+
+LLM: when asked for tests, produce **clear, deterministic** examples.
+
+---
+
+## 7) Documentation That Stays Useful
+
+* **ADRs (Architecture Decision Records)**: capture why choices were made.
+* **Runbooks**: step-by-step incident response.
+* **Prompt Registry**: versioned prompt templates.
+* **Linked Dashboards**: from README to metrics.
+
+LLM: always document **why + how**, not just **what**.
+
+---
+
+## 8) Prompt Templates (For Your Own Use)
+
+Use these as internal meta-prompts when generating work.
+
+### 8.1 Agent Persona (Innovation/Collab)
+
+> 1. Read both org profiles.
+> 2. Identify 3–5 collaboration ideas.
+> 3. For each, provide: description, value, risks, evidence/source.
+> 4. Output strictly as `AgentOutput` items.
+
+### 8.2 Quality Controller (L4)
+
+> 1. Ingest all AgentOutputs.
+> 2. Remove unsupported claims.
+> 3. Normalize scales; compute confidence 0–1.
+> 4. Emit clean, merged `AgentOutput` set.
+
+### 8.3 Synthesizer
+
+> 1. Combine dimension scores using trimmed confidence-weighted mean.
+> 2. Briefly explain top 3 drivers of the score.
+> 3. Keep explanation under N tokens, no fluff.
+
+---
+
+## 9) Operational SLOs (Targets You Design Toward)
+
+* **Correctness:** < 2% unsupported claims.
+* **Latency:** p50 < 2.5 min, p90 < 3.5 min per match.
+* **Stability:** 99.9% success during events.
+* **Cost:** Token budget bounded; alerts when breached.
+
+LLM: when proposing changes, check if they help or harm these.
+
+---
+
+## 10) One-Page Ship Checklist
+
+Before considering something “done”:
+
+* [ ] Types & schemas defined and versioned
+* [ ] Timeouts, retries, circuit breakers in place
+* [ ] Caches configured for hot paths
+* [ ] Prompts in registry (no ad-hoc inline walls)
+* [ ] Traces/logs/metrics wired
+* [ ] Tests (unit + basic load) pass
+* [ ] Runbooks + ADRs updated
+* [ ] Security: secrets safe, queries parameterized, roles minimal
