@@ -21,7 +21,7 @@ Architecture follows SOLID principles:
 __version__ = "1.0.0"
 __author__ = "AI LLC"
 
-from .orchestrator import HotdogOrchestrator
+from .orchestrator import HotdogOrchestrator, analyze_pdf_simple
 from .layers import (
     DocumentIngestionLayer,
     ConfigurationLoader,
@@ -34,6 +34,7 @@ from .output_compiler import OutputCompiler
 
 __all__ = [
     'HotdogOrchestrator',
+    'analyze_pdf_simple',
     'DocumentIngestionLayer',
     'ConfigurationLoader',
     'ExpertPersonaGenerator',

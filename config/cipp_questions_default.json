@@ -1,0 +1,677 @@
+{
+  "config_name": "CIPP Bid Specification Analysis",
+  "version": "1.0",
+  "description": "Default question configuration for analyzing CIPP (Cured-In-Place Pipe) project specifications",
+  "sections": [
+    {
+      "section_id": "general_info",
+      "section_name": "General Project Information",
+      "description": "Basic project details, scope, and administrative information",
+      "questions": [
+        {
+          "id": "Q1",
+          "text": "What is the project name and location?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q2",
+          "text": "What is the total project duration or timeline?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q3",
+          "text": "What is the total linear footage of pipe to be rehabilitated?",
+          "required": true,
+          "expected_type": "number"
+        },
+        {
+          "id": "Q4",
+          "text": "What pipe sizes (diameters) are included in the project?",
+          "required": true,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q5",
+          "text": "What is the project budget or estimated cost?",
+          "required": false,
+          "expected_type": "number"
+        },
+        {
+          "id": "Q6",
+          "text": "What are the submission deadlines for bids or proposals?",
+          "required": true,
+          "expected_type": "date"
+        },
+        {
+          "id": "Q7",
+          "text": "Who is the project owner or contracting authority?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q8",
+          "text": "Are there any pre-bid meetings or site visits scheduled?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q9",
+          "text": "What bonding and insurance requirements are specified?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q10",
+          "text": "What payment terms and schedule are outlined?",
+          "required": false,
+          "expected_type": "string"
+        }
+      ]
+    },
+    {
+      "section_id": "materials_standards",
+      "section_name": "Materials & Technical Standards",
+      "description": "Material specifications, ASTM standards, and technical requirements",
+      "questions": [
+        {
+          "id": "Q11",
+          "text": "What resin type is required (polyester, vinyl ester, epoxy)?",
+          "required": true,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q12",
+          "text": "What ASTM standards apply to the CIPP materials?",
+          "required": true,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q13",
+          "text": "What is the required design thickness of the liner?",
+          "required": true,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q14",
+          "text": "What flexural strength requirements are specified?",
+          "required": true,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q15",
+          "text": "What flexural modulus requirements are specified?",
+          "required": true,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q16",
+          "text": "Are there any specific felt material requirements?",
+          "required": true,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q17",
+          "text": "What are the chemical resistance requirements?",
+          "required": false,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q18",
+          "text": "Are there specific requirements for liner permeability?",
+          "required": false,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q19",
+          "text": "What certification or testing documentation is required for materials?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q20",
+          "text": "Are there any material submittal or approval requirements?",
+          "required": true,
+          "expected_type": "string"
+        }
+      ]
+    },
+    {
+      "section_id": "installation_process",
+      "section_name": "Installation Methods & Procedures",
+      "description": "Installation requirements, curing methods, and quality control procedures",
+      "questions": [
+        {
+          "id": "Q21",
+          "text": "What installation method is specified (inversion, pull-in-place, other)?",
+          "required": true,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q22",
+          "text": "What curing method is required (steam, hot water, UV, ambient)?",
+          "required": true,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q23",
+          "text": "What are the minimum and maximum curing temperature requirements?",
+          "required": true,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q24",
+          "text": "What is the required curing duration?",
+          "required": true,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q25",
+          "text": "Are there specific requirements for pre-installation cleaning or inspection?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q26",
+          "text": "What bypass pumping requirements are specified?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q27",
+          "text": "Are there specific requirements for service lateral reconnections?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q28",
+          "text": "What end seal requirements are specified?",
+          "required": false,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q29",
+          "text": "Are there manhole-to-manhole or continuous lining requirements?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q30",
+          "text": "What are the requirements for monitoring curing parameters?",
+          "required": true,
+          "expected_type": "string"
+        }
+      ]
+    },
+    {
+      "section_id": "testing_qa",
+      "section_name": "Testing & Quality Assurance",
+      "description": "Quality control testing, inspection requirements, and acceptance criteria",
+      "questions": [
+        {
+          "id": "Q31",
+          "text": "What pre-installation CCTV inspection requirements exist?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q32",
+          "text": "What post-installation CCTV inspection requirements exist?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q33",
+          "text": "What air or vacuum testing requirements are specified?",
+          "required": false,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q34",
+          "text": "What hydrostatic or leakage testing is required?",
+          "required": false,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q35",
+          "text": "Are flexural property tests required on cured samples?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q36",
+          "text": "How many test samples are required per liner installation?",
+          "required": true,
+          "expected_type": "number"
+        },
+        {
+          "id": "Q37",
+          "text": "What are the acceptance criteria for installed liners?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q38",
+          "text": "What deflection testing or measurement is required?",
+          "required": false,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q39",
+          "text": "Are there specific documentation or reporting requirements for testing?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q40",
+          "text": "What third-party inspection or certification is required?",
+          "required": false,
+          "expected_type": "string"
+        }
+      ]
+    },
+    {
+      "section_id": "safety_compliance",
+      "section_name": "Safety & Environmental Compliance",
+      "description": "Safety protocols, environmental requirements, and regulatory compliance",
+      "questions": [
+        {
+          "id": "Q41",
+          "text": "What confined space entry requirements are specified?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q42",
+          "text": "What traffic control and road closure requirements exist?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q43",
+          "text": "Are there specific OSHA or safety plan requirements?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q44",
+          "text": "What environmental permits or compliance requirements are needed?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q45",
+          "text": "Are there odor control or emission requirements during curing?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q46",
+          "text": "What waste disposal requirements are specified?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q47",
+          "text": "Are there noise or working hours restrictions?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q48",
+          "text": "What emergency response procedures are required?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q49",
+          "text": "Are there specific requirements for protecting water quality?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q50",
+          "text": "What personal protective equipment (PPE) is mandated?",
+          "required": true,
+          "expected_type": "string"
+        }
+      ]
+    },
+    {
+      "section_id": "equipment_resources",
+      "section_name": "Equipment & Resource Requirements",
+      "description": "Equipment specifications, crew requirements, and resource needs",
+      "questions": [
+        {
+          "id": "Q51",
+          "text": "What specific equipment or machinery is required for the project?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q52",
+          "text": "Are there minimum crew size or staffing requirements?",
+          "required": false,
+          "expected_type": "number"
+        },
+        {
+          "id": "Q53",
+          "text": "What certification or training requirements exist for operators?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q54",
+          "text": "Are there backup equipment or redundancy requirements?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q55",
+          "text": "What boiler or heating system specifications are required?",
+          "required": false,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q56",
+          "text": "Are there specific camera or inspection equipment requirements?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q57",
+          "text": "What staging area or work site requirements exist?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q58",
+          "text": "Are there utility locating or coordination requirements?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q59",
+          "text": "What water supply or discharge requirements are specified?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q60",
+          "text": "Are there specific requirements for monitoring equipment during curing?",
+          "required": true,
+          "expected_type": "string"
+        }
+      ]
+    },
+    {
+      "section_id": "warranty_closeout",
+      "section_name": "Warranty & Project Closeout",
+      "description": "Warranty requirements, deliverables, and project closeout procedures",
+      "questions": [
+        {
+          "id": "Q61",
+          "text": "What warranty period is required for the CIPP installation?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q62",
+          "text": "What items or defects are covered under warranty?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q63",
+          "text": "What as-built documentation is required at project completion?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q64",
+          "text": "Are there O&M (Operations & Maintenance) manual requirements?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q65",
+          "text": "What final testing or certification deliverables are required?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q66",
+          "text": "Are there record drawing or GIS data submission requirements?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q67",
+          "text": "What site restoration or cleanup requirements exist?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q68",
+          "text": "Are there final inspection or acceptance procedures specified?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q69",
+          "text": "What retention or liquidated damages provisions are included?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q70",
+          "text": "Are there close-out meeting or final presentation requirements?",
+          "required": false,
+          "expected_type": "string"
+        }
+      ]
+    },
+    {
+      "section_id": "special_conditions",
+      "section_name": "Special Conditions & Constraints",
+      "description": "Unique project constraints, special requirements, and site-specific conditions",
+      "questions": [
+        {
+          "id": "Q71",
+          "text": "Are there specific working depth or elevation constraints?",
+          "required": false,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q72",
+          "text": "What groundwater or high water table conditions exist?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q73",
+          "text": "Are there adjacent structure or utility protection requirements?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q74",
+          "text": "What prevailing wage or labor requirements apply?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q75",
+          "text": "Are there DBE/MBE/WBE participation requirements?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q76",
+          "text": "What American-made or Buy America requirements exist?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q77",
+          "text": "Are there specific sequencing or phasing requirements?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q78",
+          "text": "What coordination with other contractors or projects is required?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q79",
+          "text": "Are there historic preservation or archeological requirements?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q80",
+          "text": "What pandemic or health-related protocols are specified?",
+          "required": false,
+          "expected_type": "string"
+        }
+      ]
+    },
+    {
+      "section_id": "pricing_payment",
+      "section_name": "Pricing Structure & Payment",
+      "description": "Bid pricing requirements, unit prices, and payment schedules",
+      "questions": [
+        {
+          "id": "Q81",
+          "text": "What unit pricing structure is required (per linear foot, lump sum)?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q82",
+          "text": "Are there separate bid items for different pipe diameters?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q83",
+          "text": "What mobilization or demobilization costs are allowed?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q84",
+          "text": "Are there allowances or contingencies included in the bid?",
+          "required": false,
+          "expected_type": "number"
+        },
+        {
+          "id": "Q85",
+          "text": "What payment retention percentage is specified?",
+          "required": false,
+          "expected_type": "number"
+        },
+        {
+          "id": "Q86",
+          "text": "How frequently will progress payments be made?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q87",
+          "text": "Are there incentive or penalty clauses related to schedule?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q88",
+          "text": "What documentation is required for payment applications?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q89",
+          "text": "Are there value engineering or cost savings provisions?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q90",
+          "text": "What change order procedures and pricing are outlined?",
+          "required": false,
+          "expected_type": "string"
+        }
+      ]
+    },
+    {
+      "section_id": "experience_qualifications",
+      "section_name": "Contractor Experience & Qualifications",
+      "description": "Required contractor qualifications, experience, and references",
+      "questions": [
+        {
+          "id": "Q91",
+          "text": "What minimum years of CIPP experience are required?",
+          "required": false,
+          "expected_type": "number"
+        },
+        {
+          "id": "Q92",
+          "text": "Are there specific project size or complexity requirements for experience?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q93",
+          "text": "How many project references are required?",
+          "required": false,
+          "expected_type": "number"
+        },
+        {
+          "id": "Q94",
+          "text": "What licensing or certification is required for the contractor?",
+          "required": true,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q95",
+          "text": "Are there financial capacity or bonding limitations?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q96",
+          "text": "What key personnel qualifications and resumes are required?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q97",
+          "text": "Are there manufacturer certification or training requirements?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q98",
+          "text": "What safety record or EMR (Experience Modification Rate) requirements exist?",
+          "required": false,
+          "expected_type": "technical_spec"
+        },
+        {
+          "id": "Q99",
+          "text": "Are there prequalification or qualification statement requirements?",
+          "required": false,
+          "expected_type": "string"
+        },
+        {
+          "id": "Q100",
+          "text": "What quality assurance/quality control plan requirements are specified?",
+          "required": true,
+          "expected_type": "string"
+        }
+      ]
+    }
+  ]
+}
