@@ -24,6 +24,10 @@ import tempfile
 # Import document extraction service (supports PDF, TXT, DOCX, RTF)
 from services.document_extractor import DocumentExtractorService
 
+# Import HOTDOG AI orchestrator for advanced document analysis
+from services.hotdog import HotdogOrchestrator
+import asyncio
+
 # Configure logging
 logging.basicConfig(
     level=os.getenv('LOG_LEVEL', 'INFO'),
@@ -450,6 +454,126 @@ def register_routes(app: Flask, config: Config):
             'libraries': doc_extractor.get_available_libraries() if doc_extractor else {},
             'status': 'running' if doc_extractor else 'unavailable'
         })
+
+    @app.route('/cipp-analyzer/api/analyze_hotdog', methods=['POST'])
+    def cipp_analyze_hotdog():
+        """
+        HOTDOG AI document analysis endpoint.
+        Performs comprehensive multi-expert analysis with perfect page citation preservation.
+
+        Expected request:
+        {
+            "pdf_path": "/path/to/file.pdf",
+            "config_path": "/path/to/questions.json" (optional, uses default if not provided)
+        }
+
+        Returns:
+        {
+            "success": true,
+            "result": {
+                "document_name": "...",
+                "total_pages": 100,
+                "questions_answered": 95,
+                "sections": [...],
+                "footnotes": [...],
+                "metadata": {...}
+            }
+        }
+        """
+        try:
+            # Get OpenAI API key
+            openai_key = os.getenv('OPENAI_API_KEY')
+            if not openai_key:
+                return jsonify({
+                    'success': False,
+                    'error': 'OpenAI API key not configured',
+                    'error_type': 'ConfigurationError'
+                }), 500
+
+            # Get request data
+            data = request.json
+            if not data:
+                return jsonify({
+                    'success': False,
+                    'error': 'No data provided',
+                    'error_type': 'ValidationError'
+                }), 400
+
+            pdf_path = data.get('pdf_path')
+            if not pdf_path:
+                return jsonify({
+                    'success': False,
+                    'error': 'No pdf_path provided',
+                    'error_type': 'ValidationError'
+                }), 400
+
+            # Use default config if not provided
+            config_path = data.get('config_path')
+            if not config_path:
+                config_path = str(config.BASE_DIR / 'config' / 'cipp_questions_default.json')
+                logger.info(f"Using default CIPP questions config: {config_path}")
+
+            # Verify files exist
+            if not os.path.exists(pdf_path):
+                return jsonify({
+                    'success': False,
+                    'error': f'PDF file not found: {pdf_path}',
+                    'error_type': 'FileNotFoundError'
+                }), 404
+
+            if not os.path.exists(config_path):
+                return jsonify({
+                    'success': False,
+                    'error': f'Configuration file not found: {config_path}',
+                    'error_type': 'FileNotFoundError'
+                }), 404
+
+            logger.info(f"🔥 Starting HOTDOG analysis: {pdf_path}")
+
+            # Initialize HOTDOG orchestrator
+            orchestrator = HotdogOrchestrator(
+                openai_api_key=openai_key,
+                config_path=config_path
+            )
+
+            # Run analysis (async)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                analysis_result = loop.run_until_complete(
+                    orchestrator.analyze_document(pdf_path, config_path)
+                )
+            finally:
+                loop.close()
+
+            # Get browser-formatted output
+            from services.hotdog.layers import ConfigurationLoader
+            config_loader = ConfigurationLoader()
+            parsed_config = config_loader.load_from_json(config_path)
+
+            browser_output = orchestrator.get_browser_output(analysis_result, parsed_config)
+
+            logger.info(f"✅ HOTDOG analysis complete: {analysis_result.questions_answered} questions answered")
+
+            return jsonify({
+                'success': True,
+                'result': browser_output,
+                'statistics': {
+                    'processing_time': analysis_result.processing_time_seconds,
+                    'total_tokens': analysis_result.total_tokens,
+                    'estimated_cost': f"${analysis_result.estimated_cost:.4f}",
+                    'questions_answered': analysis_result.questions_answered,
+                    'average_confidence': f"{analysis_result.average_confidence:.0%}"
+                }
+            })
+
+        except Exception as e:
+            logger.error(f"HOTDOG analysis error: {str(e)}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'error': str(e),
+                'error_type': type(e).__name__
+            }), 500
 
     # Progress Estimator routes
     @app.route('/progress-estimator')
