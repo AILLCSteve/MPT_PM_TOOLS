@@ -267,7 +267,7 @@ class HotdogOrchestrator:
                 )
 
                 # Record actual token usage
-                self.layer5_token_manager.record_actual_usage(
+                self.layer5_token_manager.record_usage(
                     window_num=window_idx,
                     prompt_tokens=window_result.tokens_used // 2,  # Rough split
                     completion_tokens=window_result.tokens_used // 2

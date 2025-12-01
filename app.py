@@ -16,10 +16,13 @@ import secrets
 import hashlib
 from pathlib import Path
 from datetime import datetime, timedelta
-from flask import Flask, render_template, send_from_directory, jsonify, request, session
+from flask import Flask, render_template, send_from_directory, jsonify, request, session, Response, stream_with_context
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import tempfile
+import queue
+import json
+import time
 
 # Import document extraction service (supports PDF, TXT, DOCX, RTF)
 from services.document_extractor import DocumentExtractorService
@@ -105,6 +108,10 @@ def create_app(config=Config) -> Flask:
 
 def register_routes(app: Flask, config: Config):
     """Register all application routes."""
+
+    # Global progress queue storage for SSE streaming
+    # Maps session_id -> queue.Queue for real-time progress updates
+    progress_queues = {}
 
     # Initialize document extractor service
     try:
@@ -520,6 +527,60 @@ def register_routes(app: Flask, config: Config):
                 'error': f'Upload failed: {str(e)}'
             }), 500
 
+    @app.route('/cipp-analyzer/api/progress/<session_id>')
+    def stream_progress(session_id):
+        """
+        SSE (Server-Sent Events) endpoint for real-time progress updates.
+
+        Client connects to this endpoint before starting analysis to receive
+        live progress updates as the HOTDOG orchestrator processes the document.
+        """
+        def generate():
+            # Create progress queue for this session
+            if session_id not in progress_queues:
+                progress_queues[session_id] = queue.Queue(maxsize=100)
+
+            q = progress_queues[session_id]
+
+            # Send initial connection event
+            yield f"data: {json.dumps({'event': 'connected', 'session_id': session_id})}\n\n"
+
+            # Stream progress events
+            try:
+                while True:
+                    try:
+                        # Get next progress event (timeout to send keep-alive)
+                        event_type, data = q.get(timeout=15)
+
+                        # Check for completion/error signals
+                        if event_type == 'done':
+                            yield f"data: {json.dumps({'event': 'done'})}\n\n"
+                            break
+                        if event_type == 'error':
+                            yield f"data: {json.dumps({'event': 'error', 'error': data})}\n\n"
+                            break
+
+                        # Send progress event
+                        yield f"data: {json.dumps({'event': event_type, **data})}\n\n"
+
+                    except queue.Empty:
+                        # Send keep-alive ping every 15 seconds
+                        yield f": keepalive\n\n"
+
+            finally:
+                # Clean up queue when client disconnects
+                if session_id in progress_queues:
+                    del progress_queues[session_id]
+
+        return Response(
+            stream_with_context(generate()),
+            mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'X-Accel-Buffering': 'no'  # Disable nginx buffering
+            }
+        )
+
     @app.route('/cipp-analyzer/api/analyze_hotdog', methods=['POST'])
     def cipp_analyze_hotdog():
         """
@@ -598,6 +659,20 @@ def register_routes(app: Flask, config: Config):
             context_guardrails = data.get('context_guardrails', '')
             session_id = data.get('session_id', f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
 
+            # Create progress queue for this session
+            if session_id not in progress_queues:
+                progress_queues[session_id] = queue.Queue(maxsize=100)
+
+            progress_q = progress_queues[session_id]
+
+            # Define progress callback that pushes to the SSE queue
+            def progress_callback(event_type: str, data: dict):
+                """Push progress events to SSE queue."""
+                try:
+                    progress_q.put_nowait((event_type, data))
+                except queue.Full:
+                    logger.warning(f"Progress queue full for session {session_id}, dropping event: {event_type}")
+
             # Verify files exist
             if not os.path.exists(pdf_path):
                 return jsonify({
@@ -617,11 +692,12 @@ def register_routes(app: Flask, config: Config):
             if context_guardrails:
                 logger.info(f"📋 Context Guardrails: {context_guardrails}")
 
-            # Initialize HOTDOG orchestrator with context guardrails
+            # Initialize HOTDOG orchestrator with context guardrails and progress callback
             orchestrator = HotdogOrchestrator(
                 openai_api_key=openai_key,
                 config_path=config_path,
-                context_guardrails=context_guardrails
+                context_guardrails=context_guardrails,
+                progress_callback=progress_callback  # Enable real-time SSE streaming
             )
 
             # Run analysis (async)
@@ -658,6 +734,9 @@ def register_routes(app: Flask, config: Config):
             if can_run_second_pass:
                 logger.info(f"   {questions_unanswered} questions remain unanswered - second pass available")
 
+            # Signal completion to SSE stream
+            progress_q.put_nowait(('done', {}))
+
             return jsonify({
                 'success': True,
                 'session_id': session_id,
@@ -677,6 +756,14 @@ def register_routes(app: Flask, config: Config):
 
         except Exception as e:
             logger.error(f"HOTDOG analysis error: {str(e)}", exc_info=True)
+
+            # Signal error to SSE stream
+            if session_id in progress_queues:
+                try:
+                    progress_queues[session_id].put_nowait(('error', str(e)))
+                except:
+                    pass
+
             return jsonify({
                 'success': False,
                 'error': str(e),
