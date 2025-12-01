@@ -458,6 +458,68 @@ def register_routes(app: Flask, config: Config):
     # Session storage for orchestrator instances (for multi-pass workflow)
     analysis_sessions = {}  # session_id -> {"orchestrator": ..., "first_pass_result": ...}
 
+    @app.route('/cipp-analyzer/api/upload', methods=['POST'])
+    def cipp_upload():
+        """
+        Upload PDF file for HOTDOG analysis.
+        Saves file to temporary location and returns filepath for subsequent analysis.
+
+        Returns:
+        {
+            "success": true,
+            "filepath": "/tmp/uploaded_file.pdf",
+            "filename": "original.pdf"
+        }
+        """
+        try:
+            # Check if file was uploaded
+            if 'file' not in request.files:
+                return jsonify({
+                    'success': False,
+                    'error': 'No file provided'
+                }), 400
+
+            file = request.files['file']
+
+            if file.filename == '':
+                return jsonify({
+                    'success': False,
+                    'error': 'No file selected'
+                }), 400
+
+            # Validate it's a PDF
+            if not file.filename.lower().endswith('.pdf'):
+                return jsonify({
+                    'success': False,
+                    'error': 'Only PDF files are supported for HOTDOG analysis'
+                }), 400
+
+            # Save to temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf', mode='wb') as temp_file:
+                temp_path = temp_file.name
+                # Read and write in chunks
+                chunk_size = 8192
+                while True:
+                    chunk = file.stream.read(chunk_size)
+                    if not chunk:
+                        break
+                    temp_file.write(chunk)
+
+            logger.info(f"✅ File uploaded for HOTDOG: {file.filename} -> {temp_path}")
+
+            return jsonify({
+                'success': True,
+                'filepath': temp_path,
+                'filename': file.filename
+            })
+
+        except Exception as e:
+            logger.error(f"Upload failed: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Upload failed: {str(e)}'
+            }), 500
+
     @app.route('/cipp-analyzer/api/analyze_hotdog', methods=['POST'])
     def cipp_analyze_hotdog():
         """
