@@ -336,7 +336,7 @@ class ExpertPersonaGenerator:
 
         logger.info(f"🤖 Expert Persona Generator initialized with model: {model}")
 
-    def generate_expert(self, section: Section) -> ExpertPersona:
+    async def generate_expert(self, section: Section) -> ExpertPersona:
         """
         Generate or retrieve cached expert persona for a section.
 
@@ -395,8 +395,8 @@ Create an expert AI persona for analyzing construction/engineering bid specifica
 Output only valid JSON, no markdown formatting."""
 
         try:
-            # Call AI to generate expert using most robust model
-            response = self.client.chat.completions.create(
+            # Call AI to generate expert using most robust model (AsyncOpenAI)
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are an expert AI architect."},
