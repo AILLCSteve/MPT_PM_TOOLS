@@ -38,6 +38,7 @@ from .multi_expert_processor import MultiExpertProcessor
 from .smart_accumulator import SmartAccumulator
 from .output_compiler import OutputCompiler
 from .second_pass_processor import SecondPassProcessor
+from .token_optimizer import TokenOptimizer
 from .models import (
     AnalysisResult,
     ParsedConfig,
