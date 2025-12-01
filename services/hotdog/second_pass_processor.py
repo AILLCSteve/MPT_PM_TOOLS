@@ -250,18 +250,25 @@ class SecondPassProcessor:
             user_prompt = self._build_enhanced_user_prompt(window, questions)
 
             # Call OpenAI with enhanced parameters for second pass
-            response = await self.openai_client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": enhanced_system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.7,  # Higher temperature for creativity and inference
-                max_tokens=self.max_completion_tokens  # Use full API limit for thorough answers
-            )
+            try:
+                response = await self.openai_client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": enhanced_system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.7,  # Higher temperature for creativity and inference
+                    max_tokens=self.max_completion_tokens  # Use full API limit for thorough answers
+                )
+            except Exception as api_error:
+                logger.error(f"OpenAI API call failed in second pass: {type(api_error).__name__}: {str(api_error)}")
+                raise
 
             # Parse response
             content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Empty response from OpenAI API in second pass")
+
             tokens_used = response.usage.total_tokens
 
             self.total_tokens_used += tokens_used
@@ -403,7 +410,14 @@ Remember:
                 return answers
 
             json_str = response_text[json_start:json_end]
-            data = json.loads(json_str)
+
+            try:
+                data = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse second-pass response as JSON: {e}")
+                logger.error(f"Response text (first 500 chars): {response_text[:500]}")
+                logger.warning(f"Skipping malformed response from {expert.name}")
+                return answers
 
             # Parse each answer
             for answer_data in data.get('answers', []):
