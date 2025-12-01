@@ -396,18 +396,31 @@ Output only valid JSON, no markdown formatting."""
 
         try:
             # Call AI to generate expert using most robust model (AsyncOpenAI)
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are an expert AI architect."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,  # Some creativity for persona generation
-                response_format={"type": "json_object"}
-            )
+            try:
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "You are an expert AI architect."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,  # Some creativity for persona generation
+                    response_format={"type": "json_object"}
+                )
+            except Exception as api_error:
+                logger.error(f"OpenAI API call failed: {type(api_error).__name__}: {str(api_error)}")
+                raise ValueError(f"OpenAI API error: {str(api_error)}")
 
-            # Parse response
-            expert_data = json.loads(response.choices[0].message.content)
+            # Parse response with error handling
+            response_content = response.choices[0].message.content
+            if not response_content:
+                raise ValueError("Empty response from OpenAI API")
+
+            try:
+                expert_data = json.loads(response_content)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse expert generation response as JSON: {e}")
+                logger.error(f"Response content (first 500 chars): {response_content[:500]}")
+                raise ValueError(f"Invalid JSON response from OpenAI: {str(e)}")
 
             # Validate required fields
             required_fields = ['expert_name', 'specialization', 'system_prompt',
