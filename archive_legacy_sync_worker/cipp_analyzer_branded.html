@@ -5703,12 +5703,27 @@ ${text}
                 };
 
                 eventSource.onmessage = (e) => {
+                    // Log EVERY raw event received (for debugging)
+                    console.log('🔔 SSE EVENT RECEIVED:', e.data);
+
                     try {
                         const data = JSON.parse(e.data);
+                        console.log('📦 Parsed SSE data:', data);
 
                         // Handle different event types
                         if (data.event === 'connected') {
                             Logger.info('✅ Progress stream connected');
+                        }
+                        else if (data.event === 'log') {
+                            // Backend log message - display in activity log
+                            const logLevel = data.level || 'info';
+                            if (logLevel === 'error') {
+                                Logger.error(data.message);
+                            } else if (logLevel === 'warning') {
+                                Logger.warning(data.message);
+                            } else {
+                                Logger.info(data.message);
+                            }
                         }
                         else if (data.event === 'document_ingested') {
                             Logger.info(`📄 Extracted ${data.total_pages} pages into ${data.window_count} windows`);
@@ -5724,6 +5739,15 @@ ${text}
                             Logger.info(`🔍 Processing Window ${data.window_num}/${data.total_windows}: Pages ${data.pages}`);
                             const progress = 30 + ((data.window_num / data.total_windows) * 60);
                             ProgressTracker.update(progress, `Window ${data.window_num}/${data.total_windows}`);
+                        }
+                        else if (data.event === 'experts_dispatched') {
+                            Logger.info(`🤖 Dispatching ${data.expert_count} experts to analyze ${data.question_count} questions`);
+                            if (data.sections && data.sections.length > 0) {
+                                Logger.info(`   Sections: ${data.sections.join(', ')}`);
+                            }
+                        }
+                        else if (data.event === 'experts_complete') {
+                            Logger.success(`✅ Experts found ${data.answers_returned} answers (${data.tokens_used} tokens)`);
                         }
                         else if (data.event === 'window_complete') {
                             Logger.success(`✅ Window ${data.window_num}: ${data.answers_found} answers (${data.processing_time.toFixed(1)}s)`);
@@ -5744,8 +5768,13 @@ ${text}
                             Logger.error(`❌ Stream error: ${data.error}`);
                             eventSource.close();
                         }
+                        else {
+                            // Unknown event type - log it for debugging
+                            console.warn('⚠️ Unhandled SSE event type:', data.event, data);
+                            Logger.warning(`Unknown event: ${data.event}`);
+                        }
                     } catch (err) {
-                        console.error('Failed to parse SSE message:', err);
+                        console.error('❌ Failed to parse SSE message:', err, 'Raw data:', e.data);
                     }
                 };
 

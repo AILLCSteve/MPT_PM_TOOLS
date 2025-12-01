@@ -7,6 +7,7 @@ Werkzeug>=3.1.0,<4.0.0
 
 # WSGI Server for Production
 gunicorn>=22.0.0,<23.0.0
+gevent>=24.2.0,<25.0.0  # Async worker class for SSE streaming + long-running operations
 
 # Document Processing (CIPP Analyzer)
 # PDF extraction - PyMuPDF (fitz) is primary, others are fallbacks
