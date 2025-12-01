@@ -445,7 +445,7 @@ Output only valid JSON, no markdown formatting."""
             # Cache for future use
             self.cache[cache_key] = expert
 
-            logger.success(f"✅ Generated expert: {expert.name}")
+            logger.info(f"✅ Generated expert: {expert.name}")
             return expert
 
         except Exception as e:
