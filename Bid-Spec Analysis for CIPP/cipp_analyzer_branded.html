@@ -5651,6 +5651,8 @@ ${text}
                 return;
             }
 
+            let eventSource = null;
+
             try {
                 Logger.info('🔥 Starting HOTDOG AI analysis...');
 
@@ -5685,9 +5687,71 @@ ${text}
                 const pdfPath = uploadData.filepath;
 
                 Logger.success(`✅ File uploaded: ${pdfPath}`);
-                ProgressTracker.update(20, 'Starting HOTDOG AI analysis...');
+                ProgressTracker.update(20, 'Connecting to HOTDOG AI...');
 
-                // Call HOTDOG analysis API
+                // Generate session ID if not exists
+                if (!currentSessionId) {
+                    currentSessionId = `session_${new Date().toISOString().replace(/[:\-]|\.\d{3}/g, '').replace('T', '_').substring(0, 15)}`;
+                }
+
+                // Connect to SSE progress stream BEFORE starting analysis
+                const progressUrl = `/cipp-analyzer/api/progress/${currentSessionId}`;
+                eventSource = new EventSource(progressUrl);
+
+                eventSource.onopen = () => {
+                    Logger.info('📡 Connected to live progress stream');
+                };
+
+                eventSource.onmessage = (e) => {
+                    try {
+                        const data = JSON.parse(e.data);
+
+                        // Handle different event types
+                        if (data.event === 'connected') {
+                            Logger.info('✅ Progress stream connected');
+                        }
+                        else if (data.event === 'document_ingested') {
+                            Logger.info(`📄 Extracted ${data.total_pages} pages into ${data.window_count} windows`);
+                            ProgressTracker.update(30, `Extracted ${data.total_pages} pages`);
+                        }
+                        else if (data.event === 'config_loaded') {
+                            Logger.info(`⚙️ Loaded ${data.total_questions} questions in ${data.section_count} sections`);
+                        }
+                        else if (data.event === 'expert_generated') {
+                            Logger.info(`🤖 Generated expert: ${data.expert_name}`);
+                        }
+                        else if (data.event === 'window_processing') {
+                            Logger.info(`🔍 Processing Window ${data.window_num}/${data.total_windows}: Pages ${data.pages}`);
+                            const progress = 30 + ((data.window_num / data.total_windows) * 60);
+                            ProgressTracker.update(progress, `Window ${data.window_num}/${data.total_windows}`);
+                        }
+                        else if (data.event === 'window_complete') {
+                            Logger.success(`✅ Window ${data.window_num}: ${data.answers_found} answers (${data.processing_time.toFixed(1)}s)`);
+                        }
+                        else if (data.event === 'unitary_log_update') {
+                            Logger.info(`📊 Progress: ${data.progress}`);
+                        }
+                        else if (data.event === 'done') {
+                            Logger.success('🎉 Analysis stream complete!');
+                            eventSource.close();
+                        }
+                        else if (data.event === 'error') {
+                            Logger.error(`❌ Stream error: ${data.error}`);
+                            eventSource.close();
+                        }
+                    } catch (err) {
+                        console.error('Failed to parse SSE message:', err);
+                    }
+                };
+
+                eventSource.onerror = (err) => {
+                    console.error('EventSource error:', err);
+                    if (eventSource.readyState === EventSource.CLOSED) {
+                        Logger.warning('📡 Progress stream disconnected');
+                    }
+                };
+
+                // Start HOTDOG analysis (non-blocking, streams via SSE)
                 const analysisResponse = await fetch('/cipp-analyzer/api/analyze_hotdog', {
                     method: 'POST',
                     headers: {
@@ -5696,7 +5760,7 @@ ${text}
                     body: JSON.stringify({
                         pdf_path: pdfPath,
                         context_guardrails: contextGuardrails || undefined,
-                        session_id: currentSessionId || undefined
+                        session_id: currentSessionId
                     })
                 });
 
@@ -5735,6 +5799,11 @@ ${text}
                 alert('Analysis failed: ' + error.message);
                 ProgressTracker.hide();
             } finally {
+                // Clean up event source
+                if (eventSource) {
+                    eventSource.close();
+                }
+
                 document.getElementById('analyzeBtn').disabled = false;
                 document.getElementById('stopBtn').disabled = true;
             }
