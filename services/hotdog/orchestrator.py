@@ -44,7 +44,8 @@ from .models import (
     ParsedConfig,
     ExpertPersona,
     WindowContext,
-    Question
+    Question,
+    AnswerAccumulation
 )
 
 logger = logging.getLogger(__name__)
