@@ -5727,9 +5727,14 @@ ${text}
                         }
                         else if (data.event === 'window_complete') {
                             Logger.success(`✅ Window ${data.window_num}: ${data.answers_found} answers (${data.processing_time.toFixed(1)}s)`);
+
+                            // Display live unitary log if provided
+                            if (data.unitary_log_markdown) {
+                                displayLiveUnitaryLog(data.unitary_log_markdown);
+                            }
                         }
-                        else if (data.event === 'unitary_log_update') {
-                            Logger.info(`📊 Progress: ${data.progress}`);
+                        else if (data.event === 'progress_milestone') {
+                            Logger.info(`📊 Progress: ${data.progress_summary}`);
                         }
                         else if (data.event === 'done') {
                             Logger.success('🎉 Analysis stream complete!');
@@ -5807,6 +5812,36 @@ ${text}
                 document.getElementById('analyzeBtn').disabled = false;
                 document.getElementById('stopBtn').disabled = true;
             }
+        }
+
+        // Display live unitary log during analysis
+        function displayLiveUnitaryLog(markdownContent) {
+            // Show results section if hidden
+            const resultsSection = document.getElementById('resultsSection');
+            resultsSection.style.display = 'block';
+
+            // Display markdown in results content area
+            const resultsContent = document.getElementById('resultsContent');
+
+            // Convert markdown to HTML (simple conversion for now)
+            // In production, use a library like marked.js
+            const htmlContent = markdownContent
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')  // Bold
+                .replace(/\*(.+?)\*/g, '<em>$1</em>')  // Italic
+                .replace(/^# (.+)$/gm, '<h1>$1</h1>')  // H1
+                .replace(/^## (.+)$/gm, '<h2>$1</h2>')  // H2
+                .replace(/^### (.+)$/gm, '<h3>$1</h3>')  // H3
+                .replace(/^---$/gm, '<hr>')  // Horizontal rule
+                .replace(/\n/g, '<br>');  // Line breaks
+
+            resultsContent.innerHTML = `
+                <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+                    ${htmlContent}
+                </div>
+            `;
+
+            // Auto-scroll to show latest results
+            resultsContent.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
         function stopAnalysis() {
