@@ -1,6 +1,6 @@
 """
 Gunicorn configuration for PM Tools Suite
-Production deployment with async workers for real-time SSE streaming.
+Handles long-running AI document analysis requests
 """
 import multiprocessing
 import os
@@ -9,26 +9,24 @@ import os
 bind = f"0.0.0.0:{os.getenv('PORT', '5000')}"
 backlog = 2048
 
-# Worker configuration - GEVENT FOR ASYNC/CONCURRENT HANDLING
-# Gevent uses cooperative multitasking via greenlets (lightweight coroutines)
-# This allows SSE streaming to work concurrently with long-running analysis
-workers = 1  # Single worker is sufficient with gevent's concurrency model
-worker_class = 'gevent'  # Async worker class for SSE + long-running operations
-worker_connections = 1000  # Max concurrent connections per worker
-
-# Worker lifecycle settings
-max_requests = 1000  # Restart worker after N requests (prevent memory leaks)
-max_requests_jitter = 50  # Add randomness to prevent thundering herd
+# Worker processes
+# CRITICAL: Must use 1 worker for SSE to work with in-memory queues
+# Multi-worker requires Redis/shared storage for queue sharing
+workers = 1
+worker_class = 'sync'
+worker_connections = 1000
+max_requests = 1000
+max_requests_jitter = 50
 
 # Timeout settings - CRITICAL for long-running AI analysis
-# HOTDOG analysis can take 10-15 minutes for large documents
+# HOTDOG analysis can take 5-10 minutes for large documents
 timeout = 900  # 15 minutes (in seconds)
-graceful_timeout = 900  # 15 minutes for graceful shutdown
-keepalive = 5  # Keep-alive connections
+graceful_timeout = 900  # 15 minutes
+keepalive = 5
 
 # Logging
-accesslog = '-'  # Log to stdout
-errorlog = '-'  # Log to stderr
+accesslog = '-'
+errorlog = '-'
 loglevel = os.getenv('LOG_LEVEL', 'info').lower()
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" [%(D)s µs]'
 
@@ -52,12 +50,11 @@ reload = os.getenv('DEBUG', 'false').lower() == 'true'
 reload_engine = 'auto'
 spew = False
 
-# Server hooks for logging
+# Server hooks
 def on_starting(server):
     """Called just before the master process is initialized."""
     server.log.info("🚀 Starting PM Tools Suite")
-    server.log.info(f"Worker Class: {worker_class}, Workers: {workers}, Timeout: {timeout}s")
-    server.log.info("✅ Gevent async workers enabled - SSE streaming ready")
+    server.log.info(f"Workers: {workers}, Timeout: {timeout}s")
 
 def on_reload(server):
     """Called to recycle workers during a reload via SIGHUP."""
@@ -71,9 +68,17 @@ def worker_abort(worker):
     """Called when a worker received the SIGABRT signal."""
     worker.log.warning(f"⚠️ Worker {worker.pid} aborted (likely timeout)")
 
+def pre_fork(server, worker):
+    """Called just before a worker is forked."""
+    pass
+
 def post_fork(server, worker):
     """Called just after a worker has been forked."""
-    server.log.info(f"👶 Worker {worker.pid} spawned (gevent)")
+    server.log.info(f"👶 Worker {worker.pid} spawned")
+
+def pre_exec(server):
+    """Called just before a new master process is forked."""
+    server.log.info("🔄 Forking new master process")
 
 def when_ready(server):
     """Called just after the server is started."""
@@ -82,3 +87,7 @@ def when_ready(server):
 def worker_exit(server, worker):
     """Called just after a worker has been exited."""
     server.log.info(f"👋 Worker {worker.pid} exited")
+
+def nworkers_changed(server, new_value, old_value):
+    """Called just after num_workers has been changed."""
+    server.log.info(f"📊 Workers changed: {old_value} → {new_value}")
