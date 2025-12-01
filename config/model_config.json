@@ -1,0 +1,57 @@
+{
+  "model_selection": {
+    "primary_model": "gpt-4o",
+    "fallback_model": "gpt-4-turbo",
+    "reason": "GPT-4o provides best balance: 128K context, 16K completion limit, superior reasoning"
+  },
+  "model_comparison": {
+    "gpt-4o": {
+      "context_window": 128000,
+      "max_completion_api": 16384,
+      "recommended_prompt": 75000,
+      "benefits": "Best reasoning, large completion limit, fast",
+      "use_case": "Primary model for all analysis"
+    },
+    "gpt-4-turbo": {
+      "context_window": 128000,
+      "max_completion_api": 4096,
+      "recommended_prompt": 90000,
+      "benefits": "Large context, but small completion limit",
+      "use_case": "Fallback if GPT-4o unavailable"
+    },
+    "gpt-4": {
+      "context_window": 8192,
+      "max_completion_api": 8192,
+      "recommended_prompt": 4000,
+      "benefits": "Legacy model, small context",
+      "use_case": "Not recommended for document analysis"
+    }
+  },
+  "optimization_strategy": {
+    "prompt_tokens_target": 75000,
+    "completion_tokens_target": 16384,
+    "parallel_workers": 5,
+    "estimated_tpm": 375000,
+    "tier_requirement": "Tier 2 (2M TPM) or higher",
+    "safety_margin": "40% - conservative to avoid rate limits"
+  },
+  "performance_estimates": {
+    "100_page_document": {
+      "windows": 34,
+      "experts_per_window": 10,
+      "total_api_calls": 340,
+      "parallel_batches": 68,
+      "time_per_batch_seconds": 4,
+      "total_time_minutes": 4.5,
+      "estimated_tokens": 510000,
+      "estimated_cost_usd": 15.30
+    }
+  },
+  "notes": [
+    "GPT-4o max_completion_tokens is API-enforced at 16,384 (not 128K!)",
+    "Always specify max_tokens parameter to avoid truncation",
+    "Use token_optimizer.py to automatically detect and configure limits",
+    "Monitor rate limits - adjust parallel_workers if hitting TPM limits",
+    "Cost estimate based on $0.03/1K tokens (approximate GPT-4o pricing)"
+  ]
+}

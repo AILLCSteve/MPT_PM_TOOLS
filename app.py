@@ -455,29 +455,38 @@ def register_routes(app: Flask, config: Config):
             'status': 'running' if doc_extractor else 'unavailable'
         })
 
+    # Session storage for orchestrator instances (for multi-pass workflow)
+    analysis_sessions = {}  # session_id -> {"orchestrator": ..., "first_pass_result": ...}
+
     @app.route('/cipp-analyzer/api/analyze_hotdog', methods=['POST'])
     def cipp_analyze_hotdog():
         """
-        HOTDOG AI document analysis endpoint.
+        HOTDOG AI document analysis endpoint (FIRST PASS).
         Performs comprehensive multi-expert analysis with perfect page citation preservation.
 
         Expected request:
         {
             "pdf_path": "/path/to/file.pdf",
-            "config_path": "/path/to/questions.json" (optional, uses default if not provided)
+            "config_path": "/path/to/questions.json" (optional, uses default if not provided),
+            "context_guardrails": "Only answer within CIPP lining context" (optional),
+            "session_id": "unique-session-id" (optional, for multi-pass workflow)
         }
 
         Returns:
         {
             "success": true,
+            "session_id": "...",
             "result": {
                 "document_name": "...",
                 "total_pages": 100,
                 "questions_answered": 95,
+                "questions_unanswered": 5,
                 "sections": [...],
                 "footnotes": [...],
                 "metadata": {...}
-            }
+            },
+            "statistics": {...},
+            "can_run_second_pass": true
         }
         """
         try:
@@ -507,11 +516,14 @@ def register_routes(app: Flask, config: Config):
                     'error_type': 'ValidationError'
                 }), 400
 
-            # Use default config if not provided
+            # Get optional parameters
             config_path = data.get('config_path')
             if not config_path:
                 config_path = str(config.BASE_DIR / 'config' / 'cipp_questions_default.json')
                 logger.info(f"Using default CIPP questions config: {config_path}")
+
+            context_guardrails = data.get('context_guardrails', '')
+            session_id = data.get('session_id', f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
 
             # Verify files exist
             if not os.path.exists(pdf_path):
@@ -529,11 +541,14 @@ def register_routes(app: Flask, config: Config):
                 }), 404
 
             logger.info(f"🔥 Starting HOTDOG analysis: {pdf_path}")
+            if context_guardrails:
+                logger.info(f"📋 Context Guardrails: {context_guardrails}")
 
-            # Initialize HOTDOG orchestrator
+            # Initialize HOTDOG orchestrator with context guardrails
             orchestrator = HotdogOrchestrator(
                 openai_api_key=openai_key,
-                config_path=config_path
+                config_path=config_path,
+                context_guardrails=context_guardrails
             )
 
             # Run analysis (async)
@@ -553,22 +568,252 @@ def register_routes(app: Flask, config: Config):
 
             browser_output = orchestrator.get_browser_output(analysis_result, parsed_config)
 
-            logger.info(f"✅ HOTDOG analysis complete: {analysis_result.questions_answered} questions answered")
+            # Calculate unanswered questions
+            total_questions = parsed_config.total_questions
+            questions_unanswered = total_questions - analysis_result.questions_answered
+            can_run_second_pass = questions_unanswered > 0
+
+            # Store session for potential second pass
+            analysis_sessions[session_id] = {
+                'orchestrator': orchestrator,
+                'first_pass_result': analysis_result,
+                'parsed_config': parsed_config,
+                'created_at': datetime.now()
+            }
+
+            logger.info(f"✅ HOTDOG analysis complete: {analysis_result.questions_answered}/{total_questions} questions answered")
+            if can_run_second_pass:
+                logger.info(f"   {questions_unanswered} questions remain unanswered - second pass available")
 
             return jsonify({
                 'success': True,
+                'session_id': session_id,
                 'result': browser_output,
                 'statistics': {
                     'processing_time': analysis_result.processing_time_seconds,
                     'total_tokens': analysis_result.total_tokens,
                     'estimated_cost': f"${analysis_result.estimated_cost:.4f}",
                     'questions_answered': analysis_result.questions_answered,
+                    'questions_unanswered': questions_unanswered,
+                    'total_questions': total_questions,
                     'average_confidence': f"{analysis_result.average_confidence:.0%}"
-                }
+                },
+                'can_run_second_pass': can_run_second_pass,
+                'context_guardrails': context_guardrails if context_guardrails else None
             })
 
         except Exception as e:
             logger.error(f"HOTDOG analysis error: {str(e)}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'error': str(e),
+                'error_type': type(e).__name__
+            }), 500
+
+    @app.route('/cipp-analyzer/api/second_pass', methods=['POST'])
+    def cipp_second_pass():
+        """
+        HOTDOG AI SECOND PASS endpoint.
+        Runs enhanced scrutiny on unanswered questions from the first pass.
+
+        Expected request:
+        {
+            "session_id": "session_20251130_143045"
+        }
+
+        Returns:
+        {
+            "success": true,
+            "result": {
+                "document_name": "...",
+                "total_pages": 100,
+                "questions_answered": 98,  // Updated count
+                "questions_unanswered": 2,   // Reduced count
+                "sections": [...],  // Merged results
+                "footnotes": [...],
+                "metadata": {...}
+            },
+            "statistics": {
+                "first_pass_answers": 95,
+                "second_pass_answers": 3,
+                "total_questions_answered": 98,
+                "second_pass_success_rate": "13.6%",
+                "total_tokens": 560000,
+                "estimated_cost": "$16.80"
+            }
+        }
+        """
+        try:
+            # Get request data
+            data = request.json
+            if not data:
+                return jsonify({
+                    'success': False,
+                    'error': 'No data provided',
+                    'error_type': 'ValidationError'
+                }), 400
+
+            session_id = data.get('session_id')
+            if not session_id:
+                return jsonify({
+                    'success': False,
+                    'error': 'No session_id provided',
+                    'error_type': 'ValidationError'
+                }), 400
+
+            # Retrieve session
+            if session_id not in analysis_sessions:
+                return jsonify({
+                    'success': False,
+                    'error': f'Session not found: {session_id}. Please run first pass analysis first.',
+                    'error_type': 'SessionNotFoundError'
+                }), 404
+
+            session_data = analysis_sessions[session_id]
+            orchestrator = session_data['orchestrator']
+            first_pass_result = session_data['first_pass_result']
+            parsed_config = session_data['parsed_config']
+
+            # Calculate first-pass stats
+            first_pass_answers = first_pass_result.questions_answered
+            total_questions = parsed_config.total_questions
+            unanswered_before = total_questions - first_pass_answers
+
+            if unanswered_before == 0:
+                return jsonify({
+                    'success': True,
+                    'message': 'All questions already answered in first pass. No second pass needed.',
+                    'result': orchestrator.get_browser_output(first_pass_result, parsed_config),
+                    'statistics': {
+                        'first_pass_answers': first_pass_answers,
+                        'second_pass_answers': 0,
+                        'total_questions_answered': first_pass_answers,
+                        'total_questions': total_questions
+                    }
+                })
+
+            logger.info(f"🔍 Starting second pass for session: {session_id}")
+            logger.info(f"   First pass answered: {first_pass_answers}/{total_questions}")
+            logger.info(f"   Targeting: {unanswered_before} unanswered questions")
+
+            # Run second pass (async)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                updated_result = loop.run_until_complete(
+                    orchestrator.run_second_pass(first_pass_result)
+                )
+            finally:
+                loop.close()
+
+            # Calculate second-pass stats
+            second_pass_answers = updated_result.questions_answered - first_pass_answers
+            unanswered_after = total_questions - updated_result.questions_answered
+            success_rate = (second_pass_answers / unanswered_before * 100) if unanswered_before > 0 else 0
+
+            # Update session with new result
+            session_data['first_pass_result'] = updated_result
+            session_data['second_pass_run'] = True
+
+            # Get updated browser output
+            browser_output = orchestrator.get_browser_output(updated_result, parsed_config)
+
+            logger.info(f"✅ Second pass complete!")
+            logger.info(f"   Second pass found: {second_pass_answers} new answers")
+            logger.info(f"   Total answered: {updated_result.questions_answered}/{total_questions}")
+            logger.info(f"   Success rate: {success_rate:.1f}%")
+
+            return jsonify({
+                'success': True,
+                'session_id': session_id,
+                'result': browser_output,
+                'statistics': {
+                    'processing_time': updated_result.processing_time_seconds,
+                    'first_pass_answers': first_pass_answers,
+                    'second_pass_answers': second_pass_answers,
+                    'total_questions_answered': updated_result.questions_answered,
+                    'questions_unanswered': unanswered_after,
+                    'total_questions': total_questions,
+                    'second_pass_success_rate': f"{success_rate:.1f}%",
+                    'total_tokens': updated_result.total_tokens,
+                    'estimated_cost': f"${updated_result.estimated_cost:.4f}",
+                    'average_confidence': f"{updated_result.average_confidence:.0%}"
+                }
+            })
+
+        except Exception as e:
+            logger.error(f"Second pass error: {str(e)}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'error': str(e),
+                'error_type': type(e).__name__
+            }), 500
+
+    @app.route('/cipp-analyzer/api/export_excel_dashboard', methods=['POST'])
+    def export_excel_dashboard():
+        """
+        Export analysis results as Excel dashboard with embedded charts.
+        Uses openpyxl to create native Excel visualizations.
+
+        Expected request:
+        {
+            "analysis_result": { ... },  // Browser-formatted analysis result
+            "document_name": "file.pdf"
+        }
+
+        Returns:
+        Excel file download
+        """
+        try:
+            from services.excel_dashboard_generator import generate_excel_dashboard
+            import tempfile
+            import os
+
+            # Get request data
+            data = request.json
+            if not data:
+                return jsonify({
+                    'success': False,
+                    'error': 'No data provided',
+                    'error_type': 'ValidationError'
+                }), 400
+
+            analysis_result = data.get('analysis_result')
+            if not analysis_result:
+                return jsonify({
+                    'success': False,
+                    'error': 'No analysis_result provided',
+                    'error_type': 'ValidationError'
+                }), 400
+
+            document_name = data.get('document_name', 'Analysis')
+
+            # Generate Excel dashboard in temp file
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"CIPP_Dashboard_{timestamp}.xlsx"
+            temp_path = os.path.join(tempfile.gettempdir(), filename)
+
+            logger.info(f"📊 Generating Excel dashboard: {filename}")
+
+            # Generate dashboard
+            excel_path = generate_excel_dashboard(
+                analysis_result=analysis_result,
+                output_path=temp_path,
+                document_name=document_name
+            )
+
+            logger.info(f"✅ Excel dashboard created: {excel_path}")
+
+            # Send file
+            return send_file(
+                excel_path,
+                as_attachment=True,
+                download_name=filename,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+
+        except Exception as e:
+            logger.error(f"Excel dashboard export error: {str(e)}", exc_info=True)
             return jsonify({
                 'success': False,
                 'error': str(e),

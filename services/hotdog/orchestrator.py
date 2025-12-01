@@ -37,11 +37,13 @@ from .layers import (
 from .multi_expert_processor import MultiExpertProcessor
 from .smart_accumulator import SmartAccumulator
 from .output_compiler import OutputCompiler
+from .second_pass_processor import SecondPassProcessor
 from .models import (
     AnalysisResult,
     ParsedConfig,
     ExpertPersona,
-    WindowContext
+    WindowContext,
+    Question
 )
 
 logger = logging.getLogger(__name__)
@@ -66,7 +68,8 @@ class HotdogOrchestrator:
         config_path: Optional[str] = None,
         max_parallel_experts: int = 5,
         similarity_threshold: float = 0.75,
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
+        context_guardrails: Optional[str] = None
     ):
         """
         Initialize the HOTDOG orchestrator.
@@ -78,30 +81,58 @@ class HotdogOrchestrator:
             similarity_threshold: Similarity threshold for answer merging (0.0-1.0)
             progress_callback: Optional callback for progress updates
                               Signature: callback(event_type: str, data: dict)
+            context_guardrails: Optional global context rules for analysis
+                              (e.g., "Only answer within CIPP lining context")
         """
         self.openai_client = AsyncOpenAI(api_key=openai_api_key)
         self.config_path = config_path
         self.progress_callback = progress_callback
+        self.context_guardrails = context_guardrails or ""
 
-        # Initialize all layers
+        # Detect model limits using TokenOptimizer
+        self.model = "gpt-4o"  # Most robust available model
+        model_limits = TokenOptimizer.detect_model_limits(self.model)
+
+        # Initialize all layers with optimized token limits
         self.layer0_ingestion = DocumentIngestionLayer()
         self.layer1_config = ConfigurationLoader()
         self.layer2_experts = ExpertPersonaGenerator(
-            openai_client=self.openai_client
+            openai_client=self.openai_client,
+            model=self.model
         )
         self.layer3_processor = MultiExpertProcessor(
             openai_client=self.openai_client,
-            max_parallel_experts=max_parallel_experts
+            max_parallel_experts=max_parallel_experts,
+            model=self.model,
+            max_completion_tokens=model_limits.recommended_completion_tokens
+        )
+        self.layer3_5_second_pass = SecondPassProcessor(
+            openai_client=self.openai_client,
+            max_parallel_experts=max_parallel_experts,
+            context_guardrails=self.context_guardrails,
+            model=self.model,
+            max_completion_tokens=model_limits.recommended_completion_tokens
         )
         self.layer4_accumulator = SmartAccumulator(
             similarity_threshold=similarity_threshold
         )
         self.layer5_token_manager = TokenBudgetManager(
-            max_prompt_tokens=4000  # GPT-4 safe limit
+            max_prompt_tokens=model_limits.recommended_prompt_tokens,  # 75K for GPT-4o
+            max_completion_tokens=model_limits.recommended_completion_tokens  # 16K for GPT-4o
         )
         self.layer6_compiler = OutputCompiler()
 
+        # Store windows and experts for second pass
+        self.cached_windows = []
+        self.cached_experts = {}
+        self.cached_config = None
+
         logger.info("🔥 HOTDOG AI Orchestrator initialized")
+        logger.info(f"   Model: {self.model}")
+        logger.info(f"   Prompt Budget: {model_limits.recommended_prompt_tokens:,} tokens (18.75x improvement!)")
+        logger.info(f"   Completion Limit: {model_limits.recommended_completion_tokens:,} tokens")
+        if self.context_guardrails:
+            logger.info(f"📋 Context Guardrails: {self.context_guardrails[:100]}...")
 
     async def analyze_document(
         self,
@@ -144,6 +175,9 @@ class HotdogOrchestrator:
                 'total_windows': len(windows)
             })
 
+            # Cache windows for potential second pass
+            self.cached_windows = windows
+
             # ============================================================
             # LAYER 1: CONFIGURATION LOADING
             # ============================================================
@@ -163,6 +197,9 @@ class HotdogOrchestrator:
                 'sections': [s.name for s in config.sections]
             })
 
+            # Cache config for potential second pass
+            self.cached_config = config
+
             # ============================================================
             # LAYER 2: EXPERT PERSONA GENERATION
             # ============================================================
@@ -179,6 +216,9 @@ class HotdogOrchestrator:
                 'experts_generated': len(experts),
                 'expert_names': [e.name for e in experts.values()]
             })
+
+            # Cache experts for potential second pass
+            self.cached_experts = experts
 
             # ============================================================
             # LAYERS 3, 4, 5: WINDOW PROCESSING LOOP
@@ -316,6 +356,151 @@ class HotdogOrchestrator:
 
         # Print accumulation report
         logger.info("\n" + self.layer4_accumulator.generate_report())
+
+    async def run_second_pass(self, first_pass_result: AnalysisResult) -> AnalysisResult:
+        """
+        Run second-pass analysis on unanswered questions from first pass.
+
+        This method uses enhanced scrutiny and creative interpretation to find
+        answers to questions that were not answered in the first pass.
+
+        Args:
+            first_pass_result: Result from the first pass analysis
+
+        Returns:
+            Updated AnalysisResult with second-pass answers merged in
+
+        Raises:
+            ValueError: If cached data not available (must run first pass first)
+            RuntimeError: If second pass fails critically
+        """
+        if not self.cached_windows or not self.cached_experts or not self.cached_config:
+            raise ValueError("Second pass requires cached data from first pass. Run analyze_document() first.")
+
+        logger.info(f"\n{'='*64}")
+        logger.info(f"🔍 STARTING SECOND PASS - ENHANCED SCRUTINY")
+        logger.info(f"{'='*64}")
+
+        started_at = datetime.now()
+        self._emit_progress('second_pass_started', {
+            'first_pass_questions_answered': first_pass_result.questions_answered,
+            'total_questions': self.cached_config.total_questions
+        })
+
+        try:
+            # Identify unanswered questions
+            unanswered_questions = self._identify_unanswered_questions(
+                first_pass_result,
+                self.cached_config
+            )
+
+            logger.info(f"📊 First Pass Results:")
+            logger.info(f"   Answered: {first_pass_result.questions_answered}/{self.cached_config.total_questions}")
+            logger.info(f"   Unanswered: {len(unanswered_questions)}")
+            logger.info(f"   Completion Rate: {first_pass_result.questions_answered/self.cached_config.total_questions*100:.1f}%")
+
+            if not unanswered_questions:
+                logger.info("🎉 All questions answered in first pass! No second pass needed.")
+                return first_pass_result
+
+            # Run second-pass processor
+            logger.info(f"\n🔍 Running second pass on {len(unanswered_questions)} unanswered questions...")
+            self._emit_progress('second_pass_processing', {
+                'unanswered_count': len(unanswered_questions)
+            })
+
+            second_pass_answers = await self.layer3_5_second_pass.process_unanswered_questions(
+                windows=self.cached_windows,
+                unanswered_questions=unanswered_questions,
+                experts=self.cached_experts
+            )
+
+            logger.info(f"✅ Second pass found {len(second_pass_answers)} new answers")
+
+            # Merge second-pass answers into accumulator
+            logger.info(f"\n🔄 Merging second-pass answers into first-pass results...")
+            for question_id, answer in second_pass_answers.items():
+                # Add to accumulator (will handle deduplication)
+                if question_id not in first_pass_result.questions:
+                    first_pass_result.questions[question_id] = []
+                first_pass_result.questions[question_id].append(answer)
+                logger.info(f"   ✅ Added answer for {question_id}")
+
+            # Recompile results with merged answers
+            completed_at = datetime.now()
+            total_tokens = (
+                first_pass_result.total_tokens +
+                self.layer3_5_second_pass.total_tokens_used
+            )
+
+            # Recalculate cost
+            estimated_cost = total_tokens * 0.00003  # ~$0.03 per 1K tokens
+
+            # Update result metadata
+            first_pass_result.total_tokens = total_tokens
+            first_pass_result.estimated_cost = estimated_cost
+            first_pass_result.completed_at = completed_at
+
+            # Recompile footnotes
+            from .output_compiler import OutputCompiler
+            compiler = OutputCompiler()
+            first_pass_result.footnotes = compiler._compile_footnotes(first_pass_result.questions)
+
+            # Final statistics
+            logger.info(f"\n{'='*64}")
+            logger.info(f"🎉 SECOND PASS COMPLETE")
+            logger.info(f"{'='*64}")
+            logger.info(f"Questions Answered (First Pass): {first_pass_result.questions_answered - len(second_pass_answers)}")
+            logger.info(f"Questions Answered (Second Pass): {len(second_pass_answers)}")
+            logger.info(f"Total Questions Answered: {first_pass_result.questions_answered}/{self.cached_config.total_questions}")
+            logger.info(f"New Completion Rate: {first_pass_result.questions_answered/self.cached_config.total_questions*100:.1f}%")
+            logger.info(f"Second Pass Success Rate: {len(second_pass_answers)/len(unanswered_questions)*100:.1f}%")
+            logger.info(f"Total Tokens: {total_tokens:,}")
+            logger.info(f"Estimated Cost: ${estimated_cost:.4f}")
+            logger.info(f"{'='*64}")
+
+            # Print second-pass statistics
+            logger.info("\n📊 SECOND PASS STATISTICS")
+            logger.info(self.layer3_5_second_pass.get_statistics())
+
+            self._emit_progress('second_pass_complete', {
+                'second_pass_answers_found': len(second_pass_answers),
+                'total_questions_answered': first_pass_result.questions_answered,
+                'completion_rate': first_pass_result.questions_answered/self.cached_config.total_questions,
+                'total_tokens': total_tokens,
+                'estimated_cost': estimated_cost
+            })
+
+            return first_pass_result
+
+        except Exception as e:
+            logger.error(f"❌ Second pass failed: {str(e)}", exc_info=True)
+            self._emit_progress('second_pass_failed', {'error': str(e)})
+            raise RuntimeError(f"Second pass analysis failed: {str(e)}") from e
+
+    def _identify_unanswered_questions(
+        self,
+        result: AnalysisResult,
+        config: ParsedConfig
+    ) -> List[Question]:
+        """
+        Identify questions that were not answered in the first pass.
+
+        Args:
+            result: First pass analysis result
+            config: Question configuration
+
+        Returns:
+            List of Question objects that have no answers
+        """
+        unanswered = []
+
+        for question_id, question in config.question_map.items():
+            # Check if this question has any answers
+            if question_id not in result.questions or not result.questions[question_id]:
+                unanswered.append(question)
+
+        return unanswered
 
     def _emit_progress(self, event_type: str, data: dict):
         """Emit progress event to callback if provided."""
