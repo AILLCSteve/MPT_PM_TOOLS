@@ -23,7 +23,7 @@ CRITICAL FEATURES:
 
 import asyncio
 import logging
-from typing import Dict, Optional, Callable
+from typing import Dict, List, Optional, Callable
 from datetime import datetime
 from pathlib import Path
 from openai import AsyncOpenAI
