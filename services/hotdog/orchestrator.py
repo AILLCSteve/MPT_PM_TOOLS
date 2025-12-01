@@ -330,9 +330,23 @@ class HotdogOrchestrator:
             return result
 
         except Exception as e:
-            logger.error(f"❌ Analysis failed: {str(e)}", exc_info=True)
-            self._emit_progress('analysis_failed', {'error': str(e)})
-            raise RuntimeError(f"HOTDOG analysis failed: {str(e)}") from e
+            # Preserve detailed error information for debugging
+            error_type = type(e).__name__
+            error_msg = str(e)
+
+            logger.error(f"❌ Analysis failed ({error_type}): {error_msg}", exc_info=True)
+            self._emit_progress('analysis_failed', {'error': error_msg, 'error_type': error_type})
+
+            # Provide helpful context based on error type
+            if "JSON" in error_msg or "Unexpected token" in error_msg:
+                detailed_error = (
+                    f"OpenAI API returned invalid response (expected JSON, got HTML). "
+                    f"This usually indicates an API authentication error. "
+                    f"Original error: {error_msg}"
+                )
+                raise RuntimeError(detailed_error) from e
+            else:
+                raise RuntimeError(f"HOTDOG analysis failed ({error_type}): {error_msg}") from e
 
     def _print_final_summary(self, result: AnalysisResult, config: ParsedConfig):
         """Print final analysis summary."""
