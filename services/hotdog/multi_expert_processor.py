@@ -45,18 +45,31 @@ class MultiExpertProcessor:
     CRITICAL: Every answer MUST include PDF page citations.
     """
 
-    def __init__(self, openai_client: AsyncOpenAI, max_parallel_experts: int = 5):
+    def __init__(
+        self,
+        openai_client: AsyncOpenAI,
+        max_parallel_experts: int = 5,
+        model: str = "gpt-4o",
+        max_completion_tokens: int = 16384
+    ):
         """
         Initialize the multi-expert processor.
 
         Args:
             openai_client: Async OpenAI client for API calls
             max_parallel_experts: Maximum concurrent expert calls (rate limiting)
+            model: OpenAI model to use (default: gpt-4o - most robust available)
+            max_completion_tokens: Maximum tokens for completion (gpt-4o limit: 16,384)
         """
         self.client = openai_client
         self.max_parallel = max_parallel_experts
+        self.model = model
+        self.max_completion_tokens = max_completion_tokens
         self.total_api_calls = 0
         self.total_tokens = 0
+
+        logger.info(f"🤖 Multi-Expert Processor initialized with model: {model}")
+        logger.info(f"   Max completion tokens: {max_completion_tokens:,}")
 
     async def process_window(
         self,
@@ -172,15 +185,16 @@ class MultiExpertProcessor:
         # Build the expert prompt
         prompt = self._build_expert_prompt(window, expert, questions)
 
-        # Execute AI call
+        # Execute AI call with optimized token limits
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-4",
+                model=self.model,
                 messages=[
                     {"role": "system", "content": expert.system_prompt},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,  # Lower temperature for factual extraction
+                max_tokens=self.max_completion_tokens,  # API enforced limit
                 response_format={"type": "json_object"}
             )
 

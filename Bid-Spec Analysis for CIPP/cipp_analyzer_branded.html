@@ -763,6 +763,29 @@
             <div class="form-group">
                 <label>Active Questions: <span id="activeQuestionCount">0</span> questions selected</label>
             </div>
+
+            <!-- Context Guardrails Input -->
+            <div class="form-group" style="margin-top: 20px; padding: 15px; background: rgba(91, 127, 204, 0.05); border-radius: 8px; border: 2px dashed rgba(91, 127, 204, 0.3);">
+                <label for="contextGuardrails" style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                    <span style="font-size: 1.2em;">📋</span>
+                    <strong>Context Guardrails (Optional)</strong>
+                </label>
+                <textarea
+                    id="contextGuardrails"
+                    placeholder="Enter background rules or context constraints (e.g., 'Only answer questions in regard to CIPP lining' or 'Answer within the context of the medical industry')"
+                    style="width: 100%; min-height: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; resize: vertical;"
+                    oninput="saveContextGuardrails()"
+                ></textarea>
+                <small style="color: #666; display: block; margin-top: 8px;">
+                    <strong>What are Context Guardrails?</strong> Global rules applied to ALL questions in the analysis.
+                    Use this to focus the AI's attention on specific contexts or formats.
+                </small>
+                <div id="activeGuardrailsDisplay" style="display: none; margin-top: 12px; padding: 10px; background: rgba(34, 197, 94, 0.1); border-left: 4px solid #22c55e; border-radius: 4px;">
+                    <strong style="color: #22c55e;">✓ Active Guardrails:</strong>
+                    <p id="activeGuardrailsText" style="margin: 5px 0 0 0; color: #333; font-style: italic;"></p>
+                </div>
+            </div>
+
             <button class="btn btn-secondary" onclick="showQuestionManager()">📝 Manage Questions</button>
             <button class="btn btn-secondary" onclick="addQuestionSection()">➕ Add Custom Section</button>
             <button class="btn btn-secondary" onclick="exportQuestions()">📤 Export Questions</button>
@@ -772,18 +795,40 @@
         <!-- Analysis Controls & Debug Tools -->
         <div class="section">
             <h3>🎯 Analysis Controls</h3>
-            <button class="btn" id="analyzeBtn" onclick="startAnalysis()" disabled>🚀 Start Analysis</button>
-            <button class="btn btn-danger" id="stopBtn" onclick="stopAnalysis()" disabled>⏹️ Stop Analysis</button>
-            <button class="btn btn-secondary" onclick="clearResults()">🗑️ Clear Results</button>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+                <button class="btn" id="analyzeBtn" onclick="startAnalysis()" disabled>🚀 Start Analysis (Pass 1)</button>
+                <button class="btn" id="secondPassBtn" onclick="runSecondPass()" disabled style="background: linear-gradient(45deg, #f59e0b, #d97706); display: none;">
+                    🔍 Run Second Pass
+                </button>
+                <button class="btn btn-danger" id="stopBtn" onclick="stopAnalysis()" disabled>⏹️ Stop Analysis</button>
+                <button class="btn btn-secondary" onclick="clearResults()">🗑️ Clear Results</button>
+            </div>
+
+            <!-- Second Pass Info Banner -->
+            <div id="secondPassBanner" style="display: none; padding: 15px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%); border-left: 4px solid #f59e0b; border-radius: 6px; margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 2em;">🔍</span>
+                    <div style="flex: 1;">
+                        <strong style="color: #f59e0b; font-size: 1.1em;">Second Pass Available!</strong>
+                        <p style="margin: 5px 0 0 0; color: #666;">
+                            <span id="unansweredCount">0</span> questions remain unanswered.
+                            Run a second pass with <strong>enhanced scrutiny</strong> to find difficult-to-locate answers.
+                        </p>
+                    </div>
+                    <button class="btn" onclick="runSecondPass()" style="background: linear-gradient(45deg, #f59e0b, #d97706); white-space: nowrap;">
+                        Run Second Pass →
+                    </button>
+                </div>
+            </div>
             <div class="btn-group" style="display: inline-block; position: relative;">
                 <button class="btn btn-secondary" onclick="showExportMenu()" id="exportBtn" disabled>📊 Export Results ▼</button>
-                <div id="exportMenu" style="display: none; position: absolute; background: white; border: 2px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 250px; top: 100%; left: 0; margin-top: 5px;">
-                    <button onclick="exportResults('excel-simple')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee; font-weight: 600; color: #1e7145;">✨ Excel (Styled Table)</button>
-                    <button onclick="exportResults('excel')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee; color: #666;">📊 Excel (Full Dashboard)</button>
-                    <button onclick="exportResults('csv')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📄 CSV (Simple)</button>
-                    <button onclick="exportResults('html')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">🌐 HTML Report</button>
-                    <button onclick="exportResults('markdown')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📝 Markdown Table</button>
-                    <button onclick="exportResults('json')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer;">📋 JSON Data</button>
+                <div id="exportMenu" style="display: none; position: absolute; background: white; border: 2px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 280px; top: 100%; left: 0; margin-top: 5px;">
+                    <button onclick="exportExcelDashboard()" style="width: 100%; padding: 14px; border: none; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee; font-weight: 700; font-size: 15px;">📊 Excel Dashboard (Charts) ⭐</button>
+                    <button onclick="exportResults('excel-simple')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee; color: #666;">✨ Excel (Styled Table)</button>
+                    <button onclick="exportResults('csv')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee; color: #666;">📄 CSV (Simple)</button>
+                    <button onclick="exportResults('html')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee; color: #666;">🌐 HTML Report</button>
+                    <button onclick="exportResults('markdown')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee; color: #666;">📝 Markdown Table</button>
+                    <button onclick="exportResults('json')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; color: #666;">📋 JSON Data</button>
                 </div>
             </div>
         </div>
@@ -5400,6 +5445,12 @@ ${text}
         // Initialize application
         document.addEventListener('DOMContentLoaded', function() {
             app = new CIPPAnalyzer();
+
+            // Load saved context guardrails
+            loadContextGuardrails();
+
+            Logger.info('✅ CIPP Analyzer initialized with HOTDOG AI backend');
+            Logger.info('💡 Multi-pass analysis with context guardrails enabled');
         });
 
         // Global functions for HTML event handlers
@@ -5449,12 +5500,250 @@ ${text}
             }
         }
 
+        // ===================================================================
+        // MULTI-PASS ANALYSIS & CONTEXT GUARDRAILS SUPPORT
+        // ===================================================================
+
+        // Global variables for multi-pass workflow
+        let currentSessionId = null;
+        let currentAnalysisResult = null;
+
+        // Load and display context guardrails on page load
+        function loadContextGuardrails() {
+            try {
+                const saved = localStorage.getItem('context_guardrails');
+                if (saved) {
+                    document.getElementById('contextGuardrails').value = saved;
+                    updateGuardrailsDisplay(saved);
+                }
+            } catch (error) {
+                console.error('Failed to load context guardrails:', error);
+            }
+        }
+
+        // Save context guardrails to localStorage
+        function saveContextGuardrails() {
+            const guardrails = document.getElementById('contextGuardrails').value.trim();
+            try {
+                if (guardrails) {
+                    localStorage.setItem('context_guardrails', guardrails);
+                    updateGuardrailsDisplay(guardrails);
+                } else {
+                    localStorage.removeItem('context_guardrails');
+                    updateGuardrailsDisplay('');
+                }
+            } catch (error) {
+                Logger.error('Failed to save context guardrails: ' + error.message);
+            }
+        }
+
+        // Update the display of active guardrails
+        function updateGuardrailsDisplay(guardrails) {
+            const displayDiv = document.getElementById('activeGuardrailsDisplay');
+            const textDiv = document.getElementById('activeGuardrailsText');
+
+            if (guardrails && guardrails.trim()) {
+                displayDiv.style.display = 'block';
+                textDiv.textContent = guardrails;
+            } else {
+                displayDiv.style.display = 'none';
+            }
+        }
+
+        // Run second pass analysis on unanswered questions
+        async function runSecondPass() {
+            if (!currentSessionId) {
+                Logger.error('No active session. Please run first pass analysis first.');
+                alert('No active session found. Please run the first pass analysis first.');
+                return;
+            }
+
+            try {
+                Logger.info('🔍 Starting second pass analysis...');
+                Logger.info(`Session ID: ${currentSessionId}`);
+
+                // Disable buttons
+                document.getElementById('secondPassBtn').disabled = true;
+                document.getElementById('analyzeBtn').disabled = true;
+
+                // Show progress
+                ProgressTracker.show();
+                ProgressTracker.update(0, 'Preparing second pass analysis...');
+
+                // Call second pass API
+                const response = await fetch('/cipp-analyzer/api/second_pass', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: currentSessionId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Second pass failed');
+                }
+
+                Logger.success('✅ Second pass complete!');
+                Logger.success(`Second pass found ${data.statistics.second_pass_answers} new answers`);
+                Logger.success(`Total answered: ${data.statistics.total_questions_answered}/${data.statistics.total_questions}`);
+                Logger.success(`Success rate: ${data.statistics.second_pass_success_rate}`);
+
+                // Update results
+                currentAnalysisResult = data.result;
+
+                // Hide second pass banner
+                document.getElementById('secondPassBanner').style.display = 'none';
+                document.getElementById('secondPassBtn').style.display = 'none';
+
+                // Show updated results
+                displayResults(data.result);
+
+                // Update statistics display
+                displayStatistics(data.statistics);
+
+                ProgressTracker.hide();
+
+                alert(`Second Pass Complete!\n\n` +
+                      `First Pass: ${data.statistics.first_pass_answers} answers\n` +
+                      `Second Pass: ${data.statistics.second_pass_answers} NEW answers\n` +
+                      `Total: ${data.statistics.total_questions_answered}/${data.statistics.total_questions} questions answered\n\n` +
+                      `Success Rate: ${data.statistics.second_pass_success_rate}`);
+
+            } catch (error) {
+                Logger.error('Second pass failed: ' + error.message);
+                alert('Second pass analysis failed: ' + error.message);
+                ProgressTracker.hide();
+
+                // Re-enable buttons
+                document.getElementById('secondPassBtn').disabled = false;
+                document.getElementById('analyzeBtn').disabled = false;
+            }
+        }
+
+        // Show second pass banner after first pass
+        function showSecondPassOption(stats) {
+            if (stats.questions_unanswered > 0) {
+                const banner = document.getElementById('secondPassBanner');
+                const button = document.getElementById('secondPassBtn');
+                const countSpan = document.getElementById('unansweredCount');
+
+                countSpan.textContent = stats.questions_unanswered;
+                banner.style.display = 'block';
+                button.style.display = 'inline-block';
+                button.disabled = false;
+
+                Logger.info(`💡 Second pass available for ${stats.questions_unanswered} unanswered questions`);
+            }
+        }
+
         function handleFileSelect(event) {
             app.handleFileSelect(event);
         }
 
-        function startAnalysis() {
-            app.startAnalysis();
+        async function startAnalysis() {
+            // Use HOTDOG AI backend for analysis
+            await startAnalysisHOTDOG();
+        }
+
+        // HOTDOG AI Analysis (recommended)
+        async function startAnalysisHOTDOG() {
+            if (!app.currentFile) {
+                Logger.error("Please upload a PDF file first");
+                alert('Please upload a PDF file first');
+                return;
+            }
+
+            try {
+                Logger.info('🔥 Starting HOTDOG AI analysis...');
+
+                // Get context guardrails
+                const contextGuardrails = document.getElementById('contextGuardrails').value.trim();
+                if (contextGuardrails) {
+                    Logger.info(`📋 Context Guardrails: ${contextGuardrails}`);
+                }
+
+                // Disable buttons
+                document.getElementById('analyzeBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+
+                // Show progress
+                ProgressTracker.show();
+                ProgressTracker.update(10, 'Uploading document...');
+
+                // Upload PDF first
+                const formData = new FormData();
+                formData.append('file', app.currentFile);
+
+                const uploadResponse = await fetch('/cipp-analyzer/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error('File upload failed');
+                }
+
+                const uploadData = await uploadResponse.json();
+                const pdfPath = uploadData.filepath;
+
+                Logger.success(`✅ File uploaded: ${pdfPath}`);
+                ProgressTracker.update(20, 'Starting HOTDOG AI analysis...');
+
+                // Call HOTDOG analysis API
+                const analysisResponse = await fetch('/cipp-analyzer/api/analyze_hotdog', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        pdf_path: pdfPath,
+                        context_guardrails: contextGuardrails || undefined,
+                        session_id: currentSessionId || undefined
+                    })
+                });
+
+                if (!analysisResponse.ok) {
+                    const errorData = await analysisResponse.json();
+                    throw new Error(errorData.error || 'Analysis failed');
+                }
+
+                const analysisData = await analysisResponse.json();
+
+                // Store session info for second pass
+                currentSessionId = analysisData.session_id;
+                currentAnalysisResult = analysisData.result;
+
+                Logger.success('✅ HOTDOG analysis complete!');
+                Logger.success(`Questions answered: ${analysisData.statistics.questions_answered}/${analysisData.statistics.total_questions}`);
+                Logger.success(`Processing time: ${analysisData.statistics.processing_time.toFixed(2)}s`);
+                Logger.success(`Estimated cost: ${analysisData.statistics.estimated_cost}`);
+
+                // Display results
+                displayResults(analysisData.result);
+                displayStatistics(analysisData.statistics);
+
+                // Show second pass option if needed
+                if (analysisData.can_run_second_pass) {
+                    showSecondPassOption(analysisData.statistics);
+                }
+
+                // Enable export
+                document.getElementById('exportBtn').disabled = false;
+
+                ProgressTracker.hide();
+
+            } catch (error) {
+                Logger.error('Analysis failed: ' + error.message);
+                alert('Analysis failed: ' + error.message);
+                ProgressTracker.hide();
+            } finally {
+                document.getElementById('analyzeBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+            }
         }
 
         function stopAnalysis() {
@@ -5472,6 +5761,58 @@ ${text}
 
         function exportResults(format) {
             app.exportResults(format);
+        }
+
+        async function exportExcelDashboard() {
+            if (!currentAnalysisResult || !currentAnalysisResult.sections) {
+                Logger.error('❌ No analysis results to export');
+                alert('Please run an analysis first before exporting.');
+                return;
+            }
+
+            try {
+                Logger.info('📊 Generating Excel dashboard with charts...');
+
+                // Get document name from uploaded file or use default
+                const documentName = document.getElementById('pdfName')?.textContent || 'Document Analysis';
+
+                // Call backend to generate Excel dashboard
+                const response = await fetch('/cipp-analyzer/api/export_excel_dashboard', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        analysis_result: currentAnalysisResult,
+                        document_name: documentName
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Export failed: ${response.statusText}`);
+                }
+
+                // Download the Excel file
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${documentName.replace(/[^a-zA-Z0-9]/g, '_')}_Dashboard.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                Logger.success('✅ Excel dashboard exported successfully!');
+
+                // Close export menu
+                document.getElementById('exportMenu').style.display = 'none';
+
+            } catch (error) {
+                Logger.error(`❌ Excel dashboard export failed: ${error.message}`);
+                console.error('Export error:', error);
+                alert(`Failed to export Excel dashboard: ${error.message}`);
+            }
         }
 
         // Close export menu when clicking outside

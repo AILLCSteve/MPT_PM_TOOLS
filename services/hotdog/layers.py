@@ -321,16 +321,20 @@ class ExpertPersonaGenerator:
     Key Innovation: Uses AI to create AI experts (meta-prompting)
     """
 
-    def __init__(self, openai_client, cache_store=None):
+    def __init__(self, openai_client, cache_store=None, model: str = "gpt-4o"):
         """
         Initialize expert generator.
 
         Args:
             openai_client: OpenAI API client
             cache_store: Optional cache (dict or Redis client)
+            model: OpenAI model to use for expert generation (default: gpt-4o)
         """
         self.client = openai_client
         self.cache = cache_store or {}  # In-memory dict fallback
+        self.model = model
+
+        logger.info(f"🤖 Expert Persona Generator initialized with model: {model}")
 
     def generate_expert(self, section: Section) -> ExpertPersona:
         """
@@ -391,9 +395,9 @@ Create an expert AI persona for analyzing construction/engineering bid specifica
 Output only valid JSON, no markdown formatting."""
 
         try:
-            # Call AI to generate expert
+            # Call AI to generate expert using most robust model
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model=self.model,
                 messages=[
                     {"role": "system", "content": "You are an expert AI architect."},
                     {"role": "user", "content": prompt}
@@ -483,12 +487,24 @@ class TokenBudgetManager:
     - Does NOT generate experts
     """
 
-    def __init__(self, max_prompt_tokens: int = 4000):
+    def __init__(self, max_prompt_tokens: int = 75000, max_completion_tokens: int = 16384):
+        """
+        Initialize token budget manager.
+
+        Args:
+            max_prompt_tokens: Maximum tokens for prompts (default: 75K for GPT-4o)
+            max_completion_tokens: Maximum tokens for completions (default: 16,384 for GPT-4o)
+        """
         self.max_prompt_tokens = max_prompt_tokens
-        self.max_completion_tokens = 16000  # gpt-4 limit
+        self.max_completion_tokens = max_completion_tokens
         self.total_tokens_used = 0
         self.window_token_usage = []
         self.safety_buffer = 0.8  # Use 80% of max to be safe
+
+        logger.info(f"💰 Token Budget Manager initialized")
+        logger.info(f"   Max prompt tokens: {max_prompt_tokens:,}")
+        logger.info(f"   Max completion tokens: {max_completion_tokens:,}")
+        logger.info(f"   Safety buffer: {int(self.safety_buffer * 100)}%")
 
     def check_budget_before_window(
         self,
