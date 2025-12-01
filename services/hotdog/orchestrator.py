@@ -261,11 +261,26 @@ class HotdogOrchestrator:
                 # -----------------------------------------------------
                 # LAYER 3: Multi-Expert Processing
                 # -----------------------------------------------------
+                logger.info(f"🤖 Dispatching {len(experts)} experts to analyze {config.total_questions} questions")
+                self._emit_progress('experts_dispatched', {
+                    'window_num': window_idx,
+                    'expert_count': len(experts),
+                    'question_count': config.total_questions,
+                    'sections': [section.name for section in config.sections]
+                })
+
                 window_result = await self.layer3_processor.process_window(
                     window=window,
                     questions=list(config.question_map.values()),
                     experts=experts
                 )
+
+                logger.info(f"✅ Experts returned {len(window_result.answers)} answers from window {window_idx}")
+                self._emit_progress('experts_complete', {
+                    'window_num': window_idx,
+                    'answers_returned': len(window_result.answers),
+                    'tokens_used': window_result.tokens_used
+                })
 
                 # Record actual token usage
                 self.layer5_token_manager.record_usage(
