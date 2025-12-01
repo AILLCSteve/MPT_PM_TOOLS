@@ -2609,22 +2609,16 @@ ${text}
                 if (footnotes.length > 0) {
                     tableHTML += `
                         <div id="footnotesContainer" style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                                <h4 style="margin: 0; color: #1E3A8A;">📝 Footnotes (PDF Pages & Section References)</h4>
-                                <button class="btn btn-secondary" onclick="cleanUpFootnotes()" style="padding: 8px 16px; font-size: 14px; margin: 0;">
-                                    🧹 Clean Up Duplicates
-                                </button>
-                            </div>
+                            <h4 style="margin: 0 0 15px 0; color: #1E3A8A;">📝 Footnotes (PDF Pages & Section References)</h4>
                             <ol id="footnotesList" style="margin: 10px 0; padding-left: 20px; line-height: 1.8;">
                                 ${footnotes.map(f => {
-                                    // Ensure footnote text is properly formatted
-                                    // The AI should include both PDF page and section, but let's ensure it displays well
+                                    // HOTDOG SmartAccumulator already deduplicates footnotes in backend
                                     return `<li style="margin: 8px 0; color: #333;">${f}</li>`;
                                 }).join('')}
                             </ol>
                             <p style="margin-top: 15px; font-size: 0.9em; color: #666; font-style: italic;">
                                 Note: Each footnote includes the PDF page number (&lt;PDF pg #&gt;) and contract section number where information was found.
-                                Click "Clean Up Duplicates" to remove semantically identical footnotes using AI.
+                                Footnotes are automatically deduplicated by HOTDOG AI's SmartAccumulator.
                             </p>
                         </div>
                     `;
@@ -6166,153 +6160,10 @@ ${text}
             }
         }
 
-        // AI-Powered Footnote Deduplication
-        async function cleanUpFootnotes() {
-            const footnotesList = document.getElementById('footnotesList');
-            if (!footnotesList) {
-                alert('No footnotes to clean up');
-                return;
-            }
-
-            // Extract current footnotes from DOM
-            const footnoteItems = Array.from(footnotesList.children);
-            if (footnoteItems.length === 0) {
-                alert('No footnotes found');
-                return;
-            }
-
-            const footnotes = footnoteItems.map(item => item.textContent);
-            Logger.info(`🧹 Starting AI-powered footnote cleanup on ${footnotes.length} entries...`);
-
-            try {
-                // Build AI prompt for intelligent deduplication
-                const prompt = `You are analyzing footnotes from a CIPP bid specification document. Your task is to identify and remove duplicate or semantically identical footnotes while preserving unique information.
-
-ORIGINAL FOOTNOTES (${footnotes.length} entries):
-${footnotes.map((f, i) => `${i + 1}. ${f}`).join('\n')}
-
-DEDUPLICATION CRITERIA:
-1. Remove exact duplicates
-2. Remove semantically identical entries (same meaning, different wording)
-3. If footnotes refer to the same specification section and convey the same information, keep only ONE
-4. When merging similar footnotes, preserve ALL unique PDF page numbers and section references
-5. Keep footnotes that provide different context or implications even if they reference the same section
-
-TASK:
-Return a JSON array of deduplicated footnotes. Each footnote should include all relevant PDF page numbers and section references from merged entries.
-
-OUTPUT FORMAT:
-Return ONLY a valid JSON array, no explanatory text:
-["Footnote 1 text with merged references", "Footnote 2 text", ...]
-
-IMPORTANT:
-- Preserve the format "Found on <PDF pg #>, Section X.X.X: [context]"
-- When merging, combine page numbers like "Found on <PDF pg 5, 12, 18>, Section X.X.X"
-- Maintain professional tone and technical accuracy
-- Return the minimal set of unique, informative footnotes`;
-
-                // Get API key from backend environment (same as main app)
-                let apiKey;
-                try {
-                    const keyResponse = await fetch('/api/config/apikey', {
-                        method: 'GET',
-                        signal: AbortSignal.timeout(5000)
-                    });
-
-                    if (!keyResponse.ok) {
-                        throw new Error('Failed to fetch API key from server');
-                    }
-
-                    const keyData = await keyResponse.json();
-                    if (!keyData.success || !keyData.key) {
-                        throw new Error('API key not configured in server environment');
-                    }
-
-                    apiKey = keyData.key;
-                } catch (keyError) {
-                    Logger.error(`Failed to get API key: ${keyError.message}`);
-                    alert('API key not configured. Please check server environment variables.');
-                    return;
-                }
-
-                Logger.api('🤖 Sending footnotes to AI for deduplication...');
-
-                const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: app.settingsManager.get('gptModel') || 'gpt-4o',
-                        messages: [
-                            {
-                                role: 'system',
-                                content: 'You are a technical document analyst specializing in CIPP specifications. You excel at identifying duplicate and semantically identical information.'
-                            },
-                            {
-                                role: 'user',
-                                content: prompt
-                            }
-                        ],
-                        max_tokens: 2000,
-                        temperature: 0.1 // Low temperature for consistent deduplication
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`API Error: ${errorData.error?.message || response.statusText}`);
-                }
-
-                const data = await response.json();
-                const cleanedFootnotesText = data.choices[0].message.content.trim();
-
-                // Parse JSON response
-                let cleanedFootnotes;
-                try {
-                    // Remove markdown code blocks if present
-                    const jsonMatch = cleanedFootnotesText.match(/\[[\s\S]*\]/);
-                    if (jsonMatch) {
-                        cleanedFootnotes = JSON.parse(jsonMatch[0]);
-                    } else {
-                        cleanedFootnotes = JSON.parse(cleanedFootnotesText);
-                    }
-                } catch (parseError) {
-                    Logger.error('Failed to parse AI response as JSON');
-                    throw new Error('AI returned invalid JSON format');
-                }
-
-                if (!Array.isArray(cleanedFootnotes)) {
-                    throw new Error('AI response is not an array');
-                }
-
-                // Update DOM with cleaned footnotes
-                const beforeCount = footnotes.length;
-                const afterCount = cleanedFootnotes.length;
-                const removed = beforeCount - afterCount;
-
-                footnotesList.innerHTML = cleanedFootnotes.map(f =>
-                    `<li style="margin: 8px 0; color: #333;">${f}</li>`
-                ).join('');
-
-                // Update the accumulator's footnotes array to reflect cleanup
-                if (app.answerAccumulator) {
-                    app.answerAccumulator.doc_footnotes = cleanedFootnotes;
-                }
-
-                Logger.success(`✅ Footnote cleanup complete!`);
-                Logger.info(`   • Before: ${beforeCount} footnotes`);
-                Logger.info(`   • After: ${afterCount} footnotes`);
-                Logger.success(`   • Removed: ${removed} duplicate/similar entries`);
-
-                alert(`Footnote cleanup successful!\n\nBefore: ${beforeCount} footnotes\nAfter: ${afterCount} footnotes\nRemoved: ${removed} duplicates`);
-
-            } catch (error) {
-                Logger.error(`Footnote cleanup failed: ${error.message}`);
-                alert(`Footnote cleanup failed: ${error.message}`);
-            }
-        }
+        // LEGACY CODE REMOVED: cleanUpFootnotes()
+        // Reason: HOTDOG SmartAccumulator already deduplicates footnotes in backend
+        // The function made direct browser-to-OpenAI API calls (bypassing HOTDOG architecture)
+        // Used only 2K tokens vs HOTDOG's 75K token budget
 
         function loadTestDocument() {
             const testDocument = `CIPP REHABILITATION PROJECT SPECIFICATION
