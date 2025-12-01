@@ -536,41 +536,59 @@ def register_routes(app: Flask, config: Config):
         live progress updates as the HOTDOG orchestrator processes the document.
         """
         def generate():
+            logger.info(f"📡 SSE stream starting for session: {session_id}")
+
             # Create progress queue for this session
             if session_id not in progress_queues:
                 progress_queues[session_id] = queue.Queue(maxsize=100)
+                logger.info(f"📦 Created new progress queue for session: {session_id}")
+            else:
+                logger.info(f"♻️ Reusing existing progress queue for session: {session_id}")
 
             q = progress_queues[session_id]
 
             # Send initial connection event
+            logger.info(f"🤝 Sending 'connected' event to frontend for session: {session_id}")
             yield f"data: {json.dumps({'event': 'connected', 'session_id': session_id})}\n\n"
 
             # Stream progress events
             try:
+                event_count = 0
                 while True:
                     try:
                         # Get next progress event (timeout to send keep-alive)
                         event_type, data = q.get(timeout=15)
+                        event_count += 1
+
+                        logger.info(f"📤 SSE sending event #{event_count}: {event_type} → frontend (session: {session_id})")
 
                         # Check for completion/error signals
                         if event_type == 'done':
+                            logger.info(f"🏁 Sending 'done' signal, closing SSE stream (session: {session_id})")
                             yield f"data: {json.dumps({'event': 'done'})}\n\n"
                             break
                         if event_type == 'error':
+                            logger.error(f"❌ Sending error to frontend: {data} (session: {session_id})")
                             yield f"data: {json.dumps({'event': 'error', 'error': data})}\n\n"
                             break
 
                         # Send progress event
-                        yield f"data: {json.dumps({'event': event_type, **data})}\n\n"
+                        event_json = json.dumps({'event': event_type, **data})
+                        logger.info(f"📨 Event payload: {event_json[:200]}...")  # Log first 200 chars
+                        yield f"data: {event_json}\n\n"
 
                     except queue.Empty:
                         # Send keep-alive ping every 15 seconds
+                        logger.debug(f"💓 Sending keepalive (session: {session_id})")
                         yield f": keepalive\n\n"
 
+            except Exception as e:
+                logger.error(f"💥 SSE stream error for session {session_id}: {e}", exc_info=True)
             finally:
                 # Clean up queue when client disconnects
                 if session_id in progress_queues:
                     del progress_queues[session_id]
+                    logger.info(f"🧹 Cleaned up progress queue for session: {session_id} (sent {event_count} events)")
 
         return Response(
             stream_with_context(generate()),
@@ -669,12 +687,26 @@ def register_routes(app: Flask, config: Config):
             def progress_callback(event_type: str, data: dict):
                 """Push progress events to SSE queue."""
                 try:
+                    logger.info(f"🔔 SSE EVENT: {event_type} | Session: {session_id} | Data keys: {list(data.keys())}")
                     progress_q.put_nowait((event_type, data))
+                    logger.info(f"✅ SSE event queued successfully: {event_type}")
                 except queue.Full:
-                    logger.warning(f"Progress queue full for session {session_id}, dropping event: {event_type}")
+                    logger.warning(f"⚠️ Progress queue full for session {session_id}, dropping event: {event_type}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to queue SSE event {event_type}: {e}")
+
+            # Send log message as SSE event (for frontend activity log display)
+            def send_log(message: str, level: str = 'info'):
+                """Send a log message to the frontend via SSE."""
+                try:
+                    progress_q.put_nowait(('log', {'message': message, 'level': level}))
+                except:
+                    pass  # Don't fail if logging fails
 
             # Verify files exist
+            send_log(f"📂 Verifying files exist...")
             if not os.path.exists(pdf_path):
+                send_log(f"❌ PDF file not found: {pdf_path}", 'error')
                 return jsonify({
                     'success': False,
                     'error': f'PDF file not found: {pdf_path}',
@@ -682,33 +714,50 @@ def register_routes(app: Flask, config: Config):
                 }), 404
 
             if not os.path.exists(config_path):
+                send_log(f"❌ Config file not found: {config_path}", 'error')
                 return jsonify({
                     'success': False,
                     'error': f'Configuration file not found: {config_path}',
                     'error_type': 'FileNotFoundError'
                 }), 404
 
+            send_log(f"✅ Files verified")
+            send_log(f"🔥 Initializing HOTDOG AI orchestrator...")
             logger.info(f"🔥 Starting HOTDOG analysis: {pdf_path}")
             if context_guardrails:
                 logger.info(f"📋 Context Guardrails: {context_guardrails}")
+                send_log(f"📋 Context guardrails: {context_guardrails[:100]}...")
 
             # Initialize HOTDOG orchestrator with context guardrails and progress callback
+            send_log(f"🤖 Creating orchestrator with {len(config_path)} byte config...")
             orchestrator = HotdogOrchestrator(
                 openai_api_key=openai_key,
                 config_path=config_path,
                 context_guardrails=context_guardrails,
                 progress_callback=progress_callback  # Enable real-time SSE streaming
             )
+            send_log(f"✅ Orchestrator initialized")
 
             # Run analysis (async)
+            send_log(f"⚡ Starting async analysis loop...")
+            logger.info(f"⚡ Creating event loop for async analysis")
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
+                send_log(f"🚀 Launching analyze_document() - this will take several minutes...")
+                logger.info(f"🚀 Calling orchestrator.analyze_document()")
                 analysis_result = loop.run_until_complete(
                     orchestrator.analyze_document(pdf_path, config_path)
                 )
+                send_log(f"✅ Analysis complete!")
+                logger.info(f"✅ Analysis completed successfully")
+            except Exception as e:
+                send_log(f"❌ Analysis failed: {str(e)}", 'error')
+                logger.error(f"❌ Analysis failed: {e}", exc_info=True)
+                raise
             finally:
                 loop.close()
+                logger.info(f"🧹 Event loop closed")
 
             # Get browser-formatted output
             from services.hotdog.layers import ConfigurationLoader

@@ -5703,12 +5703,27 @@ ${text}
                 };
 
                 eventSource.onmessage = (e) => {
+                    // Log EVERY raw event received (for debugging)
+                    console.log('🔔 SSE EVENT RECEIVED:', e.data);
+
                     try {
                         const data = JSON.parse(e.data);
+                        console.log('📦 Parsed SSE data:', data);
 
                         // Handle different event types
                         if (data.event === 'connected') {
                             Logger.info('✅ Progress stream connected');
+                        }
+                        else if (data.event === 'log') {
+                            // Backend log message - display in activity log
+                            const logLevel = data.level || 'info';
+                            if (logLevel === 'error') {
+                                Logger.error(data.message);
+                            } else if (logLevel === 'warning') {
+                                Logger.warning(data.message);
+                            } else {
+                                Logger.info(data.message);
+                            }
                         }
                         else if (data.event === 'document_ingested') {
                             Logger.info(`📄 Extracted ${data.total_pages} pages into ${data.window_count} windows`);
@@ -5744,8 +5759,13 @@ ${text}
                             Logger.error(`❌ Stream error: ${data.error}`);
                             eventSource.close();
                         }
+                        else {
+                            // Unknown event type - log it for debugging
+                            console.warn('⚠️ Unhandled SSE event type:', data.event, data);
+                            Logger.warning(`Unknown event: ${data.event}`);
+                        }
                     } catch (err) {
-                        console.error('Failed to parse SSE message:', err);
+                        console.error('❌ Failed to parse SSE message:', err, 'Raw data:', e.data);
                     }
                 };
 
