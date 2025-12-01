@@ -172,9 +172,10 @@ class HotdogOrchestrator:
             windows = self.layer0_ingestion.create_windows(pages, window_size=3)
 
             logger.info(f"  ✅ Extracted {len(pages)} pages into {len(windows)} windows")
-            self._emit_progress('layer_0_complete', {
+            self._emit_progress('document_ingested', {
+                'document_name': doc_metadata.get('document_name', 'Unknown'),
                 'total_pages': len(pages),
-                'total_windows': len(windows)
+                'window_count': len(windows)
             })
 
             # Cache windows for potential second pass
@@ -193,9 +194,9 @@ class HotdogOrchestrator:
             config = self.layer1_config.load_from_json(config_file)
 
             logger.info(f"  ✅ Loaded {config.total_questions} questions in {config.total_sections} sections")
-            self._emit_progress('layer_1_complete', {
+            self._emit_progress('config_loaded', {
                 'total_questions': config.total_questions,
-                'total_sections': config.total_sections,
+                'section_count': config.total_sections,
                 'sections': [s.name for s in config.sections]
             })
 
@@ -213,11 +214,10 @@ class HotdogOrchestrator:
                 expert = await self.layer2_experts.generate_expert(section)
                 experts[section.id] = expert
                 logger.info(f"  ✅ Generated expert: {expert.name}")
-
-            self._emit_progress('layer_2_complete', {
-                'experts_generated': len(experts),
-                'expert_names': [e.name for e in experts.values()]
-            })
+                self._emit_progress('expert_generated', {
+                    'expert_name': expert.name,
+                    'section': section.name
+                })
 
             # Cache experts for potential second pass
             self.cached_experts = experts
@@ -233,10 +233,10 @@ class HotdogOrchestrator:
                 logger.info(f"Window {window_idx}/{len(windows)}: Pages {window.page_range_str}")
                 logger.info(f"{'='*64}")
 
-                self._emit_progress('window_start', {
+                self._emit_progress('window_processing', {
                     'window_num': window_idx,
                     'total_windows': len(windows),
-                    'pages': window.pages
+                    'pages': window.page_range_str
                 })
 
                 # -----------------------------------------------------
