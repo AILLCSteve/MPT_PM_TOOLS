@@ -557,9 +557,20 @@ def register_routes(app: Flask, config: Config):
             if not openai_key:
                 return jsonify({
                     'success': False,
-                    'error': 'OpenAI API key not configured',
+                    'error': 'OpenAI API key not configured in environment variables',
                     'error_type': 'ConfigurationError'
                 }), 500
+
+            # Basic validation of API key format
+            if not openai_key.startswith('sk-'):
+                logger.warning(f"⚠️ OpenAI API key does not start with 'sk-' - may be invalid (starts with: {openai_key[:10]}...)")
+                return jsonify({
+                    'success': False,
+                    'error': 'OpenAI API key format appears invalid (should start with "sk-"). Please check your OPENAI_API_KEY environment variable.',
+                    'error_type': 'ConfigurationError'
+                }), 500
+
+            logger.info(f"✅ API key loaded: {openai_key[:10]}...{openai_key[-4:]}")
 
             # Get request data
             data = request.json
