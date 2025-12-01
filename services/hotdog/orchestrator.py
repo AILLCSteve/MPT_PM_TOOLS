@@ -278,19 +278,35 @@ class HotdogOrchestrator:
                 # -----------------------------------------------------
                 accumulation_stats = self.layer4_accumulator.accumulate_window(window_result)
 
+                # Get current accumulated answers for live display
+                accumulated_so_far = self.layer4_accumulator.get_accumulated_answers()
+
+                # Format unitary log for live display (answers found so far)
+                unitary_log_markdown = self._format_live_unitary_log(
+                    accumulated_so_far, config, window_idx, len(windows)
+                )
+
                 self._emit_progress('window_complete', {
                     'window_num': window_idx,
                     'answers_found': len(window_result.answers),
                     'tokens_used': window_result.tokens_used,
                     'processing_time': window_result.processing_time,
-                    'accumulation_stats': accumulation_stats
+                    'accumulation_stats': accumulation_stats,
+                    'unitary_log_markdown': unitary_log_markdown  # LIVE UNITARY LOG
                 })
 
                 # Progress update every 3 windows
                 if window_idx % 3 == 0:
-                    logger.info(f"\n📊 Progress: {window_idx}/{len(windows)} windows processed")
+                    progress_summary = f"{window_idx}/{len(windows)} windows processed"
+                    logger.info(f"\n📊 Progress: {progress_summary}")
                     logger.info(self.layer5_token_manager.get_statistics())
                     logger.info(self.layer4_accumulator.get_statistics())
+
+                    self._emit_progress('progress_milestone', {
+                        'windows_processed': window_idx,
+                        'total_windows': len(windows),
+                        'progress_summary': progress_summary
+                    })
 
             # ============================================================
             # LAYER 6: OUTPUT COMPILATION
@@ -524,6 +540,55 @@ class HotdogOrchestrator:
                 self.progress_callback(event_type, data)
             except Exception as e:
                 logger.warning(f"Progress callback error: {e}")
+
+    def _format_live_unitary_log(
+        self,
+        accumulated_answers: AnswerAccumulation,
+        config: ParsedConfig,
+        current_window: int,
+        total_windows: int
+    ) -> str:
+        """
+        Format accumulated answers as markdown for live unitary log display.
+
+        Returns markdown-formatted string with:
+        - All questions and answers found so far
+        - Full citations with PDF page numbers
+        - Section grouping
+        - Progress indicator
+        """
+        lines = []
+        lines.append(f"# 📊 Live Analysis Progress: Window {current_window}/{total_windows}\n")
+
+        total_answered = 0
+        total_questions = config.total_questions
+
+        # Group answers by section
+        for section in config.sections:
+            section_lines = []
+            section_answered = 0
+
+            for question in section.questions:
+                if question.id in accumulated_answers and accumulated_answers[question.id]:
+                    # Get best answer (highest confidence)
+                    best_answer = accumulated_answers[question.id][0]
+
+                    section_lines.append(f"**Q{question.id}:** {question.text}")
+                    section_lines.append(f"**Answer:** {best_answer.text}")
+                    section_lines.append(f"*Confidence: {best_answer.confidence:.0%}, Expert: {best_answer.expert}*\n")
+
+                    section_answered += 1
+                    total_answered += 1
+
+            # Only include section if it has answers
+            if section_lines:
+                lines.append(f"## {section.name} ({section_answered}/{len(section.questions)} answered)\n")
+                lines.extend(section_lines)
+                lines.append("")
+
+        lines.append(f"\n---\n**Total Progress: {total_answered}/{total_questions} questions answered ({total_answered/total_questions*100:.1f}%)**")
+
+        return "\n".join(lines)
 
     def get_browser_output(self, result: AnalysisResult, config: ParsedConfig) -> dict:
         """

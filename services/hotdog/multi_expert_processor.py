@@ -185,6 +185,17 @@ class MultiExpertProcessor:
         # Build the expert prompt
         prompt = self._build_expert_prompt(window, expert, questions)
 
+        # Log API call details for debugging
+        logger.info(f"\n{'='*80}")
+        logger.info(f"🔵 API CALL: Expert '{expert.name}' - Window {window.window_num}")
+        logger.info(f"{'='*80}")
+        logger.info(f"MODEL: {self.model}")
+        logger.info(f"SYSTEM PROMPT ({len(expert.system_prompt)} chars):")
+        logger.info(f"{expert.system_prompt[:500]}..." if len(expert.system_prompt) > 500 else expert.system_prompt)
+        logger.info(f"\nUSER PROMPT ({len(prompt)} chars):")
+        logger.info(f"{prompt[:500]}..." if len(prompt) > 500 else prompt)
+        logger.info(f"{'='*80}\n")
+
         # Execute AI call with optimized token limits
         try:
             try:
@@ -210,6 +221,15 @@ class MultiExpertProcessor:
                 raise ValueError("Empty response from OpenAI API")
 
             tokens_used = response.usage.total_tokens
+
+            # Log API response details
+            logger.info(f"\n{'='*80}")
+            logger.info(f"🟢 API RESPONSE: Expert '{expert.name}'")
+            logger.info(f"{'='*80}")
+            logger.info(f"TOKENS USED: {tokens_used} (prompt: {response.usage.prompt_tokens}, completion: {response.usage.completion_tokens})")
+            logger.info(f"JSON RESPONSE ({len(content)} chars):")
+            logger.info(f"{content[:1000]}..." if len(content) > 1000 else content)
+            logger.info(f"{'='*80}\n")
 
             answers = self._parse_expert_response(
                 response_content=content,
