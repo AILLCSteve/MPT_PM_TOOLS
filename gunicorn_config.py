@@ -10,7 +10,9 @@ bind = f"0.0.0.0:{os.getenv('PORT', '5000')}"
 backlog = 2048
 
 # Worker processes
-workers = int(os.getenv('GUNICORN_WORKERS', '2'))
+# CRITICAL: Must use 1 worker for SSE to work with in-memory queues
+# Multi-worker requires Redis/shared storage for queue sharing
+workers = 1
 worker_class = 'sync'
 worker_connections = 1000
 max_requests = 1000
