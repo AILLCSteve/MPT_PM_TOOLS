@@ -551,6 +551,11 @@ def register_routes(app: Flask, config: Config):
             logger.info(f"🤝 Sending 'connected' event to frontend for session: {session_id}")
             yield f"data: {json.dumps({'event': 'connected', 'session_id': session_id})}\n\n"
 
+            # IMMEDIATE TEST: Send test message to prove queue->SSE plumbing works
+            logger.info(f"🧪 Queueing test event for session: {session_id}")
+            q.put_nowait(('log', {'message': f'🧪 SSE stream ready - queue is live!', 'level': 'info'}))
+            logger.info(f"✅ Test event queued")
+
             # Stream progress events
             try:
                 event_count = 0
@@ -699,9 +704,15 @@ def register_routes(app: Flask, config: Config):
             def send_log(message: str, level: str = 'info'):
                 """Send a log message to the frontend via SSE."""
                 try:
+                    logger.info(f"🔔 Queueing log event: {message}")
                     progress_q.put_nowait(('log', {'message': message, 'level': level}))
-                except:
-                    pass  # Don't fail if logging fails
+                    logger.info(f"✅ Log event queued")
+                except Exception as e:
+                    logger.error(f"❌ Failed to queue log: {e}")
+
+            # IMMEDIATE TEST: Prove analyze endpoint can queue events
+            logger.info(f"🧪 TEST: Analyze endpoint starting for session {session_id}")
+            send_log(f"🧪 Analysis endpoint called - queueing works!")
 
             # Verify files exist
             send_log(f"📂 Verifying files exist...")
