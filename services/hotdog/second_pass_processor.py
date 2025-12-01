@@ -334,12 +334,15 @@ CRITICAL: Still maintain PDF page citations <PDF pg X> for ALL answers, even par
 
     def _build_enhanced_user_prompt(self, window: WindowContext, questions: List[Question]) -> str:
         """Build user prompt for enhanced second-pass analysis."""
+        # Truncate window text if too long
+        truncated_text = window.text[:8000]
+
         prompt = f"""Analyze the following document section (Pages {window.page_range_str}) with ENHANCED SCRUTINY.
 
 These questions were UNANSWERED in the first pass. Use creative interpretation and inference.
 
 DOCUMENT SECTION:
-{window.text[:8000]}  {# Truncate if too long #}
+{truncated_text}
 
 QUESTIONS TO ANSWER:
 """
