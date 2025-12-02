@@ -1601,6 +1601,42 @@ function setupFileDragDrop() {
 }
 
 // ============================================================================
+// DEBUG PANEL TOGGLE FUNCTIONS
+// ============================================================================
+
+function toggleMasterDebugPanel() {
+    const panel = document.getElementById('masterDebugPanel');
+    const icon = document.getElementById('masterDebugToggleIcon');
+    const text = document.getElementById('masterDebugToggleText');
+
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        icon.textContent = '🔧';
+        text.textContent = 'Hide Debug Tools';
+    } else {
+        panel.style.display = 'none';
+        icon.textContent = '🛠️';
+        text.textContent = 'Show Debug Tools';
+    }
+}
+
+function toggleDebugSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    const header = section.previousElementSibling;
+    const icon = header.querySelector('.toggle-icon');
+
+    if (section.style.display === 'none' || !section.style.display) {
+        section.style.display = 'block';
+        header.classList.remove('collapsed');
+        icon.textContent = '▲';
+    } else {
+        section.style.display = 'none';
+        header.classList.add('collapsed');
+        icon.textContent = '▼';
+    }
+}
+
+// ============================================================================
 // STUB FUNCTIONS (To be implemented)
 // ============================================================================
 
