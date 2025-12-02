@@ -5725,6 +5725,12 @@ ${text}
                             const progress = 30 + ((data.window_num / data.total_windows) * 60);
                             ProgressTracker.update(progress, `Window ${data.window_num}/${data.total_windows}`);
                         }
+                        else if (data.event === 'experts_dispatched') {
+                            Logger.info(`🤖 Dispatching ${data.expert_count} experts to analyze ${data.question_count} questions`);
+                        }
+                        else if (data.event === 'experts_complete') {
+                            Logger.success(`✅ Experts found ${data.answers_returned} answers (${data.tokens_used} tokens)`);
+                        }
                         else if (data.event === 'window_complete') {
                             Logger.success(`✅ Window ${data.window_num}: ${data.answers_found} answers (${data.processing_time.toFixed(1)}s)`);
 
