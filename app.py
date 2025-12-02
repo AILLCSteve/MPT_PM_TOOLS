@@ -16,12 +16,13 @@ import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from flask import Flask, request, jsonify, Response, stream_with_context, send_from_directory
+from flask import Flask, request, jsonify, Response, stream_with_context, send_from_directory, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
 # Import HOTDOG orchestrator
 from services.hotdog import HotdogOrchestrator
+from services.excel_dashboard import ExcelDashboardGenerator
 import asyncio
 
 # Configure logging
@@ -341,6 +342,44 @@ def get_results(session_id):
             'average_confidence': f"{result.average_confidence:.0%}"
         }
     })
+
+
+# ============================================================================
+# EXCEL DASHBOARD EXPORT
+# ============================================================================
+
+@app.route('/api/export/excel-dashboard/<session_id>', methods=['GET'])
+def export_excel_dashboard(session_id):
+    """Generate executive Excel dashboard with charts"""
+
+    if session_id not in analysis_results:
+        return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+    try:
+        session_data = analysis_results[session_id]
+        result = session_data['result']
+        orchestrator = session_data['orchestrator']
+
+        # Get browser-formatted output
+        from services.hotdog.layers import ConfigurationLoader
+        config_loader = ConfigurationLoader()
+        parsed_config = config_loader.load_from_json(session_data['config_path'])
+        browser_output = orchestrator.get_browser_output(result, parsed_config)
+
+        # Generate Excel dashboard
+        generator = ExcelDashboardGenerator(browser_output)
+        excel_file = generator.generate()
+
+        return send_file(
+            excel_file,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='CIPP_Executive_Dashboard.xlsx'
+        )
+
+    except Exception as e:
+        logger.error(f"Excel export failed: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # ============================================================================
