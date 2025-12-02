@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SSE Test</title>
+</head>
+<body>
+    <h1>SSE Test</h1>
+    <div id="log"></div>
+
+    <script>
+        const log = document.getElementById('log');
+
+        function addLog(message) {
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML += `<div>[${time}] ${message}</div>`;
+        }
+
+        // Connect to SSE
+        const eventSource = new EventSource('/test-sse');
+
+        eventSource.onopen = () => {
+            addLog('✅ Connected to SSE');
+        };
+
+        eventSource.onmessage = (e) => {
+            addLog(`📨 Received: ${e.data}`);
+
+            try {
+                const data = JSON.parse(e.data);
+                addLog(`📦 Parsed: ${data.event} - ${data.message}`);
+            } catch (err) {
+                addLog(`❌ Parse error: ${err.message}`);
+            }
+        };
+
+        eventSource.onerror = (err) => {
+            addLog(`❌ SSE Error`);
+            console.error(err);
+        };
+    </script>
+</body>
+</html>
