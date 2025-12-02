@@ -9,12 +9,12 @@ import os
 bind = f"0.0.0.0:{os.getenv('PORT', '5000')}"
 backlog = 2048
 
-# Worker configuration - GEVENT FOR ASYNC/CONCURRENT HANDLING
-# Gevent uses cooperative multitasking via greenlets (lightweight coroutines)
-# This allows SSE streaming to work concurrently with long-running analysis
-workers = 1  # Single worker is sufficient with gevent's concurrency model
-worker_class = 'gevent'  # Async worker class for SSE + long-running operations
-worker_connections = 1000  # Max concurrent connections per worker
+# Worker configuration - THREADING FOR ASYNC/CONCURRENT HANDLING
+# Using threaded workers since our app uses Python threading for analysis
+# This allows SSE streaming while analysis runs in background threads
+workers = 1  # Single worker with threading
+worker_class = 'sync'  # Sync worker + threading in Flask app
+threads = 10  # Allow 10 concurrent threads per worker
 
 # Worker lifecycle settings
 max_requests = 1000  # Restart worker after N requests (prevent memory leaks)

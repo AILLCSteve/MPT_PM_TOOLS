@@ -1,36 +1,26 @@
 """
-Main Flask Application - PM Tools Suite
-Integrates all project management tools into a single deployable application.
+PM Tools Suite - Clean Rebuild
+HOTDOG AI Document Analysis with Real-Time SSE Progress
 
-Architecture:
-- Modular design with sub-applications for each tool
-- Shared assets and branding
-- RESTful API endpoints
-- Static file serving for client-side apps
+Architecture: Threading-based (simple, proven, works)
 """
-
 import os
 import sys
 import logging
-import secrets
-import hashlib
-from pathlib import Path
-from datetime import datetime, timedelta
-from flask import Flask, render_template, send_from_directory, jsonify, request, session, Response, stream_with_context
-from flask_cors import CORS
-from werkzeug.utils import secure_filename
-import tempfile
+import threading
 import queue
 import json
-import time
-import gevent
-from gevent import monkey
-monkey.patch_all()
+import tempfile
+import hashlib
+import secrets
+from datetime import datetime, timedelta
+from pathlib import Path
 
-# Import document extraction service (supports PDF, TXT, DOCX, RTF)
-from services.document_extractor import DocumentExtractorService
+from flask import Flask, request, jsonify, Response, stream_with_context, send_from_directory
+from flask_cors import CORS
+from werkzeug.utils import secure_filename
 
-# Import HOTDOG AI orchestrator for advanced document analysis
+# Import HOTDOG orchestrator
 from services.hotdog import HotdogOrchestrator
 import asyncio
 
@@ -41,8 +31,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Authentication credentials (in production, use a database)
-# Password hashes generated using hashlib.sha256(password.encode()).hexdigest()
+# Configuration
+class Config:
+    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+    MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB
+    BASE_DIR = Path(__file__).parent
+
+# Create Flask app
+app = Flask(__name__)
+app.config.from_object(Config)
+CORS(app)
+
+# Global state
+progress_queues = {}  # session_id -> Queue for SSE progress
+analysis_threads = {}  # session_id -> Thread for cancellation
+analysis_results = {}  # session_id -> result data
+
+# Authentication (simple)
 AUTHORIZED_USERS = {
     'stephenb@munipipe.com': {
         'password_hash': hashlib.sha256('babyWren_0!!'.encode()).hexdigest(),
@@ -53,648 +58,206 @@ AUTHORIZED_USERS = {
         'name': 'Sharon M'
     }
 }
-
-# Session storage for authentication tokens (in production, use Redis or database)
 active_sessions = {}
 
 
-class Config:
-    """Application configuration."""
+# ============================================================================
+# BASIC ROUTES
+# ============================================================================
 
-    # Flask configuration
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-    DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+@app.route('/')
+def index():
+    return send_from_directory(Config.BASE_DIR, 'index.html')
 
-    # File upload configuration
-    MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', 100 * 1024 * 1024))  # 100MB default
-    UPLOAD_TIMEOUT = int(os.getenv('UPLOAD_TIMEOUT', 300))  # 5 minutes
-
-    # Server configuration
-    HOST = os.getenv('HOST', '0.0.0.0')
-    PORT = int(os.getenv('PORT', 5000))
-
-    # Paths
-    BASE_DIR = Path(__file__).parent
-    SHARED_ASSETS_DIR = BASE_DIR / 'shared' / 'assets'
-    CIPP_DIR = BASE_DIR / 'Bid-Spec Analysis for CIPP'
-    PROGRESS_DIR = BASE_DIR / 'Progress Estimator'
+@app.route('/health')
+def health():
+    return jsonify({
+        'status': 'healthy',
+        'service': 'PM Tools Suite',
+        'version': '2.0.0-clean'
+    })
 
 
-def create_app(config=Config) -> Flask:
-    """
-    Application factory for creating the Flask app.
+# ============================================================================
+# AUTHENTICATION
+# ============================================================================
 
-    Args:
-        config: Configuration class
+@app.route('/api/authenticate', methods=['POST'])
+def authenticate():
+    data = request.get_json()
+    username = data.get('username', '').strip().lower()
+    password = data.get('password', '')
 
-    Returns:
-        Configured Flask application
-    """
-    app = Flask(
-        __name__,
-        static_folder=str(config.SHARED_ASSETS_DIR),
-        static_url_path='/shared/assets'
+    if username not in AUTHORIZED_USERS:
+        return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
+
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    if password_hash != AUTHORIZED_USERS[username]['password_hash']:
+        return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
+
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now() + timedelta(hours=24)
+
+    active_sessions[token] = {
+        'username': username,
+        'name': AUTHORIZED_USERS[username]['name'],
+        'expires_at': expires_at
+    }
+
+    return jsonify({
+        'success': True,
+        'token': token,
+        'user': {'email': username, 'name': AUTHORIZED_USERS[username]['name']}
+    })
+
+
+# ============================================================================
+# API KEY
+# ============================================================================
+
+@app.route('/api/config/apikey', methods=['GET'])
+def get_api_key():
+    api_key = os.getenv('OPENAI_API_KEY', '')
+    if not api_key:
+        return jsonify({'success': False, 'error': 'API key not configured'}), 500
+
+    return jsonify({
+        'success': True,
+        'key': api_key,
+        'masked': api_key[:10] + '...' + api_key[-4:]
+    })
+
+
+# ============================================================================
+# FILE UPLOAD
+# ============================================================================
+
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    """Upload PDF file, save to temp, return filepath"""
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+    if not file.filename.lower().endswith('.pdf'):
+        return jsonify({'success': False, 'error': 'Only PDF files supported'}), 400
+
+    # Save to temp file
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf', mode='wb') as temp_file:
+        temp_path = temp_file.name
+        file.save(temp_path)
+
+    logger.info(f"File uploaded: {file.filename} -> {temp_path}")
+
+    return jsonify({
+        'success': True,
+        'filepath': temp_path,
+        'filename': file.filename
+    })
+
+
+# ============================================================================
+# SSE PROGRESS STREAM (SIMPLE - Like Test That Worked!)
+# ============================================================================
+
+@app.route('/api/progress/<session_id>')
+def progress_stream(session_id):
+    """SSE endpoint for real-time progress updates"""
+
+    def generate():
+        # Create or get queue
+        if session_id not in progress_queues:
+            progress_queues[session_id] = queue.Queue(maxsize=100)
+
+        q = progress_queues[session_id]
+
+        # Send connection event
+        yield f"data: {json.dumps({'event': 'connected', 'session_id': session_id})}\n\n"
+
+        # Stream events
+        while True:
+            try:
+                # Get next event (15 second timeout for keepalive)
+                event_type, data = q.get(timeout=15)
+
+                # Check for done/error signals
+                if event_type == 'done':
+                    yield f"data: {json.dumps({'event': 'done'})}\n\n"
+                    break
+
+                if event_type == 'error':
+                    yield f"data: {json.dumps({'event': 'error', 'error': data})}\n\n"
+                    break
+
+                # Send progress event
+                yield f"data: {json.dumps({'event': event_type, **data})}\n\n"
+
+            except queue.Empty:
+                # Send keepalive
+                yield ": keepalive\n\n"
+
+        # Cleanup
+        if session_id in progress_queues:
+            del progress_queues[session_id]
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no'
+        }
     )
 
-    app.config.from_object(config)
-    CORS(app)
 
-    # Register routes
-    register_routes(app, config)
+# ============================================================================
+# HOTDOG ANALYSIS (NON-BLOCKING with Threading)
+# ============================================================================
 
-    # Register error handlers
-    register_error_handlers(app)
+@app.route('/api/analyze', methods=['POST'])
+def analyze_document():
+    """Start HOTDOG AI analysis in background thread"""
 
-    logger.info("PM Tools Suite application initialized successfully")
-    return app
+    # Get request data
+    data = request.json
+    pdf_path = data.get('pdf_path')
+    context_guardrails = data.get('context_guardrails', '')
+    session_id = data.get('session_id', f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
 
+    # Validate
+    if not pdf_path or not os.path.exists(pdf_path):
+        return jsonify({'success': False, 'error': 'PDF file not found'}), 404
 
-def register_routes(app: Flask, config: Config):
-    """Register all application routes."""
+    # Get API key
+    openai_key = os.getenv('OPENAI_API_KEY')
+    if not openai_key:
+        return jsonify({'success': False, 'error': 'API key not configured'}), 500
 
-    # Global progress queue storage for SSE streaming
-    # Maps session_id -> queue.Queue for real-time progress updates
-    progress_queues = {}
+    # Create progress queue for this session
+    if session_id not in progress_queues:
+        progress_queues[session_id] = queue.Queue(maxsize=100)
 
-    # Initialize document extractor service
-    try:
-        doc_extractor = DocumentExtractorService()
-        libraries = doc_extractor.get_available_libraries()
-        extensions = doc_extractor.get_supported_extensions()
-        logger.info(f"Document extractor initialized")
-        logger.info(f"  Supported formats: {', '.join(extensions)}")
-        logger.info(f"  Available libraries: {libraries}")
-    except Exception as e:
-        logger.error(f"Failed to initialize document extractor: {e}")
-        doc_extractor = None
+    progress_q = progress_queues[session_id]
 
-    @app.route('/')
-    def index():
-        """Serve the main landing page."""
-        return send_from_directory(config.BASE_DIR, 'index.html')
-
-    @app.route('/health')
-    def health_check():
-        """Health check endpoint for monitoring."""
-        return jsonify({
-            'status': 'healthy',
-            'service': 'PM Tools Suite',
-            'version': '1.0.0',
-            'tools': {
-                'cipp_analyzer': 'available',
-                'progress_estimator': 'available'
-            },
-            'document_service': {
-                'available': doc_extractor is not None,
-                'supported_formats': doc_extractor.get_supported_extensions() if doc_extractor else [],
-                'libraries': doc_extractor.get_available_libraries() if doc_extractor else {}
-            }
-        })
-
-    # Authentication endpoint
-    @app.route('/api/authenticate', methods=['POST'])
-    def authenticate():
-        """
-        Authenticate user credentials and return session token.
-
-        Request body: {"username": "email", "password": "password"}
-        Response: {"success": true/false, "token": "session_token", "message": "error message"}
-        """
+    # Define progress callback (SIMPLE - just queue it)
+    def progress_callback(event_type: str, event_data: dict):
         try:
-            data = request.get_json()
-            if not data:
-                return jsonify({
-                    'success': False,
-                    'message': 'Invalid request format'
-                }), 400
+            progress_q.put_nowait((event_type, event_data))
+        except queue.Full:
+            logger.warning(f"Progress queue full, dropping event: {event_type}")
 
-            username = data.get('username', '').strip().lower()
-            password = data.get('password', '')
-
-            if not username or not password:
-                return jsonify({
-                    'success': False,
-                    'message': 'Username and password are required'
-                }), 400
-
-            # Check if user exists
-            if username not in AUTHORIZED_USERS:
-                logger.warning(f"Authentication failed: User not found - {username}")
-                return jsonify({
-                    'success': False,
-                    'message': 'Invalid credentials'
-                }), 401
-
-            # Verify password
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
-            if password_hash != AUTHORIZED_USERS[username]['password_hash']:
-                logger.warning(f"Authentication failed: Invalid password for {username}")
-                return jsonify({
-                    'success': False,
-                    'message': 'Invalid credentials'
-                }), 401
-
-            # Generate session token
-            token = secrets.token_urlsafe(32)
-            expires_at = datetime.now() + timedelta(hours=24)  # 24-hour session
-
-            # Store session
-            active_sessions[token] = {
-                'username': username,
-                'name': AUTHORIZED_USERS[username]['name'],
-                'created_at': datetime.now(),
-                'expires_at': expires_at
-            }
-
-            logger.info(f"Authentication successful: {username} ({AUTHORIZED_USERS[username]['name']})")
-
-            return jsonify({
-                'success': True,
-                'token': token,
-                'user': {
-                    'email': username,
-                    'name': AUTHORIZED_USERS[username]['name']
-                },
-                'expires_at': expires_at.isoformat()
-            })
-
-        except Exception as e:
-            logger.error(f"Authentication error: {e}")
-            return jsonify({
-                'success': False,
-                'message': 'An error occurred during authentication'
-            }), 500
-
-    @app.route('/api/verify-session', methods=['POST'])
-    def verify_session():
-        """
-        Verify if a session token is valid.
-
-        Request body: {"token": "session_token"}
-        Response: {"valid": true/false, "user": {...}}
-        """
+    # Define analysis function to run in thread
+    def run_analysis():
         try:
-            data = request.get_json()
-            token = data.get('token', '')
+            logger.info(f"Starting analysis in thread: {session_id}")
 
-            if not token:
-                return jsonify({'valid': False}), 401
+            # Get config path
+            config_path = str(Config.BASE_DIR / 'config' / 'cipp_questions_default.json')
 
-            # Check if session exists and is not expired
-            if token in active_sessions:
-                session_data = active_sessions[token]
-                if datetime.now() < session_data['expires_at']:
-                    return jsonify({
-                        'valid': True,
-                        'user': {
-                            'email': session_data['username'],
-                            'name': session_data['name']
-                        }
-                    })
-                else:
-                    # Session expired, remove it
-                    del active_sessions[token]
-                    logger.info(f"Session expired and removed: {session_data['username']}")
-
-            return jsonify({'valid': False}), 401
-
-        except Exception as e:
-            logger.error(f"Session verification error: {e}")
-            return jsonify({'valid': False}), 500
-
-    @app.route('/api/logout', methods=['POST'])
-    def logout():
-        """
-        Logout and invalidate session token.
-
-        Request body: {"token": "session_token"}
-        Response: {"success": true/false}
-        """
-        try:
-            data = request.get_json()
-            token = data.get('token', '')
-
-            if token and token in active_sessions:
-                username = active_sessions[token]['username']
-                del active_sessions[token]
-                logger.info(f"User logged out: {username}")
-                return jsonify({'success': True})
-
-            return jsonify({'success': False, 'message': 'Invalid session'}), 401
-
-        except Exception as e:
-            logger.error(f"Logout error: {e}")
-            return jsonify({'success': False}), 500
-
-    # API Configuration endpoints
-    @app.route('/api/config/apikey', methods=['GET'])
-    def get_api_key():
-        """
-        Get OpenAI API key from environment variables.
-        This endpoint allows the frontend to retrieve the API key securely.
-        """
-        api_key = os.getenv('OPENAI_API_KEY', '')
-
-        if not api_key:
-            return jsonify({
-                'success': False,
-                'error': 'OPENAI_API_KEY not configured in environment variables'
-            }), 500
-
-        # Return only a masked version for security, but indicate it exists
-        # The frontend will know to use this for API calls
-        return jsonify({
-            'success': True,
-            'key': api_key,  # Frontend needs full key for API calls
-            'masked': api_key[:10] + '...' + api_key[-4:] if len(api_key) > 14 else 'configured'
-        })
-
-    # CIPP Analyzer routes
-    @app.route('/cipp-analyzer')
-    def cipp_analyzer():
-        """Serve CIPP Analyzer application."""
-        # Use the branded version with MPT styling
-        branded_version = config.CIPP_DIR / 'cipp_analyzer_branded.html'
-        if branded_version.exists():
-            return send_from_directory(config.CIPP_DIR, 'cipp_analyzer_branded.html')
-        # Fallback to original if branded version not found
-        return send_from_directory(config.CIPP_DIR, 'cipp_analyzer_complete.html')
-
-    @app.route('/cipp-analyzer/api/extract_pdf', methods=['POST'])
-    def cipp_extract_pdf():
-        """
-        CIPP Analyzer document extraction endpoint.
-        Extracts text from uploaded documents (PDF, TXT, DOCX, RTF) with page numbers preserved.
-        Handles large files up to MAX_CONTENT_LENGTH.
-        """
-        if not doc_extractor:
-            logger.error("Document extraction service not initialized")
-            return jsonify({
-                'success': False,
-                'error': 'Document extraction service not available. Please check server logs.'
-            }), 503
-
-        # Log request details
-        logger.info(f"Document extraction request received - Content-Length: {request.content_length}")
-
-        # Check if file was uploaded
-        if 'file' not in request.files:
-            logger.warning("No file in request.files")
-            return jsonify({
-                'success': False,
-                'error': 'No file provided. Please upload a document file.'
-            }), 400
-
-        file = request.files['file']
-
-        if file.filename == '':
-            logger.warning("Empty filename in upload")
-            return jsonify({
-                'success': False,
-                'error': 'No file selected.'
-            }), 400
-
-        # Validate file type
-        if not doc_extractor.is_supported(file.filename):
-            supported = ', '.join(doc_extractor.get_supported_extensions())
-            logger.warning(f"Invalid file type: {file.filename}")
-            return jsonify({
-                'success': False,
-                'error': f'Invalid file type. Supported formats: {supported}'
-            }), 400
-
-        # Save uploaded file to temporary location
-        temp_path = None
-        try:
-            # Get file extension for temporary file
-            file_ext = '.' + file.filename.lower().split('.')[-1]
-
-            # Create temporary file with binary mode
-            with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext, mode='wb') as temp_file:
-                temp_path = temp_file.name
-                # Read file in chunks to handle large files
-                chunk_size = 8192
-                bytes_written = 0
-                while True:
-                    chunk = file.stream.read(chunk_size)
-                    if not chunk:
-                        break
-                    temp_file.write(chunk)
-                    bytes_written += len(chunk)
-
-            # Verify file was completely written
-            actual_size = os.path.getsize(temp_path)
-            logger.info(f"Document saved: {file.filename}")
-            logger.info(f"  Temp path: {temp_path}")
-            logger.info(f"  Bytes written: {bytes_written}")
-            logger.info(f"  File size on disk: {actual_size} bytes ({actual_size / 1024 / 1024:.2f} MB)")
-
-            if actual_size < 10:
-                raise ValueError(f"File too small ({actual_size} bytes) - likely corrupted or truncated")
-
-            # Extract text with page numbers
-            logger.info(f"Starting text extraction for {file.filename}")
-            pages = doc_extractor.extract_text_with_pages(temp_path)
-
-            if not pages:
-                raise ValueError("No text extracted from document - file may be corrupted, encrypted, or empty")
-
-            # Also get combined text with markers
-            combined_text = doc_extractor.extract_text_combined(temp_path)
-
-            # Clean up temporary file
-            os.unlink(temp_path)
-            temp_path = None
-
-            logger.info(f"Successfully extracted {len(pages)} pages from {file.filename}")
-
-            return jsonify({
-                'success': True,
-                'filename': file.filename,
-                'pages': [{'page': page_num, 'text': text} for page_num, text in pages],
-                'combined_text': combined_text,
-                'page_count': len(pages),
-                'total_chars': sum(len(text) for _, text in pages),
-                'file_size_bytes': actual_size
-            })
-
-        except Exception as e:
-            # Clean up temporary file on error
-            if temp_path:
-                try:
-                    if os.path.exists(temp_path):
-                        file_size = os.path.getsize(temp_path)
-                        logger.error(f"Temp file exists with size: {file_size} bytes")
-                        os.unlink(temp_path)
-                except Exception as cleanup_error:
-                    logger.error(f"Cleanup error: {cleanup_error}")
-
-            error_msg = str(e)
-            logger.error(f"Document extraction failed for {file.filename}: {error_msg}")
-            logger.error(f"Error type: {type(e).__name__}")
-
-            # Provide more helpful error messages
-            if 'disturbed' in error_msg.lower() or 'locked' in error_msg.lower():
-                error_msg = f"Document appears corrupted or truncated. Original error: {error_msg}. This often happens with large files - check upload limits."
-            elif 'memory' in error_msg.lower():
-                error_msg = f"Document too large to process in available memory. Try a smaller file or contact support."
-            elif 'encrypted' in error_msg.lower() or 'password' in error_msg.lower():
-                error_msg = "Document is password-protected or encrypted. Please provide an unencrypted version."
-            elif 'unsupported' in error_msg.lower():
-                supported = ', '.join(doc_extractor.get_supported_extensions())
-                error_msg = f"Unsupported file type. Supported formats: {supported}"
-
-            return jsonify({
-                'success': False,
-                'error': error_msg,
-                'debug_info': {
-                    'filename': file.filename,
-                    'error_type': type(e).__name__
-                }
-            }), 500
-
-    @app.route('/cipp-analyzer/api/service-status', methods=['GET'])
-    def cipp_service_status():
-        """
-        Check if document extraction service is available.
-        """
-        return jsonify({
-            'available': doc_extractor is not None,
-            'supported_formats': doc_extractor.get_supported_extensions() if doc_extractor else [],
-            'libraries': doc_extractor.get_available_libraries() if doc_extractor else {},
-            'status': 'running' if doc_extractor else 'unavailable'
-        })
-
-    # Session storage for orchestrator instances (for multi-pass workflow)
-    analysis_sessions = {}  # session_id -> {"orchestrator": ..., "first_pass_result": ...}
-
-    @app.route('/cipp-analyzer/api/upload', methods=['POST'])
-    def cipp_upload():
-        """
-        Upload PDF file for HOTDOG analysis.
-        Saves file to temporary location and returns filepath for subsequent analysis.
-
-        Returns:
-        {
-            "success": true,
-            "filepath": "/tmp/uploaded_file.pdf",
-            "filename": "original.pdf"
-        }
-        """
-        try:
-            # Check if file was uploaded
-            if 'file' not in request.files:
-                return jsonify({
-                    'success': False,
-                    'error': 'No file provided'
-                }), 400
-
-            file = request.files['file']
-
-            if file.filename == '':
-                return jsonify({
-                    'success': False,
-                    'error': 'No file selected'
-                }), 400
-
-            # Validate it's a PDF
-            if not file.filename.lower().endswith('.pdf'):
-                return jsonify({
-                    'success': False,
-                    'error': 'Only PDF files are supported for HOTDOG analysis'
-                }), 400
-
-            # Save to temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf', mode='wb') as temp_file:
-                temp_path = temp_file.name
-                # Read and write in chunks
-                chunk_size = 8192
-                while True:
-                    chunk = file.stream.read(chunk_size)
-                    if not chunk:
-                        break
-                    temp_file.write(chunk)
-
-            logger.info(f"✅ File uploaded for HOTDOG: {file.filename} -> {temp_path}")
-
-            return jsonify({
-                'success': True,
-                'filepath': temp_path,
-                'filename': file.filename
-            })
-
-        except Exception as e:
-            logger.error(f"Upload failed: {e}")
-            return jsonify({
-                'success': False,
-                'error': f'Upload failed: {str(e)}'
-            }), 500
-
-    @app.route('/cipp-analyzer/api/progress/<session_id>')
-    def stream_progress(session_id):
-        """
-        SSE (Server-Sent Events) endpoint for real-time progress updates.
-        Client connects before starting analysis to receive live updates.
-        """
-        def generate():
-            # Create or get progress queue for this session
-            if session_id not in progress_queues:
-                progress_queues[session_id] = queue.Queue(maxsize=100)
-
-            q = progress_queues[session_id]
-
-            # Send initial connection event
-            yield f"data: {json.dumps({'event': 'connected', 'session_id': session_id})}\n\n"
-
-            # Stream progress events
-            try:
-                while True:
-                    try:
-                        event_type, data = q.get(timeout=15)
-
-                        # Check for completion signals
-                        if event_type == 'done':
-                            yield f"data: {json.dumps({'event': 'done'})}\n\n"
-                            break
-                        if event_type == 'error':
-                            yield f"data: {json.dumps({'event': 'error', 'error': data})}\n\n"
-                            break
-
-                        # Send progress event
-                        yield f"data: {json.dumps({'event': event_type, **data})}\n\n"
-
-                    except queue.Empty:
-                        # Send keep-alive ping every 15 seconds
-                        yield f": keepalive\n\n"
-
-            except Exception as e:
-                logger.error(f"SSE stream error for {session_id}: {e}")
-            finally:
-                # Clean up queue when stream ends
-                if session_id in progress_queues:
-                    del progress_queues[session_id]
-
-        return Response(
-            stream_with_context(generate()),
-            mimetype='text/event-stream',
-            headers={
-                'Cache-Control': 'no-cache',
-                'X-Accel-Buffering': 'no'
-            }
-        )
-
-    @app.route('/cipp-analyzer/api/analyze_hotdog', methods=['POST'])
-    def cipp_analyze_hotdog():
-        """
-        HOTDOG AI document analysis endpoint (FIRST PASS).
-        Performs comprehensive multi-expert analysis with perfect page citation preservation.
-
-        Expected request:
-        {
-            "pdf_path": "/path/to/file.pdf",
-            "config_path": "/path/to/questions.json" (optional, uses default if not provided),
-            "context_guardrails": "Only answer within CIPP lining context" (optional),
-            "session_id": "unique-session-id" (optional, for multi-pass workflow)
-        }
-
-        Returns:
-        {
-            "success": true,
-            "session_id": "...",
-            "result": {
-                "document_name": "...",
-                "total_pages": 100,
-                "questions_answered": 95,
-                "questions_unanswered": 5,
-                "sections": [...],
-                "footnotes": [...],
-                "metadata": {...}
-            },
-            "statistics": {...},
-            "can_run_second_pass": true
-        }
-        """
-        try:
-            # Get OpenAI API key
-            openai_key = os.getenv('OPENAI_API_KEY')
-            if not openai_key:
-                return jsonify({
-                    'success': False,
-                    'error': 'OpenAI API key not configured in environment variables',
-                    'error_type': 'ConfigurationError'
-                }), 500
-
-            # Basic validation of API key format
-            if not openai_key.startswith('sk-'):
-                logger.warning(f"⚠️ OpenAI API key does not start with 'sk-' - may be invalid (starts with: {openai_key[:10]}...)")
-                return jsonify({
-                    'success': False,
-                    'error': 'OpenAI API key format appears invalid (should start with "sk-"). Please check your OPENAI_API_KEY environment variable.',
-                    'error_type': 'ConfigurationError'
-                }), 500
-
-            logger.info(f"✅ API key loaded: {openai_key[:10]}...{openai_key[-4:]}")
-
-            # Get request data
-            data = request.json
-            if not data:
-                return jsonify({
-                    'success': False,
-                    'error': 'No data provided',
-                    'error_type': 'ValidationError'
-                }), 400
-
-            pdf_path = data.get('pdf_path')
-            if not pdf_path:
-                return jsonify({
-                    'success': False,
-                    'error': 'No pdf_path provided',
-                    'error_type': 'ValidationError'
-                }), 400
-
-            # Get optional parameters
-            config_path = data.get('config_path')
-            if not config_path:
-                config_path = str(config.BASE_DIR / 'config' / 'cipp_questions_default.json')
-                logger.info(f"Using default CIPP questions config: {config_path}")
-
-            context_guardrails = data.get('context_guardrails', '')
-            session_id = data.get('session_id', f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
-
-            # Create progress queue for this session
-            if session_id not in progress_queues:
-                progress_queues[session_id] = queue.Queue(maxsize=100)
-
-            progress_q = progress_queues[session_id]
-
-            # Define progress callback that pushes to the SSE queue
-            def progress_callback(event_type: str, data: dict):
-                """Push progress events to SSE queue."""
-                try:
-                    progress_q.put_nowait((event_type, data))
-                except queue.Full:
-                    logger.warning(f"Progress queue full for {session_id}, dropping event: {event_type}")
-                except Exception as e:
-                    logger.error(f"Failed to queue event {event_type}: {e}")
-
-            # Verify files exist
-            if not os.path.exists(pdf_path):
-                return jsonify({
-                    'success': False,
-                    'error': f'PDF file not found: {pdf_path}',
-                    'error_type': 'FileNotFoundError'
-                }), 404
-
-            if not os.path.exists(config_path):
-                return jsonify({
-                    'success': False,
-                    'error': f'Configuration file not found: {config_path}',
-                    'error_type': 'FileNotFoundError'
-                }), 404
-
-            logger.info(f"Starting HOTDOG analysis: {pdf_path}")
-
-            # Initialize HOTDOG orchestrator with progress callback
+            # Initialize orchestrator
             orchestrator = HotdogOrchestrator(
                 openai_api_key=openai_key,
                 config_path=config_path,
@@ -702,468 +265,138 @@ def register_routes(app: Flask, config: Config):
                 progress_callback=progress_callback
             )
 
-            # Run analysis in a way that cooperates with gevent
-            # This allows SSE stream to run concurrently
-            def run_analysis():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    result = loop.run_until_complete(
-                        orchestrator.analyze_document(pdf_path, config_path)
-                    )
-                    return result
-                finally:
-                    loop.close()
+            # Run analysis (blocking in THIS thread, not main Flask thread)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(
+                    orchestrator.analyze_document(pdf_path, config_path)
+                )
 
-            # Spawn analysis in background greenlet (non-blocking)
-            analysis_greenlet = gevent.spawn(run_analysis)
-
-            # Wait for completion (yields to other greenlets like SSE)
-            analysis_result = analysis_greenlet.get()  # Non-blocking wait
-            logger.info("Analysis completed successfully")
-
-            # Get browser-formatted output
-            from services.hotdog.layers import ConfigurationLoader
-            config_loader = ConfigurationLoader()
-            parsed_config = config_loader.load_from_json(config_path)
-
-            browser_output = orchestrator.get_browser_output(analysis_result, parsed_config)
-
-            # Calculate unanswered questions
-            total_questions = parsed_config.total_questions
-            questions_unanswered = total_questions - analysis_result.questions_answered
-            can_run_second_pass = questions_unanswered > 0
-
-            # Store session for potential second pass
-            analysis_sessions[session_id] = {
-                'orchestrator': orchestrator,
-                'first_pass_result': analysis_result,
-                'parsed_config': parsed_config,
-                'created_at': datetime.now()
-            }
-
-            logger.info(f"✅ HOTDOG analysis complete: {analysis_result.questions_answered}/{total_questions} questions answered")
-            if can_run_second_pass:
-                logger.info(f"   {questions_unanswered} questions remain unanswered - second pass available")
-
-            # Signal completion to SSE stream
-            progress_q.put_nowait(('done', {}))
-
-            return jsonify({
-                'success': True,
-                'session_id': session_id,
-                'result': browser_output,
-                'statistics': {
-                    'processing_time': analysis_result.processing_time_seconds,
-                    'total_tokens': analysis_result.total_tokens,
-                    'estimated_cost': f"${analysis_result.estimated_cost:.4f}",
-                    'questions_answered': analysis_result.questions_answered,
-                    'questions_unanswered': questions_unanswered,
-                    'total_questions': total_questions,
-                    'average_confidence': f"{analysis_result.average_confidence:.0%}"
-                },
-                'can_run_second_pass': can_run_second_pass,
-                'context_guardrails': context_guardrails if context_guardrails else None
-            })
-
-        except Exception as e:
-            logger.error(f"HOTDOG analysis error: {str(e)}", exc_info=True)
-
-            # Signal error to SSE stream
-            if session_id in progress_queues:
-                try:
-                    progress_queues[session_id].put_nowait(('error', str(e)))
-                except:
-                    pass
-
-            return jsonify({
-                'success': False,
-                'error': str(e),
-                'error_type': type(e).__name__
-            }), 500
-
-    @app.route('/cipp-analyzer/api/second_pass', methods=['POST'])
-    def cipp_second_pass():
-        """
-        HOTDOG AI SECOND PASS endpoint.
-        Runs enhanced scrutiny on unanswered questions from the first pass.
-
-        Expected request:
-        {
-            "session_id": "session_20251130_143045"
-        }
-
-        Returns:
-        {
-            "success": true,
-            "result": {
-                "document_name": "...",
-                "total_pages": 100,
-                "questions_answered": 98,  // Updated count
-                "questions_unanswered": 2,   // Reduced count
-                "sections": [...],  // Merged results
-                "footnotes": [...],
-                "metadata": {...}
-            },
-            "statistics": {
-                "first_pass_answers": 95,
-                "second_pass_answers": 3,
-                "total_questions_answered": 98,
-                "second_pass_success_rate": "13.6%",
-                "total_tokens": 560000,
-                "estimated_cost": "$16.80"
-            }
-        }
-        """
-        try:
-            # Get request data
-            data = request.json
-            if not data:
-                return jsonify({
-                    'success': False,
-                    'error': 'No data provided',
-                    'error_type': 'ValidationError'
-                }), 400
-
-            session_id = data.get('session_id')
-            if not session_id:
-                return jsonify({
-                    'success': False,
-                    'error': 'No session_id provided',
-                    'error_type': 'ValidationError'
-                }), 400
-
-            # Retrieve session
-            if session_id not in analysis_sessions:
-                return jsonify({
-                    'success': False,
-                    'error': f'Session not found: {session_id}. Please run first pass analysis first.',
-                    'error_type': 'SessionNotFoundError'
-                }), 404
-
-            session_data = analysis_sessions[session_id]
-            orchestrator = session_data['orchestrator']
-            first_pass_result = session_data['first_pass_result']
-            parsed_config = session_data['parsed_config']
-
-            # Calculate first-pass stats
-            first_pass_answers = first_pass_result.questions_answered
-            total_questions = parsed_config.total_questions
-            unanswered_before = total_questions - first_pass_answers
-
-            if unanswered_before == 0:
-                return jsonify({
-                    'success': True,
-                    'message': 'All questions already answered in first pass. No second pass needed.',
-                    'result': orchestrator.get_browser_output(first_pass_result, parsed_config),
-                    'statistics': {
-                        'first_pass_answers': first_pass_answers,
-                        'second_pass_answers': 0,
-                        'total_questions_answered': first_pass_answers,
-                        'total_questions': total_questions
-                    }
-                })
-
-            logger.info(f"🔍 Starting second pass for session: {session_id}")
-            logger.info(f"   First pass answered: {first_pass_answers}/{total_questions}")
-            logger.info(f"   Targeting: {unanswered_before} unanswered questions")
-
-            # Run second pass in a way that cooperates with gevent
-            def run_second_pass_analysis():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    result = loop.run_until_complete(
-                        orchestrator.run_second_pass(first_pass_result)
-                    )
-                    return result
-                finally:
-                    loop.close()
-
-            # Spawn in background greenlet (non-blocking)
-            second_pass_greenlet = gevent.spawn(run_second_pass_analysis)
-            updated_result = second_pass_greenlet.get()  # Non-blocking wait
-
-            # Calculate second-pass stats
-            second_pass_answers = updated_result.questions_answered - first_pass_answers
-            unanswered_after = total_questions - updated_result.questions_answered
-            success_rate = (second_pass_answers / unanswered_before * 100) if unanswered_before > 0 else 0
-
-            # Update session with new result
-            session_data['first_pass_result'] = updated_result
-            session_data['second_pass_run'] = True
-
-            # Get updated browser output
-            browser_output = orchestrator.get_browser_output(updated_result, parsed_config)
-
-            logger.info(f"✅ Second pass complete!")
-            logger.info(f"   Second pass found: {second_pass_answers} new answers")
-            logger.info(f"   Total answered: {updated_result.questions_answered}/{total_questions}")
-            logger.info(f"   Success rate: {success_rate:.1f}%")
-
-            return jsonify({
-                'success': True,
-                'session_id': session_id,
-                'result': browser_output,
-                'statistics': {
-                    'processing_time': updated_result.processing_time_seconds,
-                    'first_pass_answers': first_pass_answers,
-                    'second_pass_answers': second_pass_answers,
-                    'total_questions_answered': updated_result.questions_answered,
-                    'questions_unanswered': unanswered_after,
-                    'total_questions': total_questions,
-                    'second_pass_success_rate': f"{success_rate:.1f}%",
-                    'total_tokens': updated_result.total_tokens,
-                    'estimated_cost': f"${updated_result.estimated_cost:.4f}",
-                    'average_confidence': f"{updated_result.average_confidence:.0%}"
+                # Store result
+                analysis_results[session_id] = {
+                    'result': result,
+                    'orchestrator': orchestrator,
+                    'config_path': config_path
                 }
-            })
+
+                # Signal done
+                progress_q.put(('done', {}))
+
+                logger.info(f"Analysis complete: {session_id}")
+
+            finally:
+                loop.close()
 
         except Exception as e:
-            logger.error(f"Second pass error: {str(e)}", exc_info=True)
-            return jsonify({
-                'success': False,
-                'error': str(e),
-                'error_type': type(e).__name__
-            }), 500
+            logger.error(f"Analysis failed: {e}", exc_info=True)
+            progress_q.put(('error', str(e)))
 
-    @app.route('/cipp-analyzer/api/export_excel_dashboard', methods=['POST'])
-    def export_excel_dashboard():
-        """
-        Export analysis results as Excel dashboard with embedded charts.
-        Uses openpyxl to create native Excel visualizations.
+    # Start analysis thread
+    thread = threading.Thread(target=run_analysis, daemon=True)
+    analysis_threads[session_id] = thread
+    thread.start()
 
-        Expected request:
-        {
-            "analysis_result": { ... },  // Browser-formatted analysis result
-            "document_name": "file.pdf"
+    logger.info(f"Analysis thread started: {session_id}")
+
+    # Return immediately (don't wait for analysis)
+    return jsonify({
+        'success': True,
+        'session_id': session_id,
+        'message': 'Analysis started in background'
+    })
+
+
+# ============================================================================
+# GET RESULTS
+# ============================================================================
+
+@app.route('/api/results/<session_id>', methods=['GET'])
+def get_results(session_id):
+    """Get analysis results after completion"""
+
+    if session_id not in analysis_results:
+        return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+    session_data = analysis_results[session_id]
+    result = session_data['result']
+    orchestrator = session_data['orchestrator']
+
+    # Get browser-formatted output
+    from services.hotdog.layers import ConfigurationLoader
+    config_loader = ConfigurationLoader()
+    parsed_config = config_loader.load_from_json(session_data['config_path'])
+
+    browser_output = orchestrator.get_browser_output(result, parsed_config)
+
+    return jsonify({
+        'success': True,
+        'result': browser_output,
+        'statistics': {
+            'processing_time': result.processing_time_seconds,
+            'total_tokens': result.total_tokens,
+            'estimated_cost': f"${result.estimated_cost:.4f}",
+            'questions_answered': result.questions_answered,
+            'total_questions': parsed_config.total_questions,
+            'average_confidence': f"{result.average_confidence:.0%}"
         }
-
-        Returns:
-        Excel file download
-        """
-        try:
-            from services.excel_dashboard_generator import generate_excel_dashboard
-            import tempfile
-            import os
-
-            # Get request data
-            data = request.json
-            if not data:
-                return jsonify({
-                    'success': False,
-                    'error': 'No data provided',
-                    'error_type': 'ValidationError'
-                }), 400
-
-            analysis_result = data.get('analysis_result')
-            if not analysis_result:
-                return jsonify({
-                    'success': False,
-                    'error': 'No analysis_result provided',
-                    'error_type': 'ValidationError'
-                }), 400
-
-            document_name = data.get('document_name', 'Analysis')
-
-            # Generate Excel dashboard in temp file
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"CIPP_Dashboard_{timestamp}.xlsx"
-            temp_path = os.path.join(tempfile.gettempdir(), filename)
-
-            logger.info(f"📊 Generating Excel dashboard: {filename}")
-
-            # Generate dashboard
-            excel_path = generate_excel_dashboard(
-                analysis_result=analysis_result,
-                output_path=temp_path,
-                document_name=document_name
-            )
-
-            logger.info(f"✅ Excel dashboard created: {excel_path}")
-
-            # Send file
-            return send_file(
-                excel_path,
-                as_attachment=True,
-                download_name=filename,
-                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-
-        except Exception as e:
-            logger.error(f"Excel dashboard export error: {str(e)}", exc_info=True)
-            return jsonify({
-                'success': False,
-                'error': str(e),
-                'error_type': type(e).__name__
-            }), 500
-
-    # Progress Estimator routes
-    @app.route('/progress-estimator')
-    def progress_estimator():
-        """Serve Progress Estimator application."""
-        # Use the branded version with MPT styling
-        branded_version = config.PROGRESS_DIR / 'ProgEstimator_branded.html'
-        if branded_version.exists():
-            return send_from_directory(config.PROGRESS_DIR, 'ProgEstimator_branded.html')
-        # Fallback to original if branded version not found
-        return send_from_directory(config.PROGRESS_DIR, 'CleaningEstimateProto.html')
-
-    @app.route('/progress-estimator/script.js')
-    def progress_estimator_script():
-        """Serve improved JavaScript for Progress Estimator."""
-        # Check if improved version exists, otherwise fallback to original
-        improved_script = config.PROGRESS_DIR / 'script_improved.js'
-        if improved_script.exists():
-            return send_from_directory(config.PROGRESS_DIR, 'script_improved.js', mimetype='application/javascript')
-        return send_from_directory(config.PROGRESS_DIR, 'script.js', mimetype='application/javascript')
-
-    @app.route('/progress-estimator/styles.css')
-    def progress_estimator_styles():
-        """Serve improved CSS for Progress Estimator."""
-        # Check if improved version exists, otherwise fallback to original
-        improved_styles = config.PROGRESS_DIR / 'styles_improved.css'
-        if improved_styles.exists():
-            return send_from_directory(config.PROGRESS_DIR, 'styles_improved.css', mimetype='text/css')
-        return send_from_directory(config.PROGRESS_DIR, 'styles.css', mimetype='text/css')
-
-    # Shared assets routes (already handled by Flask's static_folder)
-
-    # Placeholder routes for footer links
-    @app.route('/about')
-    def about():
-        """About page placeholder."""
-        return """
-        <html>
-        <head>
-            <title>About - PM Tools Suite</title>
-            <link rel="stylesheet" href="/shared/assets/css/common.css">
-        </head>
-        <body style="padding: 40px; max-width: 800px; margin: 0 auto;">
-            <h1>About PM Tools Suite</h1>
-            <p>Professional project management tools for construction and infrastructure projects.</p>
-            <p><a href="/" class="btn btn-primary">← Back to Home</a></p>
-        </body>
-        </html>
-        """
-
-    @app.route('/support')
-    def support():
-        """Support page placeholder."""
-        return """
-        <html>
-        <head>
-            <title>Support - PM Tools Suite</title>
-            <link rel="stylesheet" href="/shared/assets/css/common.css">
-        </head>
-        <body style="padding: 40px; max-width: 800px; margin: 0 auto;">
-            <h1>Support</h1>
-            <p>Need help? Contact support at: <a href="mailto:support@example.com">support@example.com</a></p>
-            <p><a href="/" class="btn btn-primary">← Back to Home</a></p>
-        </body>
-        </html>
-        """
-
-    @app.route('/privacy')
-    def privacy():
-        """Privacy policy placeholder."""
-        return """
-        <html>
-        <head>
-            <title>Privacy Policy - PM Tools Suite</title>
-            <link rel="stylesheet" href="/shared/assets/css/common.css">
-        </head>
-        <body style="padding: 40px; max-width: 800px; margin: 0 auto;">
-            <h1>Privacy Policy</h1>
-            <p>Your privacy is important to us. Add your privacy policy content here.</p>
-            <p><a href="/" class="btn btn-primary">← Back to Home</a></p>
-        </body>
-        </html>
-        """
-
-    @app.route('/terms')
-    def terms():
-        """Terms of service placeholder."""
-        return """
-        <html>
-        <head>
-            <title>Terms of Service - PM Tools Suite</title>
-            <link rel="stylesheet" href="/shared/assets/css/common.css">
-        </head>
-        <body style="padding: 40px; max-width: 800px; margin: 0 auto;">
-            <h1>Terms of Service</h1>
-            <p>Terms of service content goes here.</p>
-            <p><a href="/" class="btn btn-primary">← Back to Home</a></p>
-        </body>
-        </html>
-        """
+    })
 
 
-def register_error_handlers(app: Flask):
-    """Register error handlers for common HTTP errors."""
+# ============================================================================
+# STOP ANALYSIS
+# ============================================================================
 
-    @app.errorhandler(404)
-    def not_found(error):
-        """Handle 404 errors."""
-        return jsonify({
-            'error': 'Not Found',
-            'message': 'The requested resource was not found',
-            'status': 404
-        }), 404
+@app.route('/api/stop/<session_id>', methods=['POST'])
+def stop_analysis(session_id):
+    """Stop ongoing analysis"""
 
-    @app.errorhandler(413)
-    def request_entity_too_large(error):
-        """Handle file upload size limit exceeded."""
-        max_size_mb = app.config.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024) / (1024 * 1024)
-        logger.warning(f"File upload exceeded size limit: {max_size_mb}MB")
-        return jsonify({
-            'success': False,
-            'error': f'File too large. Maximum upload size is {max_size_mb:.0f}MB.',
-            'message': 'Please try a smaller file or contact support for large file processing.',
-            'status': 413,
-            'max_size_mb': max_size_mb
-        }), 413
+    if session_id in analysis_threads:
+        # Note: Python threads can't be directly killed
+        # We can only mark them and wait for orchestrator to check
+        logger.info(f"Stop requested for: {session_id}")
 
-    @app.errorhandler(500)
-    def internal_error(error):
-        """Handle 500 errors."""
-        logger.error(f"Internal server error: {error}")
-        return jsonify({
-            'error': 'Internal Server Error',
-            'message': 'An unexpected error occurred',
-            'status': 500
-        }), 500
+        # Send error event to close SSE
+        if session_id in progress_queues:
+            progress_queues[session_id].put(('error', 'Analysis stopped by user'))
+
+        return jsonify({'success': True, 'message': 'Stop signal sent'})
+
+    return jsonify({'success': False, 'error': 'Session not found'}), 404
 
 
-def main():
-    """Main entry point for running the application."""
-    app = create_app()
+# ============================================================================
+# CIPP ANALYZER FRONTEND
+# ============================================================================
 
-    logger.info("=" * 60)
-    logger.info("PM Tools Suite - Starting Server")
-    logger.info("=" * 60)
-    logger.info(f"Environment: {'Development' if app.config['DEBUG'] else 'Production'}")
-    logger.info(f"Server: http://{app.config['HOST']}:{app.config['PORT']}")
-    logger.info("Available Tools:")
-    logger.info("  - CIPP Analyzer: /cipp-analyzer")
-    logger.info("  - Progress Estimator: /progress-estimator")
-    logger.info("=" * 60)
-
-    try:
-        app.run(
-            host=app.config['HOST'],
-            port=app.config['PORT'],
-            debug=app.config['DEBUG']
-        )
-    except KeyboardInterrupt:
-        logger.info("\nShutting down gracefully...")
-    except Exception as e:
-        logger.error(f"Failed to start server: {e}")
-        sys.exit(1)
+@app.route('/cipp-analyzer')
+def cipp_analyzer():
+    """Serve CIPP Analyzer application"""
+    return send_from_directory(Config.BASE_DIR / 'Bid-Spec Analysis for CIPP', 'cipp_analyzer_clean.html')
 
 
-# Create application instance for WSGI servers (gunicorn, etc.)
-app = create_app()
+# ============================================================================
+# ERROR HANDLERS
+# ============================================================================
 
-if __name__ == "__main__":
-    main()
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Not Found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'Internal Server Error'}), 500
+
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+if __name__ == '__main__':
+    logger.info("="*60)
+    logger.info("PM Tools Suite - Clean Rebuild")
+    logger.info("="*60)
+    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
+else:
+    # For gunicorn
+    logger.info("PM Tools Suite loaded (gunicorn mode)")
