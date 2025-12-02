@@ -159,7 +159,10 @@ class HotdogOrchestrator:
         """
         started_at = datetime.now()
         logger.info(f"🚀 Starting HOTDOG analysis: {pdf_path}")
-        self._emit_progress('analysis_started', {'pdf_path': pdf_path, 'started_at': started_at})
+        self._emit_progress('analysis_started', {
+            'pdf_path': pdf_path,
+            'started_at': started_at.isoformat()  # Convert to JSON-serializable string
+        })
 
         try:
             # ============================================================
@@ -355,8 +358,11 @@ class HotdogOrchestrator:
             # ============================================================
             self._print_final_summary(result, config)
             self._emit_progress('analysis_complete', {
-                'result': result,
-                'processing_time': result.processing_time_seconds
+                'questions_answered': result.questions_answered,
+                'total_questions': config.total_questions,
+                'processing_time': result.processing_time_seconds,
+                'total_tokens': result.total_tokens,
+                'estimated_cost': result.estimated_cost
             })
 
             return result
