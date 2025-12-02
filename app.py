@@ -23,6 +23,9 @@ import tempfile
 import queue
 import json
 import time
+import gevent
+from gevent import monkey
+monkey.patch_all()
 
 # Import document extraction service (supports PDF, TXT, DOCX, RTF)
 from services.document_extractor import DocumentExtractorService
@@ -699,19 +702,25 @@ def register_routes(app: Flask, config: Config):
                 progress_callback=progress_callback
             )
 
-            # Run analysis
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                analysis_result = loop.run_until_complete(
-                    orchestrator.analyze_document(pdf_path, config_path)
-                )
-                logger.info("Analysis completed successfully")
-            except Exception as e:
-                logger.error(f"Analysis failed: {e}", exc_info=True)
-                raise
-            finally:
-                loop.close()
+            # Run analysis in a way that cooperates with gevent
+            # This allows SSE stream to run concurrently
+            def run_analysis():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(
+                        orchestrator.analyze_document(pdf_path, config_path)
+                    )
+                    return result
+                finally:
+                    loop.close()
+
+            # Spawn analysis in background greenlet (non-blocking)
+            analysis_greenlet = gevent.spawn(run_analysis)
+
+            # Wait for completion (yields to other greenlets like SSE)
+            analysis_result = analysis_greenlet.get()  # Non-blocking wait
+            logger.info("Analysis completed successfully")
 
             # Get browser-formatted output
             from services.hotdog.layers import ConfigurationLoader
@@ -859,15 +868,21 @@ def register_routes(app: Flask, config: Config):
             logger.info(f"   First pass answered: {first_pass_answers}/{total_questions}")
             logger.info(f"   Targeting: {unanswered_before} unanswered questions")
 
-            # Run second pass (async)
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                updated_result = loop.run_until_complete(
-                    orchestrator.run_second_pass(first_pass_result)
-                )
-            finally:
-                loop.close()
+            # Run second pass in a way that cooperates with gevent
+            def run_second_pass_analysis():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(
+                        orchestrator.run_second_pass(first_pass_result)
+                    )
+                    return result
+                finally:
+                    loop.close()
+
+            # Spawn in background greenlet (non-blocking)
+            second_pass_greenlet = gevent.spawn(run_second_pass_analysis)
+            updated_result = second_pass_greenlet.get()  # Non-blocking wait
 
             # Calculate second-pass stats
             second_pass_answers = updated_result.questions_answered - first_pass_answers
