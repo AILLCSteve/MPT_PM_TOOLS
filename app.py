@@ -22,7 +22,8 @@ from werkzeug.utils import secure_filename
 
 # Import HOTDOG orchestrator
 from services.hotdog import HotdogOrchestrator
-from services.excel_dashboard import ExcelDashboardGenerator
+# Excel dashboard import moved to lazy load (only when endpoint is called)
+# This prevents app crash if openpyxl isn't installed
 import asyncio
 
 # Configure logging
@@ -356,6 +357,9 @@ def export_excel_dashboard(session_id):
         return jsonify({'success': False, 'error': 'Session not found'}), 404
 
     try:
+        # Lazy import to prevent app crash if openpyxl not installed
+        from services.excel_dashboard import ExcelDashboardGenerator
+
         session_data = analysis_results[session_id]
         result = session_data['result']
         orchestrator = session_data['orchestrator']
