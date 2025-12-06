@@ -742,7 +742,7 @@
         <div class="section">
             <h3>📄 Document Upload</h3>
             <div class="file-upload" id="fileUpload" onclick="document.getElementById('fileInput').click()">
-                <input type="file" id="fileInput" style="display: none;" accept=".pdf,.txt,.docx,.rtf" onchange="handleFileSelect(event)">
+                <input type="file" id="fileInput" style="display: none;" accept=".pdf,.txt,.docx,.rtf">
                 <p><strong>Click to select file</strong> or drag and drop</p>
                 <p>Supported formats: PDF, TXT, DOCX, RTF</p>
             </div>
@@ -1138,18 +1138,42 @@ class ProgressTracker {
 // ============================================================================
 
 function handleFileSelect(event) {
+    console.log('handleFileSelect called', event);
+
     const file = event.target.files[0];
-    if (!file) return;
+    console.log('Selected file:', file);
+
+    if (!file) {
+        console.warn('No file selected');
+        return;
+    }
 
     currentFile = file;
+    console.log('currentFile set to:', currentFile);
 
-    // Update UI
-    document.getElementById('fileName').textContent = file.name;
-    document.getElementById('fileSize').textContent = formatFileSize(file.size);
-    document.getElementById('fileInfo').style.display = 'block';
-    document.getElementById('analyzeBtn').disabled = false;
+    try {
+        // Update UI
+        const fileNameEl = document.getElementById('fileName');
+        const fileSizeEl = document.getElementById('fileSize');
+        const fileInfoEl = document.getElementById('fileInfo');
+        const analyzeBtnEl = document.getElementById('analyzeBtn');
 
-    Logger.info(`📄 PDF file selected: ${file.name}`);
+        if (!fileNameEl || !fileSizeEl || !fileInfoEl || !analyzeBtnEl) {
+            throw new Error('Required UI elements not found');
+        }
+
+        fileNameEl.textContent = file.name;
+        fileSizeEl.textContent = formatFileSize(file.size);
+        fileInfoEl.style.display = 'block';
+        analyzeBtnEl.disabled = false;
+
+        Logger.info(`📄 PDF file selected: ${file.name} (${formatFileSize(file.size)})`);
+        console.log('File selection complete - UI updated');
+    } catch (error) {
+        console.error('Error updating UI after file selection:', error);
+        alert('Error displaying file information: ' + error.message);
+        throw error;
+    }
 }
 
 function formatFileSize(bytes) {
@@ -1995,7 +2019,20 @@ function updateActiveQuestionCount() {
 
 function setupFileDragDrop() {
     const dropZone = document.getElementById('fileUpload');
+    const fileInput = document.getElementById('fileInput');
 
+    // Attach change event listener to file input (more reliable than inline onchange)
+    fileInput.addEventListener('change', (e) => {
+        console.log('File input change event fired', e);
+        try {
+            handleFileSelect(e);
+        } catch (error) {
+            console.error('Error in handleFileSelect:', error);
+            alert('Error selecting file: ' + error.message);
+        }
+    });
+
+    // Drag and drop handlers
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropZone.style.borderColor = '#5b7fcc';
