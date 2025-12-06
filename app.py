@@ -424,8 +424,8 @@ def cipp_analyzer():
 
 @app.route('/progress-estimator')
 def progress_estimator():
-    """Serve CIPP Production Estimator (Unified Prep + Lining)"""
-    return send_from_directory(Config.BASE_DIR / 'Progress Estimator', 'CIPPEstimator_Unified.html')
+    """Serve CIPP Production Estimator (Comprehensive - All Penalties/Boosts/Pipe Sizes)"""
+    return send_from_directory(Config.BASE_DIR / 'Progress Estimator', 'CIPPEstimator_Comprehensive.html')
 
 
 # ============================================================================
