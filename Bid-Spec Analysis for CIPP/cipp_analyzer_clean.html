@@ -1217,6 +1217,10 @@ async function startAnalysis() {
 
         activeEventSource.onopen = () => {
             Logger.info('📡 Connected to live progress stream');
+            // AUTO-SHOW DEBUG PANEL AND ACTIVITY LOG
+            autoExpandDebugTools();
+            // AUTO-SHOW LIVE RESULTS SECTION
+            showLiveResults();
         };
 
         activeEventSource.onmessage = (e) => {
@@ -1225,28 +1229,35 @@ async function startAnalysis() {
 
                 // Route events (SIMPLE - just call Logger)
                 if (data.event === 'connected') {
-                    Logger.success('✅ Progress stream connected');
+                    Logger.success('✅ Progress stream connected - Analysis starting...');
+                    ProgressTracker.update(25, 'Progress stream connected');
                 }
                 else if (data.event === 'document_ingested') {
                     Logger.info(`📄 Extracted ${data.total_pages} pages into ${data.window_count} windows`);
                     ProgressTracker.update(30, `Extracted ${data.total_pages} pages`);
-                }
                 else if (data.event === 'config_loaded') {
                     Logger.info(`⚙️ Loaded ${data.total_questions} questions in ${data.section_count} sections`);
+                    Logger.debug(`Sections: ${data.sections ? data.sections.join(', ') : 'N/A'}`);
+                    ProgressTracker.update(32, `Loaded ${data.total_questions} questions`);
                 }
                 else if (data.event === 'expert_generated') {
                     Logger.info(`🤖 Generated expert: ${data.expert_name}`);
+                    Logger.debug(`Expert specialization: ${data.section || 'Unknown'}`);
+                    ProgressTracker.update(35, `Generating AI experts...`);
                 }
                 else if (data.event === 'window_processing') {
                     Logger.info(`🔍 Processing Window ${data.window_num}/${data.total_windows}: Pages ${data.pages}`);
-                    const progress = 30 + ((data.window_num / data.total_windows) * 60);
-                    ProgressTracker.update(progress, `Window ${data.window_num}/${data.total_windows}`);
+                    Logger.debug(`→ Sending window to multi-expert processor...`);
+                    const progress = 40 + ((data.window_num / data.total_windows) * 50);
+                    ProgressTracker.update(progress, `Analyzing window ${data.window_num}/${data.total_windows}`);
                 }
                 else if (data.event === 'experts_dispatched') {
                     Logger.info(`🤖 Dispatching ${data.expert_count} experts to analyze ${data.question_count} questions`);
+                    Logger.debug(`→ Calling OpenAI GPT-4o API in parallel (max 5 concurrent)`);
                 }
                 else if (data.event === 'experts_complete') {
                     Logger.success(`✅ Experts found ${data.answers_returned} answers (${data.tokens_used} tokens)`);
+                    Logger.debug(`→ Answers being sent to Smart Accumulator for deduplication`);
                 }
                 else if (data.event === 'window_complete') {
                     Logger.success(`✅ Window ${data.window_num}: ${data.answers_found} answers (${data.processing_time.toFixed(1)}s)`);
@@ -1261,6 +1272,7 @@ async function startAnalysis() {
                 }
                 else if (data.event === 'done') {
                     Logger.success('🎉 Analysis complete - fetching results...');
+                    ProgressTracker.update(95, 'Compiling final results...');
                     activeEventSource.close();
                     fetchResults();
                 }
@@ -1269,9 +1281,17 @@ async function startAnalysis() {
                     activeEventSource.close();
                     throw new Error(data.error);
                 }
+                else {
+                    // Log any unexpected events for debugging
+                    Logger.debug(`📡 SSE Event: ${data.event}`);
+                    if (data && Object.keys(data).length > 1) {
+                        Logger.debug(JSON.stringify(data));
+                    }
+                }
 
             } catch (err) {
                 Logger.error('Failed to parse SSE message: ' + err.message);
+                Logger.debug(`Raw message: ${e.data}`);
             }
         };
 
@@ -1295,7 +1315,9 @@ async function startAnalysis() {
         }
 
         const analyzeData = await analyzeResp.json();
-        Logger.info(`✅ Analysis started in background (Session: ${currentSessionId})`);
+        Logger.success(`✅ Analysis started in background (Session: ${currentSessionId})`);
+        Logger.info(`📊 HOTDOG AI is now processing your document...`);
+        Logger.info(`🔄 Watch below for real-time progress updates from each layer`);
 
     } catch (error) {
         Logger.error('Analysis failed: ' + error.message);
@@ -2029,6 +2051,61 @@ function toggleDebugSection(sectionId) {
         header.classList.add('collapsed');
         icon.textContent = '▼';
     }
+}
+
+// ============================================================================
+// AUTO-EXPAND DEBUG TOOLS (Fix for Activity Log Not Showing)
+// ============================================================================
+
+function autoExpandDebugTools() {
+    // 1. Show master debug panel if hidden
+    const masterPanel = document.getElementById('masterDebugPanel');
+    const masterIcon = document.getElementById('masterDebugToggleIcon');
+    const masterText = document.getElementById('masterDebugToggleText');
+
+    if (masterPanel.style.display === 'none') {
+        masterPanel.style.display = 'block';
+        masterIcon.textContent = '🔧';
+        masterText.textContent = 'Hide Debug Tools';
+    }
+
+    // 2. Expand Activity Log section
+    const logSection = document.getElementById('logSection');
+    const logHeader = logSection.previousElementSibling;
+    const logIcon = logHeader.querySelector('.toggle-icon');
+
+    if (logSection.style.display === 'none' || !logSection.style.display) {
+        logSection.style.display = 'block';
+        logHeader.classList.remove('collapsed');
+        logIcon.textContent = '▲';
+    }
+
+    // 3. Scroll to debug panel so user can see activity
+    setTimeout(() => {
+        masterPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 300);
+}
+
+function showLiveResults() {
+    const resultsSection = document.getElementById('resultsSection');
+    const liveContainer = document.getElementById('liveResultsContainer');
+
+    // Show results section
+    resultsSection.style.display = 'block';
+
+    // Add loading indicator
+    liveContainer.innerHTML = `
+        <div style="text-align: center; padding: 40px; background: rgba(91, 127, 204, 0.05); border-radius: 10px; border: 2px dashed rgba(91, 127, 204, 0.3);">
+            <div style="font-size: 3em; margin-bottom: 15px;">🔄</div>
+            <h3 style="color: #5B7FCC; margin-bottom: 10px;">Analysis in Progress</h3>
+            <p style="color: #666;">Live results will appear here as windows are processed...</p>
+            <div style="margin-top: 20px;">
+                <div style="display: inline-block; padding: 8px 16px; background: rgba(91, 127, 204, 0.1); border-radius: 6px; font-weight: 500; color: #1E3A8A;">
+                    Watch the Activity Log below for real-time progress
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 // ============================================================================
