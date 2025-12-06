@@ -71,6 +71,11 @@ active_sessions = {}
 def index():
     return send_from_directory(Config.BASE_DIR, 'index.html')
 
+@app.route('/shared/<path:filename>')
+def serve_shared_assets(filename):
+    """Serve shared assets (images, CSS, etc.)"""
+    return send_from_directory(Config.BASE_DIR / 'shared', filename)
+
 @app.route('/health')
 def health():
     return jsonify({
@@ -416,6 +421,11 @@ def stop_analysis(session_id):
 def cipp_analyzer():
     """Serve CIPP Analyzer application"""
     return send_from_directory(Config.BASE_DIR / 'Bid-Spec Analysis for CIPP', 'cipp_analyzer_clean.html')
+
+@app.route('/progress-estimator')
+def progress_estimator():
+    """Serve CIPP Production Estimator (Unified Prep + Lining)"""
+    return send_from_directory(Config.BASE_DIR / 'Progress Estimator', 'CIPPEstimator_Unified.html')
 
 
 # ============================================================================
