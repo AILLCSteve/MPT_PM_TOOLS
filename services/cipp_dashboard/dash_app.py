@@ -401,7 +401,7 @@ def create_dash_app(flask_app):
     @dash_app.callback(
         Output('overall-progress-chart', 'figure'),
         Input('session-data', 'data'),
-        prevent_initial_call=False
+        prevent_initial_call=True
     )
     def update_overall_progress(session_data):
         if not session_data:
@@ -553,7 +553,7 @@ def create_dash_app(flask_app):
     @dash_app.callback(
         Output('progress-bar-chart', 'figure'),
         Input('session-data', 'data'),
-        prevent_initial_call=False
+        prevent_initial_call=True
     )
     def update_progress_bar(session_data):
         if not session_data:
@@ -642,7 +642,7 @@ def create_dash_app(flask_app):
     @dash_app.callback(
         Output('radar-chart', 'figure'),
         Input('session-data', 'data'),
-        prevent_initial_call=False
+        prevent_initial_call=True
     )
     def update_radar_chart(session_data):
         if not session_data:
@@ -732,7 +732,7 @@ def create_dash_app(flask_app):
     @dash_app.callback(
         Output('pipe-progress-chart', 'figure'),
         Input('session-data', 'data'),
-        prevent_initial_call=False
+        prevent_initial_call=True
     )
     def update_pipe_progress(session_data):
         if not session_data:
@@ -786,7 +786,7 @@ def create_dash_app(flask_app):
     @dash_app.callback(
         Output('pipe-size-chart', 'figure'),
         Input('session-data', 'data'),
-        prevent_initial_call=False
+        prevent_initial_call=True
     )
     def update_pipe_size_chart(session_data):
         if not session_data:
@@ -830,7 +830,7 @@ def create_dash_app(flask_app):
     @dash_app.callback(
         Output('length-distribution-chart', 'figure'),
         Input('session-data', 'data'),
-        prevent_initial_call=False
+        prevent_initial_call=True
     )
     def update_length_distribution(session_data):
         if not session_data:
@@ -881,7 +881,7 @@ def create_dash_app(flask_app):
     @dash_app.callback(
         Output('easement-traffic-chart', 'figure'),
         Input('session-data', 'data'),
-        prevent_initial_call=False
+        prevent_initial_call=True
     )
     def update_easement_traffic(session_data):
         if not session_data:
@@ -933,7 +933,7 @@ def create_dash_app(flask_app):
         Output('table-content', 'children'),
         [Input('table-tabs', 'active_tab'),
          Input('session-data', 'data')],
-        prevent_initial_call=False
+        prevent_initial_call=True
     )
     def render_table_content(active_tab, session_data):
         if not session_data:
@@ -990,7 +990,7 @@ def create_dash_app(flask_app):
     @dash_app.callback(
         Output('excel-table-container', 'children'),
         Input('session-data', 'data'),
-        prevent_initial_call=False
+        prevent_initial_call=True
     )
     def render_excel_table(session_data):
         if not session_data:
@@ -1239,7 +1239,7 @@ def create_dash_app(flask_app):
         Output('kpi-prep-complete', 'children'),
         [Input('prep-toggle-state', 'data'),
          Input('session-data', 'data')],
-        prevent_initial_call=False
+        prevent_initial_call=True
     )
     def update_prep_complete_display(toggle_state, session_data):
         if not session_data:
@@ -1271,7 +1271,7 @@ def create_dash_app(flask_app):
         Output('kpi-completion', 'children'),
         [Input('completion-toggle-state', 'data'),
          Input('session-data', 'data')],
-        prevent_initial_call=False
+        prevent_initial_call=True
     )
     def update_completion_display(toggle_state, session_data):
         if not session_data:
