@@ -14,6 +14,7 @@ import pandas as pd
 import base64
 import io
 import os
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -57,8 +58,24 @@ def create_dash_app(flask_app):
     uploads_dir.mkdir(exist_ok=True)
     outputs_dir.mkdir(exist_ok=True)
 
-    # Store for processed data
+    # Store for processed data (thread-safe with lock)
     processed_data_store = {}
+    data_store_lock = threading.Lock()
+
+    # Helper function to safely retrieve session data
+    def get_session_processor(session_id):
+        """Thread-safe retrieval of processor from data store"""
+        with data_store_lock:
+            if session_id not in processed_data_store:
+                return None
+            return processed_data_store[session_id].get('processor')
+
+    def get_session_filepath(session_id):
+        """Thread-safe retrieval of filepath from data store"""
+        with data_store_lock:
+            if session_id not in processed_data_store:
+                return None
+            return processed_data_store[session_id].get('filepath')
 
     # Layout
     dash_app.layout = dbc.Container(fluid=True, className="px-2 px-md-4", children=[
@@ -339,13 +356,14 @@ def create_dash_app(flask_app):
             processor = CIPPDataProcessor(str(filepath))
             processor.load_data()
 
-            # Store in global dict
+            # Store in global dict (thread-safe)
             session_id = timestamp
-            processed_data_store[session_id] = {
-                'processor': processor,
-                'filepath': str(filepath),
-                'filename': filename
-            }
+            with data_store_lock:
+                processed_data_store[session_id] = {
+                    'processor': processor,
+                    'filepath': str(filepath),
+                    'filename': filename
+                }
 
             # Get Ready to Line count for KPI
             tables = processor.get_all_tables()
@@ -391,7 +409,11 @@ def create_dash_app(flask_app):
             return go.Figure()
 
         session_id = session_data['session_id']
-        processor = processed_data_store[session_id]['processor']
+        processor = get_session_processor(session_id)
+        if not processor:
+            # Data not yet available, return empty figure
+            return go.Figure()
+
         tables = processor.get_all_tables()
         stage_summary = tables['stage_footage_summary']
         total_footage = processor.total_footage
@@ -538,7 +560,10 @@ def create_dash_app(flask_app):
             return go.Figure()
 
         session_id = session_data['session_id']
-        processor = processed_data_store[session_id]['processor']
+        processor = get_session_processor(session_id)
+        if not processor:
+            return go.Figure()
+
         tables = processor.get_all_tables()
         stage_summary = tables['stage_footage_summary']
         total_footage = processor.total_footage
@@ -624,7 +649,10 @@ def create_dash_app(flask_app):
             return go.Figure()
 
         session_id = session_data['session_id']
-        processor = processed_data_store[session_id]['processor']
+        processor = get_session_processor(session_id)
+        if not processor:
+            return go.Figure()
+
         segments = processor.segments
 
         total = len(segments)
@@ -711,7 +739,10 @@ def create_dash_app(flask_app):
             return go.Figure()
 
         session_id = session_data['session_id']
-        processor = processed_data_store[session_id]['processor']
+        processor = get_session_processor(session_id)
+        if not processor:
+            return go.Figure()
+
         tables = processor.get_all_tables()
         stage_by_pipe = tables['stage_by_pipe_size']
 
@@ -762,7 +793,10 @@ def create_dash_app(flask_app):
             return go.Figure()
 
         session_id = session_data['session_id']
-        processor = processed_data_store[session_id]['processor']
+        processor = get_session_processor(session_id)
+        if not processor:
+            return go.Figure()
+
         tables = processor.get_all_tables()
         pipe_mix = tables['pipe_size_mix']
 
@@ -803,7 +837,10 @@ def create_dash_app(flask_app):
             return go.Figure()
 
         session_id = session_data['session_id']
-        processor = processed_data_store[session_id]['processor']
+        processor = get_session_processor(session_id)
+        if not processor:
+            return go.Figure()
+
         tables = processor.get_all_tables()
         length_bins = tables['length_bins']
 
@@ -851,7 +888,10 @@ def create_dash_app(flask_app):
             return go.Figure()
 
         session_id = session_data['session_id']
-        processor = processed_data_store[session_id]['processor']
+        processor = get_session_processor(session_id)
+        if not processor:
+            return go.Figure()
+
         segments = processor.segments
         total_footage = processor.total_footage
 
@@ -900,7 +940,10 @@ def create_dash_app(flask_app):
             return html.Div("Upload a file to view summary tables", className='text-muted text-center p-4')
 
         session_id = session_data['session_id']
-        processor = processed_data_store[session_id]['processor']
+        processor = get_session_processor(session_id)
+        if not processor:
+            return html.Div("Loading data...", className='text-muted text-center p-4')
+
         tables = processor.get_all_tables()
 
         table_map = {
@@ -954,7 +997,9 @@ def create_dash_app(flask_app):
             return html.Div("Upload a file to view original Excel data", className='text-muted text-center p-4')
 
         session_id = session_data['session_id']
-        filepath = processed_data_store[session_id]['filepath']
+        filepath = get_session_filepath(session_id)
+        if not filepath:
+            return html.Div("Loading data...", className='text-muted text-center p-4')
 
         # Read the original Excel file
         from openpyxl import load_workbook
@@ -1142,8 +1187,11 @@ def create_dash_app(flask_app):
             raise PreventUpdate
 
         session_id = session_data['session_id']
-        processor = processed_data_store[session_id]['processor']
-        original_filepath = processed_data_store[session_id]['filepath']
+        processor = get_session_processor(session_id)
+        original_filepath = get_session_filepath(session_id)
+
+        if not processor or not original_filepath:
+            raise PreventUpdate
 
         # Generate Excel file (modifying original)
         generator = ExcelDashboardGeneratorV2(processor, original_filepath)
@@ -1198,7 +1246,10 @@ def create_dash_app(flask_app):
             raise PreventUpdate
 
         session_id = session_data['session_id']
-        processor = processed_data_store[session_id]['processor']
+        processor = get_session_processor(session_id)
+        if not processor:
+            raise PreventUpdate
+
         tables = processor.get_all_tables()
         stage_summary = tables['stage_footage_summary']
 
@@ -1227,7 +1278,10 @@ def create_dash_app(flask_app):
             raise PreventUpdate
 
         session_id = session_data['session_id']
-        processor = processed_data_store[session_id]['processor']
+        processor = get_session_processor(session_id)
+        if not processor:
+            raise PreventUpdate
+
         tables = processor.get_all_tables()
         stage_summary = tables['stage_footage_summary']
 
