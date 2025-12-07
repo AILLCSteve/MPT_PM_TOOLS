@@ -1,5 +1,6 @@
 """
 Visual Project Summary - Plotly Dash Application
+Complete feature-rich dashboard with all visualizations and tables
 Integrated into main Flask app as a sub-application
 """
 
@@ -112,7 +113,7 @@ def create_dash_app(flask_app):
                             html.P('Total Segments', className='text-muted mb-0')
                         ], className='text-center')
                     ], className='shadow-sm h-100')
-                ], xs=12, sm=6, lg=3),
+                ], xs=12, sm=6, lg=2),
                 dbc.Col([
                     dbc.Card([
                         dbc.CardBody([
@@ -121,7 +122,7 @@ def create_dash_app(flask_app):
                             html.P('Ready to Line', className='text-muted mb-0')
                         ], className='text-center')
                     ], className='shadow-sm h-100')
-                ], xs=12, sm=6, lg=3),
+                ], xs=12, sm=6, lg=2),
                 dbc.Col([
                     dbc.Card([
                         dbc.CardBody([
@@ -130,7 +131,7 @@ def create_dash_app(flask_app):
                             html.P('Total Footage', className='text-muted mb-0')
                         ], className='text-center')
                     ], className='shadow-sm h-100')
-                ], xs=12, sm=6, lg=3),
+                ], xs=12, sm=6, lg=2),
                 dbc.Col([
                     dbc.Card([
                         dbc.CardBody([
@@ -139,8 +140,34 @@ def create_dash_app(flask_app):
                             html.P('Avg Length (ft)', className='text-muted mb-0')
                         ], className='text-center')
                     ], className='shadow-sm h-100')
-                ], xs=12, sm=6, lg=3)
+                ], xs=12, sm=6, lg=2),
+                dbc.Col([
+                    html.Div([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.I(className="fas fa-hard-hat fa-2x text-secondary mb-2"),
+                                html.H3(id='kpi-prep-complete', className='fw-bold'),
+                                html.P('% Prep Complete', className='text-muted mb-0')
+                            ], className='text-center')
+                        ], className='shadow-sm h-100')
+                    ], id='kpi-prep-complete-card', style={'cursor': 'pointer', 'height': '100%'})
+                ], xs=12, sm=6, lg=2),
+                dbc.Col([
+                    html.Div([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.I(className="fas fa-tasks fa-2x text-danger mb-2"),
+                                html.H3(id='kpi-completion', className='fw-bold'),
+                                html.P('% CIPP Install Completion', className='text-muted mb-0')
+                            ], className='text-center')
+                        ], className='shadow-sm h-100')
+                    ], id='kpi-completion-card', style={'cursor': 'pointer', 'height': '100%'})
+                ], xs=12, sm=6, lg=2)
             ], className='mb-4'),
+
+            # Hidden stores for toggle state
+            dcc.Store(id='prep-toggle-state', data={'show_fraction': False}),
+            dcc.Store(id='completion-toggle-state', data={'show_fraction': False}),
 
             # Download Buttons
             dbc.Row([
@@ -162,7 +189,8 @@ def create_dash_app(flask_app):
                 ], width=12)
             ], className='mb-4'),
 
-            # Overall Progress Chart
+            # Visualizations
+            # Overall Progress Bar (Completed vs Uncompleted)
             dbc.Row([
                 dbc.Col([
                     dbc.Card([
@@ -174,7 +202,7 @@ def create_dash_app(flask_app):
                 ], width=12)
             ], className='mb-4'),
 
-            # Stage Progress Bar
+            # Stage Progress
             dbc.Row([
                 dbc.Col([
                     dbc.Card([
@@ -186,13 +214,43 @@ def create_dash_app(flask_app):
                 ], width=12)
             ], className='mb-4'),
 
-            # Pie charts row
+            # Segment Characteristics (full width for radial chart)
             dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader(html.H6("Segment Characteristics")),
+                        dbc.CardBody([
+                            dcc.Graph(id='radar-chart', config={'displayModeBar': False, 'responsive': True})
+                        ])
+                    ], className='shadow-sm')
+                ], width=12)
+            ], className='mb-4'),
+
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader(html.H6("Progress by Pipe Size")),
+                        dbc.CardBody([
+                            dcc.Graph(id='pipe-progress-chart')
+                        ])
+                    ], className='shadow-sm h-100')
+                ], md=6),
                 dbc.Col([
                     dbc.Card([
                         dbc.CardHeader(html.H6("Pipe Size Distribution")),
                         dbc.CardBody([
                             dcc.Graph(id='pipe-size-chart')
+                        ])
+                    ], className='shadow-sm h-100')
+                ], md=6)
+            ], className='mb-4'),
+
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader(html.H6("Segment Length Distribution")),
+                        dbc.CardBody([
+                            dcc.Graph(id='length-distribution-chart')
                         ])
                     ], className='shadow-sm h-100')
                 ], md=6),
@@ -223,18 +281,33 @@ def create_dash_app(flask_app):
                         ])
                     ], className='shadow-sm')
                 ], width=12)
+            ], className='mb-4'),
+
+            # Original Excel File Embedded
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader(html.H5([html.I(className="fas fa-file-excel me-2"), "Original Excel Data"])),
+                        dbc.CardBody([
+                            html.Div(id='excel-table-container')
+                        ])
+                    ], className='shadow-sm')
+                ], width=12)
             ], className='mb-5'),
 
         ], id='dashboard-section', style={'display': 'none'}),
 
         # Store session data
         dcc.Store(id='session-data'),
+
     ])
 
+
     # ============================================================================
-    # CALLBACKS
+    # CALLBACKS - ALL FEATURES FROM ORIGINAL APP
     # ============================================================================
 
+    # Callback for file upload
     @dash_app.callback(
         [Output('upload-status', 'children'),
          Output('dashboard-section', 'style'),
@@ -306,6 +379,7 @@ def create_dash_app(flask_app):
             return error, {'display': 'none'}, {}, '', '', '', ''
 
 
+    # Callback for overall progress bar (project lifecycle filling up + lining completion)
     @dash_app.callback(
         Output('overall-progress-chart', 'figure'),
         Input('session-data', 'data')
@@ -318,41 +392,140 @@ def create_dash_app(flask_app):
         processor = processed_data_store[session_id]['processor']
         tables = processor.get_all_tables()
         stage_summary = tables['stage_footage_summary']
+        total_footage = processor.total_footage
+        total_segments = len(processor.segments)
 
         # Build stage data map
         stage_data_map = {s['Stage']: s for s in stage_summary}
 
         fig = go.Figure()
 
-        # Add lifecycle stages
+        # === FIRST BAR: Project Lifecycle ===
+        # Add lifecycle stages first (vibrant colors)
         for stage in LIFECYCLE_STAGES:
             stage_info = stage_data_map.get(stage, {'Total_Feet': 0, 'Pct_of_Total_Feet': 0})
             pct = stage_info['Pct_of_Total_Feet'] * 100
+            footage = stage_info['Total_Feet']
 
             if pct > 0:
+                # Only show text if percentage is large enough
+                text_display = f"{stage}<br>{pct:.1f}%" if pct >= 5 else ""
+
                 fig.add_trace(go.Bar(
+                    y=['Project Lifecycle'],
                     x=[pct],
-                    y=['Progress'],
                     name=stage,
                     orientation='h',
                     marker_color=COLORS[stage],
-                    text=f"{pct:.1f}%",
+                    text=text_display,
                     textposition='inside',
-                    hovertemplate=f'<b>{stage}</b><br>{pct:.1f}%<extra></extra>'
+                    textfont=dict(size=11, color='white', family='Arial', weight='bold'),
+                    hovertemplate=f'<b>{stage}</b><br>{pct:.1f}% ({footage:,.0f} ft)<extra></extra>',
+                    legendgroup='lifecycle'
                 ))
+
+        # Add "Not Started" as grey at the end
+        not_started_info = stage_data_map.get('Not Started', {'Total_Feet': 0, 'Pct_of_Total_Feet': 0})
+        not_started_pct = not_started_info['Pct_of_Total_Feet'] * 100
+        not_started_footage = not_started_info['Total_Feet']
+
+        if not_started_pct > 0:
+            text_display = f"Not Yet Started<br>{not_started_pct:.1f}%" if not_started_pct >= 5 else ""
+
+            fig.add_trace(go.Bar(
+                y=['Project Lifecycle'],
+                x=[not_started_pct],
+                name='Not Yet Started',
+                orientation='h',
+                marker_color=COLORS['Not Started'],
+                text=text_display,
+                textposition='inside',
+                textfont=dict(size=11, color='#666', family='Arial'),
+                hovertemplate=f'<b>Not Yet Started</b><br>{not_started_pct:.1f}% ({not_started_footage:,.0f} ft)<extra></extra>',
+                legendgroup='lifecycle'
+            ))
+
+        # === SECOND BAR: CIPP Lining Completion (by segment count) ===
+        # Calculate segments with lining completed (Lined + Post TV Complete)
+        lining_complete_stages = ['Lined', 'Post TV Complete']
+        lining_complete_count = sum(
+            stage_data_map.get(stage, {'Segment_Count': 0}).get('Segment_Count', 0)
+            for stage in lining_complete_stages
+        )
+        lining_complete_pct = (lining_complete_count / total_segments * 100) if total_segments > 0 else 0
+        lining_incomplete_pct = 100 - lining_complete_pct
+
+        # Lining completed portion
+        if lining_complete_pct > 0:
+            text_display = f"Lining Complete<br>{lining_complete_pct:.1f}%" if lining_complete_pct >= 5 else ""
+            fig.add_trace(go.Bar(
+                y=['CIPP Lining Status'],
+                x=[lining_complete_pct],
+                name='Lining Complete',
+                orientation='h',
+                marker_color='#27AE60',  # Green
+                text=text_display,
+                textposition='inside',
+                textfont=dict(size=11, color='white', family='Arial', weight='bold'),
+                hovertemplate=f'<b>Lining Complete</b><br>{lining_complete_pct:.1f}% ({lining_complete_count} segments)<extra></extra>',
+                legendgroup='lining',
+                showlegend=False
+            ))
+
+        # Lining not yet completed portion
+        if lining_incomplete_pct > 0:
+            text_display = f"Lining Not Complete<br>{lining_incomplete_pct:.1f}%" if lining_incomplete_pct >= 5 else ""
+            fig.add_trace(go.Bar(
+                y=['CIPP Lining Status'],
+                x=[lining_incomplete_pct],
+                name='Lining Not Complete',
+                orientation='h',
+                marker_color='#E0E0E0',  # Grey
+                text=text_display,
+                textposition='inside',
+                textfont=dict(size=11, color='#666', family='Arial'),
+                hovertemplate=f'<b>Lining Not Complete</b><br>{lining_incomplete_pct:.1f}% ({total_segments - lining_complete_count} segments)<extra></extra>',
+                legendgroup='lining',
+                showlegend=False
+            ))
 
         fig.update_layout(
             barmode='stack',
-            height=150,
-            margin=dict(l=100, r=20, t=20, b=40),
-            xaxis=dict(range=[0, 100], showgrid=False),
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5)
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=-0.5,
+                xanchor="center",
+                x=0.5,
+                font=dict(size=10),
+                traceorder='normal'
+            ),
+            height=240,
+            autosize=True,
+            margin=dict(l=150, r=20, t=10, b=90),
+            xaxis=dict(
+                title="",
+                showgrid=False,
+                range=[0, 100],
+                ticksuffix='%',
+                fixedrange=True
+            ),
+            yaxis=dict(
+                showticklabels=True,
+                tickfont=dict(size=12, family='Arial', weight='bold'),
+                categoryorder='array',
+                categoryarray=['CIPP Lining Status', 'Project Lifecycle']
+            ),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(size=12)
         )
 
         return fig
 
 
+    # Callback for stage progress bar (horizontal bars showing completed ft / total ft per stage)
     @dash_app.callback(
         Output('progress-bar-chart', 'figure'),
         Input('session-data', 'data')
@@ -365,32 +538,215 @@ def create_dash_app(flask_app):
         processor = processed_data_store[session_id]['processor']
         tables = processor.get_all_tables()
         stage_summary = tables['stage_footage_summary']
+        total_footage = processor.total_footage
+
+        # Build stage data map
+        stage_data_map = {s['Stage']: s for s in stage_summary}
 
         fig = go.Figure()
 
-        for stage_info in stage_summary:
-            stage = stage_info['Stage']
-            if stage in LIFECYCLE_STAGES:
+        # Only show lifecycle stages (exclude Not Started)
+        for stage in reversed(LIFECYCLE_STAGES):  # Reverse so Prep is at top
+            stage_info = stage_data_map.get(stage, {'Total_Feet': 0})
+            completed_ft = stage_info['Total_Feet']
+
+            # Show completed ft / total ft for ALL stages
+            if completed_ft > 0:
                 fig.add_trace(go.Bar(
-                    x=[stage_info['Total_Feet']],
                     y=[stage],
+                    x=[completed_ft],
+                    name=stage,
                     orientation='h',
-                    marker_color=COLORS.get(stage, '#95A5A6'),
-                    text=f"{stage_info['Total_Feet']:,.0f} ft",
+                    marker_color=COLORS[stage],
+                    text=f"{completed_ft:,.0f} ft / {total_footage:,.0f} ft",
                     textposition='inside',
-                    hovertemplate=f'<b>{stage}</b><br>%{{x:,.0f}} ft<extra></extra>'
+                    textfont=dict(size=14, color='white', family='Arial', weight='bold'),
+                    hovertemplate=f'<b>{stage}</b><br>Completed: {completed_ft:,.0f} ft<br>Total Project: {total_footage:,.0f} ft<br>% of Total: {(completed_ft/total_footage*100):.1f}%<extra></extra>',
+                    showlegend=False
+                ))
+            else:
+                # Show empty bar with text
+                fig.add_trace(go.Bar(
+                    y=[stage],
+                    x=[total_footage * 0.05],  # Slightly larger baseline for text visibility
+                    name=stage,
+                    orientation='h',
+                    marker_color='#F0F0F0',
+                    text=f"0 ft / {total_footage:,.0f} ft",
+                    textposition='inside',
+                    textfont=dict(size=14, color='#666', family='Arial', weight='bold'),
+                    hovertemplate=f'<b>{stage}</b><br>Completed: 0 ft<br>Total Project: {total_footage:,.0f} ft<br>% of Total: 0%<extra></extra>',
+                    showlegend=False
                 ))
 
         fig.update_layout(
             barmode='overlay',
+            showlegend=False,
             height=250,
-            margin=dict(l=150, r=20, t=20, b=40),
-            showlegend=False
+            autosize=True,
+            margin=dict(l=160, r=30, t=20, b=50),
+            xaxis=dict(
+                title=dict(
+                    text="Footage Completed",
+                    font=dict(size=14)
+                ),
+                showgrid=True,
+                gridcolor='rgba(200, 200, 200, 0.3)',
+                range=[0, total_footage],
+                tickformat=',',
+                tickfont=dict(size=13),
+                fixedrange=True
+            ),
+            yaxis=dict(
+                showticklabels=True,
+                tickfont=dict(size=13, family='Arial', weight='bold'),
+                fixedrange=True
+            ),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(size=13)
         )
 
         return fig
 
 
+    # Callback for radial bar chart (segment characteristics)
+    @dash_app.callback(
+        Output('radar-chart', 'figure'),
+        Input('session-data', 'data')
+    )
+    def update_radar_chart(session_data):
+        if not session_data:
+            raise PreventUpdate
+
+        session_id = session_data['session_id']
+        processor = processed_data_store[session_id]['processor']
+        segments = processor.segments
+
+        total = len(segments)
+
+        # Calculate percentages and footage
+        easement_segs = [s for s in segments if s['easement']]
+        traffic_segs = [s for s in segments if s['traffic_control']]
+        regular_segs = [s for s in segments if not s['easement'] and not s['traffic_control']]
+        large_pipe_segs = [s for s in segments if s['pipe_size'] and s['pipe_size'] > 12]
+        small_pipe_segs = [s for s in segments if s['pipe_size'] and s['pipe_size'] <= 12]
+
+        easement_pct = len(easement_segs) / total * 100
+        traffic_pct = len(traffic_segs) / total * 100
+        regular_pct = len(regular_segs) / total * 100
+        large_pipe_pct = len(large_pipe_segs) / total * 100
+        small_pipe_pct = len(small_pipe_segs) / total * 100
+
+        easement_ft = sum(s['map_length'] for s in easement_segs)
+        traffic_ft = sum(s['map_length'] for s in traffic_segs)
+        regular_ft = sum(s['map_length'] for s in regular_segs)
+        large_pipe_ft = sum(s['map_length'] for s in large_pipe_segs)
+        small_pipe_ft = sum(s['map_length'] for s in small_pipe_segs)
+
+        categories = [
+            f'Easement - {easement_ft:,.0f} ft',
+            f'Traffic Control - {traffic_ft:,.0f} ft',
+            f'Regular - {regular_ft:,.0f} ft',
+            f'Large Pipe (>12") - {large_pipe_ft:,.0f} ft',
+            f'Small Pipe (≤12") - {small_pipe_ft:,.0f} ft'
+        ]
+        values = [easement_pct, traffic_pct, regular_pct, large_pipe_pct, small_pipe_pct]
+        colors = ['#FFC000', '#E74C3C', '#95A5A6', '#3498DB', '#2ECC71']
+
+        fig = go.Figure()
+
+        # Create radial bar chart
+        fig.add_trace(go.Barpolar(
+            r=values,
+            theta=categories,
+            marker=dict(
+                color=colors,
+                line=dict(color='white', width=2)
+            ),
+            hovertemplate='<b>%{theta}</b><br>%{r:.1f}%<extra></extra>',
+            name='Segment Characteristics'
+        ))
+
+        fig.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 100],
+                    showticklabels=True,
+                    ticksuffix='%',
+                    tickfont=dict(size=14),
+                    tickangle=0,
+                    gridcolor='rgba(128, 128, 128, 0.2)'
+                ),
+                angularaxis=dict(
+                    showticklabels=True,
+                    tickfont=dict(size=13)
+                ),
+                bgcolor='rgba(240, 240, 240, 0.1)'
+            ),
+            showlegend=False,
+            height=400,
+            autosize=True,
+            margin=dict(l=80, r=80, t=40, b=40),
+            paper_bgcolor='white',
+            font=dict(size=12, color='#333')
+        )
+
+        return fig
+
+
+    # Callback for pipe progress chart
+    @dash_app.callback(
+        Output('pipe-progress-chart', 'figure'),
+        Input('session-data', 'data')
+    )
+    def update_pipe_progress(session_data):
+        if not session_data:
+            raise PreventUpdate
+
+        session_id = session_data['session_id']
+        processor = processed_data_store[session_id]['processor']
+        tables = processor.get_all_tables()
+        stage_by_pipe = tables['stage_by_pipe_size']
+
+        fig = go.Figure()
+
+        # Reverse the lifecycle stages so they stack from bottom-up (Prep at bottom, Post TV at top)
+        # Exclude Not Started from this chart
+        for stage in reversed(LIFECYCLE_STAGES):
+            fig.add_trace(go.Bar(
+                name=stage,
+                x=[str(r['Pipe Size']) for r in stage_by_pipe],
+                y=[r.get(stage, 0) for r in stage_by_pipe],  # Use .get() to handle missing stages
+                marker_color=COLORS.get(stage, '#95A5A6'),
+                hovertemplate='<b>%{x}" pipe</b><br>' + stage + '<br>%{y:,.0f} ft<extra></extra>'
+            ))
+
+        fig.update_layout(
+            barmode='stack',
+            xaxis_title="Pipe Size (inches)",
+            yaxis_title="Footage",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=-0.35,
+                xanchor="center",
+                x=0.5,
+                font=dict(size=10),
+                traceorder='reversed'  # Reverse legend order to match visual
+            ),
+            height=420,
+            margin=dict(l=50, r=20, t=40, b=110),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(size=11)
+        )
+
+        return fig
+
+
+    # Callback for pipe size distribution (donut chart)
     @dash_app.callback(
         Output('pipe-size-chart', 'figure'),
         Input('session-data', 'data')
@@ -411,14 +767,73 @@ def create_dash_app(flask_app):
             labels=labels,
             values=values,
             hole=0.4,
-            marker=dict(colors=px.colors.qualitative.Set3)
+            marker=dict(colors=px.colors.qualitative.Set3),
+            textinfo='label+percent',
+            textposition='outside',
+            hovertemplate='<b>%{label}</b><br>%{value:,.0f} ft<br>%{percent}<extra></extra>'
         )])
 
-        fig.update_layout(height=400, margin=dict(l=20, r=20, t=40, b=40))
+        fig.update_layout(
+            annotations=[dict(text='Pipe<br>Sizes', x=0.5, y=0.5, font_size=14, showarrow=False)],
+            height=400,
+            margin=dict(l=20, r=20, t=40, b=40),
+            showlegend=True,
+            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.1),
+            paper_bgcolor='white',
+            font=dict(size=11)
+        )
 
         return fig
 
 
+    # Callback for length distribution (horizontal bar chart)
+    @dash_app.callback(
+        Output('length-distribution-chart', 'figure'),
+        Input('session-data', 'data')
+    )
+    def update_length_distribution(session_data):
+        if not session_data:
+            raise PreventUpdate
+
+        session_id = session_data['session_id']
+        processor = processed_data_store[session_id]['processor']
+        tables = processor.get_all_tables()
+        length_bins = tables['length_bins']
+
+        # Create horizontal bar chart
+        fig = go.Figure()
+
+        fig.add_trace(go.Bar(
+            y=[r['Length_Bin_Label'] for r in length_bins],
+            x=[r['Total_Feet'] for r in length_bins],
+            orientation='h',
+            marker=dict(
+                color=[r['Total_Feet'] for r in length_bins],
+                colorscale='Viridis',
+                showscale=False
+            ),
+            text=[f"{r['Segment_Count']} segments<br>{r['Total_Feet']:,.0f} ft" for r in length_bins],
+            textposition='auto',
+            hovertemplate='<b>%{y}</b><br>Footage: %{x:,.0f} ft<br>Segments: %{customdata}<extra></extra>',
+            customdata=[r['Segment_Count'] for r in length_bins]
+        ))
+
+        fig.update_layout(
+            xaxis_title="Total Footage",
+            yaxis_title="Length Range (feet)",
+            height=400,
+            margin=dict(l=120, r=20, t=40, b=50),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            yaxis=dict(categoryorder='array', categoryarray=[r['Length_Bin_Label'] for r in reversed(length_bins)]),
+            font=dict(size=11),
+            showlegend=False
+        )
+
+        return fig
+
+
+    # Callback for easement/traffic/regular segment types (pie chart)
     @dash_app.callback(
         Output('easement-traffic-chart', 'figure'),
         Input('session-data', 'data')
@@ -430,21 +845,42 @@ def create_dash_app(flask_app):
         session_id = session_data['session_id']
         processor = processed_data_store[session_id]['processor']
         segments = processor.segments
+        total_footage = processor.total_footage
 
+        # Calculate footage for each category
         easement_footage = sum(s['map_length'] for s in segments if s['easement'])
         traffic_footage = sum(s['map_length'] for s in segments if s['traffic_control'])
         regular_footage = sum(s['map_length'] for s in segments if not s['easement'] and not s['traffic_control'])
 
+        # Create labels and values
         labels = ['Easement', 'Traffic Control', 'Regular']
         values = [easement_footage, traffic_footage, regular_footage]
         colors = ['#FFC000', '#E74C3C', '#95A5A6']
 
-        fig = go.Figure(data=[go.Pie(labels=labels, values=values, marker=dict(colors=colors))])
-        fig.update_layout(height=400, margin=dict(l=20, r=20, t=40, b=40))
+        fig = go.Figure(data=[go.Pie(
+            labels=labels,
+            values=values,
+            marker=dict(colors=colors),
+            textinfo='label+percent',
+            textposition='outside',
+            textfont=dict(size=12),
+            hovertemplate='<b>%{label}</b><br>%{value:,.0f} ft<br>%{percent}<extra></extra>',
+            pull=[0.05, 0.05, 0],  # Slightly pull out easement and traffic slices
+        )])
+
+        fig.update_layout(
+            height=400,
+            margin=dict(l=20, r=20, t=40, b=40),
+            showlegend=True,
+            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.05),
+            paper_bgcolor='white',
+            font=dict(size=11)
+        )
 
         return fig
 
 
+    # Callback for table content
     @dash_app.callback(
         Output('table-content', 'children'),
         [Input('table-tabs', 'active_tab'),
@@ -479,12 +915,194 @@ def create_dash_app(flask_app):
         return dash_table.DataTable(
             data=df.to_dict('records'),
             columns=[{'name': i, 'id': i} for i in df.columns],
-            style_cell={'textAlign': 'left', 'padding': '10px'},
-            style_header={'backgroundColor': 'rgb(68, 114, 196)', 'color': 'white', 'fontWeight': 'bold'},
-            style_data_conditional=[{'if': {'row_index': 'odd'}, 'backgroundColor': 'rgb(248, 248, 248)'}]
+            style_cell={
+                'textAlign': 'left',
+                'padding': '10px',
+                'fontFamily': 'Arial'
+            },
+            style_header={
+                'backgroundColor': 'rgb(68, 114, 196)',
+                'color': 'white',
+                'fontWeight': 'bold'
+            },
+            style_data_conditional=[
+                {
+                    'if': {'row_index': 'odd'},
+                    'backgroundColor': 'rgb(248, 248, 248)'
+                }
+            ]
         )
 
 
+    # Callback for original Excel table
+    @dash_app.callback(
+        Output('excel-table-container', 'children'),
+        Input('session-data', 'data')
+    )
+    def render_excel_table(session_data):
+        if not session_data:
+            raise PreventUpdate
+
+        session_id = session_data['session_id']
+        filepath = processed_data_store[session_id]['filepath']
+
+        # Read the original Excel file
+        from openpyxl import load_workbook
+        wb = load_workbook(filepath, data_only=True)
+
+        # Find the main sheet
+        sheet_name = None
+        for name in wb.sheetnames:
+            if 'MOINES' in name.upper() or 'SHOT' in name.upper():
+                sheet_name = name
+                break
+
+        if not sheet_name:
+            sheet_name = wb.sheetnames[0]
+
+        ws = wb[sheet_name]
+
+        # Convert to pandas DataFrame
+        data = []
+        for row in ws.iter_rows(values_only=True):
+            data.append(row)
+
+        df = pd.DataFrame(data[1:], columns=data[0])
+
+        # Clean up
+        df = df.fillna('')
+
+        # Format date columns nicely
+        for col in df.columns:
+            if 'Date' in col or 'date' in col:
+                df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%Y-%m-%d').fillna('')
+
+        # Define intelligent column widths based on content type
+        column_widths = {}
+        for col in df.columns:
+            col_str = str(col)
+            # ID columns - narrow
+            if 'ID' in col_str.upper() or col_str == 'VIDEO ID':
+                column_widths[col_str] = '80px'
+            # Segment names - medium
+            elif 'SEGMENT' in col_str.upper():
+                column_widths[col_str] = '150px'
+            # Pipe size - narrow
+            elif 'PIPE SIZE' in col_str.upper() or 'SIZE' in col_str.upper():
+                column_widths[col_str] = '90px'
+            # Length/footage - narrow-medium
+            elif 'LENGTH' in col_str.upper() or 'FOOTAGE' in col_str.upper():
+                column_widths[col_str] = '100px'
+            # Boolean columns (TRUE/FALSE) - narrow
+            elif 'COMPLETE' in col_str.upper() or 'READY' in col_str.upper() or 'EASEMENT' in col_str.upper() or 'TRAFFIC' in col_str.upper():
+                column_widths[col_str] = '90px'
+            # Date columns - medium
+            elif 'DATE' in col_str.upper():
+                column_widths[col_str] = '110px'
+            # Long text columns - wider
+            elif 'NOTES' in col_str.upper() or 'COMMENTS' in col_str.upper() or 'DESCRIPTION' in col_str.upper():
+                column_widths[col_str] = '250px'
+            # Default - medium
+            else:
+                column_widths[col_str] = '120px'
+
+        # Build style_cell_conditional for column widths
+        style_cell_conditional = [
+            {
+                'if': {'column_id': col},
+                'width': width,
+                'minWidth': width,
+                'maxWidth': width,
+                'overflow': 'hidden',
+                'textOverflow': 'ellipsis',
+            }
+            for col, width in column_widths.items()
+        ]
+
+        # Add text alignment based on content
+        for col in df.columns:
+            col_str = str(col)
+            if 'ID' in col_str.upper() or 'SIZE' in col_str.upper() or 'LENGTH' in col_str.upper() or 'FOOTAGE' in col_str.upper():
+                style_cell_conditional.append({
+                    'if': {'column_id': col_str},
+                    'textAlign': 'center'
+                })
+
+        # Conditional formatting for data rows
+        style_data_conditional = [
+            # Zebra striping
+            {
+                'if': {'row_index': 'odd'},
+                'backgroundColor': 'rgb(248, 249, 250)'
+            }
+        ]
+
+        # Add highlighting for TRUE values in completion columns
+        for col in df.columns:
+            if 'COMPLETE' in str(col).upper() or 'READY' in str(col).upper():
+                style_data_conditional.append({
+                    'if': {
+                        'filter_query': '{{{col}}} = "TRUE"'.format(col=col),
+                        'column_id': col
+                    },
+                    'backgroundColor': '#d4edda',
+                    'color': '#155724',
+                    'fontWeight': 'bold'
+                })
+
+        return dash_table.DataTable(
+            data=df.to_dict('records'),
+            columns=[{'name': str(i), 'id': str(i)} for i in df.columns],
+            style_cell={
+                'textAlign': 'left',
+                'padding': '10px 12px',
+                'fontSize': '12px',
+                'fontFamily': 'Arial, sans-serif',
+                'whiteSpace': 'normal',
+                'height': 'auto',
+            },
+            style_cell_conditional=style_cell_conditional,
+            style_header={
+                'backgroundColor': '#4472C4',
+                'color': 'white',
+                'fontWeight': 'bold',
+                'textAlign': 'center',
+                'padding': '12px',
+                'fontSize': '13px',
+                'border': '1px solid #2c5aa0',
+                'whiteSpace': 'normal',
+                'height': 'auto',
+            },
+            style_data={
+                'border': '1px solid #dee2e6',
+                'whiteSpace': 'normal',
+                'height': 'auto',
+            },
+            style_data_conditional=style_data_conditional,
+            style_table={
+                'overflowX': 'auto',
+                'maxHeight': '650px',
+                'overflowY': 'auto',
+                'border': '2px solid #4472C4',
+                'boxShadow': '0 2px 8px rgba(0,0,0,0.1)'
+            },
+            fixed_rows={'headers': True},
+            page_size=50,
+            tooltip_data=[
+                {
+                    column: {'value': str(value), 'type': 'markdown'}
+                    for column, value in row.items()
+                } for row in df.to_dict('records')
+            ],
+            tooltip_duration=None,
+            css=[{
+                'selector': '.dash-table-tooltip',
+                'rule': 'background-color: #333; color: white; padding: 8px; border-radius: 4px; font-size: 12px;'
+            }]
+        )
+
+
+    # Callback for downloads
     @dash_app.callback(
         Output('download-file', 'data'),
         [Input('download-btn-1', 'n_clicks'),
@@ -517,7 +1135,7 @@ def create_dash_app(flask_app):
         processor = processed_data_store[session_id]['processor']
         original_filepath = processed_data_store[session_id]['filepath']
 
-        # Generate Excel file
+        # Generate Excel file (modifying original)
         generator = ExcelDashboardGeneratorV2(processor, original_filepath)
 
         output_path = outputs_dir / f"{session_id}_{approach}.xlsx"
@@ -530,5 +1148,93 @@ def create_dash_app(flask_app):
             generator.generate_approach_3(str(output_path))
 
         return dcc.send_file(str(output_path))
+
+
+    # Callback to toggle prep complete state
+    @dash_app.callback(
+        Output('prep-toggle-state', 'data'),
+        Input('kpi-prep-complete-card', 'n_clicks'),
+        State('prep-toggle-state', 'data'),
+        prevent_initial_call=True
+    )
+    def toggle_prep_state(n_clicks, current_state):
+        if n_clicks is None:
+            raise PreventUpdate
+        return {'show_fraction': not current_state['show_fraction']}
+
+
+    # Callback to toggle completion state
+    @dash_app.callback(
+        Output('completion-toggle-state', 'data'),
+        Input('kpi-completion-card', 'n_clicks'),
+        State('completion-toggle-state', 'data'),
+        prevent_initial_call=True
+    )
+    def toggle_completion_state(n_clicks, current_state):
+        if n_clicks is None:
+            raise PreventUpdate
+        return {'show_fraction': not current_state['show_fraction']}
+
+
+    # Callback to update prep complete display
+    @dash_app.callback(
+        Output('kpi-prep-complete', 'children'),
+        [Input('prep-toggle-state', 'data'),
+         Input('session-data', 'data')],
+        prevent_initial_call=False
+    )
+    def update_prep_complete_display(toggle_state, session_data):
+        if not session_data:
+            raise PreventUpdate
+
+        session_id = session_data['session_id']
+        processor = processed_data_store[session_id]['processor']
+        tables = processor.get_all_tables()
+        stage_summary = tables['stage_footage_summary']
+
+        ready_to_line_count = sum(
+            r['Segment_Count'] for r in stage_summary
+            if r['Stage'] == 'Ready to Line'
+        )
+        total_segments = len(processor.segments)
+
+        if toggle_state.get('show_fraction', False):
+            return f"{ready_to_line_count}/{total_segments}"
+        else:
+            prep_complete_pct = (ready_to_line_count / total_segments * 100) if total_segments > 0 else 0
+            return f"{prep_complete_pct:.1f}%"
+
+
+    # Callback to update completion display
+    @dash_app.callback(
+        Output('kpi-completion', 'children'),
+        [Input('completion-toggle-state', 'data'),
+         Input('session-data', 'data')],
+        prevent_initial_call=False
+    )
+    def update_completion_display(toggle_state, session_data):
+        if not session_data:
+            raise PreventUpdate
+
+        session_id = session_data['session_id']
+        processor = processed_data_store[session_id]['processor']
+        tables = processor.get_all_tables()
+        stage_summary = tables['stage_footage_summary']
+
+        completed_count = sum(
+            r['Segment_Count'] for r in stage_summary
+            if r['Stage'] in ['Lined', 'Post TV Complete', 'Grouted/Done']
+        )
+        total_segments = len(processor.segments)
+
+        if toggle_state.get('show_fraction', False):
+            return f"{completed_count}/{total_segments}"
+        else:
+            completed_footage = sum(
+                r['Total_Feet'] for r in stage_summary
+                if r['Stage'] in ['Lined', 'Post TV Complete', 'Grouted/Done']
+            )
+            completion_pct = (completed_footage / processor.total_footage * 100) if processor.total_footage > 0 else 0
+            return f"{completion_pct:.1f}%"
 
     return dash_app
