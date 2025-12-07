@@ -317,6 +317,9 @@ def create_dash_app(flask_app):
         # Store session data
         dcc.Store(id='session-data'),
 
+        # Hidden signal that fires ONLY when data is fully uploaded and ready
+        html.Div(id='data-ready-signal', style={'display': 'none'}),
+
     ])
 
 
@@ -332,7 +335,8 @@ def create_dash_app(flask_app):
          Output('kpi-segments', 'children'),
          Output('kpi-ready-to-line', 'children'),
          Output('kpi-footage', 'children'),
-         Output('kpi-avg-length', 'children')],
+         Output('kpi-avg-length', 'children'),
+         Output('data-ready-signal', 'children')],  # Signal sent LAST
         [Input('upload-data', 'contents')],
         [State('upload-data', 'filename')]
     )
@@ -356,15 +360,6 @@ def create_dash_app(flask_app):
             processor = CIPPDataProcessor(str(filepath))
             processor.load_data()
 
-            # Store in global dict (thread-safe)
-            session_id = timestamp
-            with data_store_lock:
-                processed_data_store[session_id] = {
-                    'processor': processor,
-                    'filepath': str(filepath),
-                    'filename': filename
-                }
-
             # Get Ready to Line count for KPI
             tables = processor.get_all_tables()
             stage_summary = tables['stage_footage_summary']
@@ -374,11 +369,21 @@ def create_dash_app(flask_app):
                 if r['Stage'] == 'Ready to Line'
             )
 
+            # Store in global dict (thread-safe) - CRITICAL: Store BEFORE sending signal
+            session_id = timestamp
+            with data_store_lock:
+                processed_data_store[session_id] = {
+                    'processor': processor,
+                    'filepath': str(filepath),
+                    'filename': filename
+                }
+
             status = dbc.Alert([
                 html.I(className="fas fa-check-circle me-2"),
                 f"Success! Processed {len(processor.segments)} segments ({processor.total_footage:,.0f} feet)"
             ], color='success')
 
+            # Return data-ready signal LAST - guarantees data is stored before callbacks fire
             return (
                 status,
                 {'display': 'block'},
@@ -386,7 +391,8 @@ def create_dash_app(flask_app):
                 f"{len(processor.segments)}",
                 f"{ready_to_line_count}",
                 f"{processor.total_footage:,.0f} ft",
-                f"{processor.total_footage / len(processor.segments):.1f} ft"
+                f"{processor.total_footage / len(processor.segments):.1f} ft",
+                f"ready-{session_id}"  # Signal: data is ready for this session
             )
 
         except Exception as e:
@@ -394,17 +400,18 @@ def create_dash_app(flask_app):
                 html.I(className="fas fa-exclamation-triangle me-2"),
                 f"Error: {str(e)}"
             ], color='danger')
-            return error, {'display': 'none'}, {}, '', '', '', ''
+            return error, {'display': 'none'}, {}, '', '', '', '', ''
 
 
     # Callback for overall progress bar (project lifecycle filling up + lining completion)
     @dash_app.callback(
         Output('overall-progress-chart', 'figure'),
-        Input('session-data', 'data'),
+        [Input('session-data', 'data'),
+         Input('data-ready-signal', 'children')],  # Waits for ready signal
         prevent_initial_call=True
     )
-    def update_overall_progress(session_data):
-        if not session_data:
+    def update_overall_progress(session_data, ready_signal):
+        if not session_data or not ready_signal:
             # Return empty figure instead of PreventUpdate to ensure component renders
             return go.Figure()
 
@@ -552,11 +559,12 @@ def create_dash_app(flask_app):
     # Callback for stage progress bar (horizontal bars showing completed ft / total ft per stage)
     @dash_app.callback(
         Output('progress-bar-chart', 'figure'),
-        Input('session-data', 'data'),
+        [Input('session-data', 'data'),
+         Input('data-ready-signal', 'children')],
         prevent_initial_call=True
     )
-    def update_progress_bar(session_data):
-        if not session_data:
+    def update_progress_bar(session_data, ready_signal):
+        if not session_data or not ready_signal:
             return go.Figure()
 
         session_id = session_data['session_id']
@@ -641,11 +649,12 @@ def create_dash_app(flask_app):
     # Callback for radial bar chart (segment characteristics)
     @dash_app.callback(
         Output('radar-chart', 'figure'),
-        Input('session-data', 'data'),
+        [Input('session-data', 'data'),
+         Input('data-ready-signal', 'children')],
         prevent_initial_call=True
     )
-    def update_radar_chart(session_data):
-        if not session_data:
+    def update_radar_chart(session_data, ready_signal):
+        if not session_data or not ready_signal:
             return go.Figure()
 
         session_id = session_data['session_id']
@@ -731,11 +740,12 @@ def create_dash_app(flask_app):
     # Callback for pipe progress chart
     @dash_app.callback(
         Output('pipe-progress-chart', 'figure'),
-        Input('session-data', 'data'),
+        [Input('session-data', 'data'),
+         Input('data-ready-signal', 'children')],
         prevent_initial_call=True
     )
-    def update_pipe_progress(session_data):
-        if not session_data:
+    def update_pipe_progress(session_data, ready_signal):
+        if not session_data or not ready_signal:
             return go.Figure()
 
         session_id = session_data['session_id']
@@ -785,11 +795,12 @@ def create_dash_app(flask_app):
     # Callback for pipe size distribution (donut chart)
     @dash_app.callback(
         Output('pipe-size-chart', 'figure'),
-        Input('session-data', 'data'),
+        [Input('session-data', 'data'),
+         Input('data-ready-signal', 'children')],
         prevent_initial_call=True
     )
-    def update_pipe_size_chart(session_data):
-        if not session_data:
+    def update_pipe_size_chart(session_data, ready_signal):
+        if not session_data or not ready_signal:
             return go.Figure()
 
         session_id = session_data['session_id']
@@ -829,11 +840,12 @@ def create_dash_app(flask_app):
     # Callback for length distribution (horizontal bar chart)
     @dash_app.callback(
         Output('length-distribution-chart', 'figure'),
-        Input('session-data', 'data'),
+        [Input('session-data', 'data'),
+         Input('data-ready-signal', 'children')],
         prevent_initial_call=True
     )
-    def update_length_distribution(session_data):
-        if not session_data:
+    def update_length_distribution(session_data, ready_signal):
+        if not session_data or not ready_signal:
             return go.Figure()
 
         session_id = session_data['session_id']
@@ -880,11 +892,12 @@ def create_dash_app(flask_app):
     # Callback for easement/traffic/regular segment types (pie chart)
     @dash_app.callback(
         Output('easement-traffic-chart', 'figure'),
-        Input('session-data', 'data'),
+        [Input('session-data', 'data'),
+         Input('data-ready-signal', 'children')],
         prevent_initial_call=True
     )
-    def update_easement_traffic(session_data):
-        if not session_data:
+    def update_easement_traffic(session_data, ready_signal):
+        if not session_data or not ready_signal:
             return go.Figure()
 
         session_id = session_data['session_id']
@@ -932,11 +945,12 @@ def create_dash_app(flask_app):
     @dash_app.callback(
         Output('table-content', 'children'),
         [Input('table-tabs', 'active_tab'),
-         Input('session-data', 'data')],
+         Input('session-data', 'data'),
+         Input('data-ready-signal', 'children')],
         prevent_initial_call=True
     )
-    def render_table_content(active_tab, session_data):
-        if not session_data:
+    def render_table_content(active_tab, session_data, ready_signal):
+        if not session_data or not ready_signal:
             return html.Div("Upload a file to view summary tables", className='text-muted text-center p-4')
 
         session_id = session_data['session_id']
@@ -989,11 +1003,12 @@ def create_dash_app(flask_app):
     # Callback for original Excel table
     @dash_app.callback(
         Output('excel-table-container', 'children'),
-        Input('session-data', 'data'),
+        [Input('session-data', 'data'),
+         Input('data-ready-signal', 'children')],
         prevent_initial_call=True
     )
-    def render_excel_table(session_data):
-        if not session_data:
+    def render_excel_table(session_data, ready_signal):
+        if not session_data or not ready_signal:
             return html.Div("Upload a file to view original Excel data", className='text-muted text-center p-4')
 
         session_id = session_data['session_id']
@@ -1238,11 +1253,12 @@ def create_dash_app(flask_app):
     @dash_app.callback(
         Output('kpi-prep-complete', 'children'),
         [Input('prep-toggle-state', 'data'),
-         Input('session-data', 'data')],
+         Input('session-data', 'data'),
+         Input('data-ready-signal', 'children')],
         prevent_initial_call=True
     )
-    def update_prep_complete_display(toggle_state, session_data):
-        if not session_data:
+    def update_prep_complete_display(toggle_state, session_data, ready_signal):
+        if not session_data or not ready_signal:
             raise PreventUpdate
 
         session_id = session_data['session_id']
@@ -1270,11 +1286,12 @@ def create_dash_app(flask_app):
     @dash_app.callback(
         Output('kpi-completion', 'children'),
         [Input('completion-toggle-state', 'data'),
-         Input('session-data', 'data')],
+         Input('session-data', 'data'),
+         Input('data-ready-signal', 'children')],
         prevent_initial_call=True
     )
-    def update_completion_display(toggle_state, session_data):
-        if not session_data:
+    def update_completion_display(toggle_state, session_data, ready_signal):
+        if not session_data or not ready_signal:
             raise PreventUpdate
 
         session_id = session_data['session_id']
