@@ -58,24 +58,22 @@ def create_dash_app(flask_app):
     uploads_dir.mkdir(exist_ok=True)
     outputs_dir.mkdir(exist_ok=True)
 
-    # Store for processed data (thread-safe with lock)
-    processed_data_store = {}
-    data_store_lock = threading.Lock()
+    # Cache for processors (per-worker, keyed by filepath not session)
+    # This is safe because each worker process has its own cache
+    processor_cache = {}
 
-    # Helper function to safely retrieve session data
-    def get_session_processor(session_id):
-        """Thread-safe retrieval of processor from data store"""
-        with data_store_lock:
-            if session_id not in processed_data_store:
-                return None
-            return processed_data_store[session_id].get('processor')
+    def get_processor(filepath):
+        """Get or create processor from filepath (with per-worker caching)"""
+        if not filepath or not os.path.exists(filepath):
+            return None
 
-    def get_session_filepath(session_id):
-        """Thread-safe retrieval of filepath from data store"""
-        with data_store_lock:
-            if session_id not in processed_data_store:
-                return None
-            return processed_data_store[session_id].get('filepath')
+        # Cache by filepath so multiple callbacks reuse same processor
+        if filepath not in processor_cache:
+            processor = CIPPDataProcessor(filepath)
+            processor.load_data()
+            processor_cache[filepath] = processor
+
+        return processor_cache[filepath]
 
     # Layout
     dash_app.layout = dbc.Container(fluid=True, className="px-2 px-md-4", children=[
@@ -369,25 +367,26 @@ def create_dash_app(flask_app):
                 if r['Stage'] == 'Ready to Line'
             )
 
-            # Store in global dict (thread-safe) - CRITICAL: Store BEFORE sending signal
+            # Create session data payload with filepath (stateless - works across workers)
             session_id = timestamp
-            with data_store_lock:
-                processed_data_store[session_id] = {
-                    'processor': processor,
-                    'filepath': str(filepath),
-                    'filename': filename
-                }
+            session_payload = {
+                'session_id': session_id,
+                'filepath': str(filepath),
+                'filename': filename,
+                'total_footage': processor.total_footage,
+                'segment_count': len(processor.segments)
+            }
 
             status = dbc.Alert([
                 html.I(className="fas fa-check-circle me-2"),
                 f"Success! Processed {len(processor.segments)} segments ({processor.total_footage:,.0f} feet)"
             ], color='success')
 
-            # Return data-ready signal LAST - guarantees data is stored before callbacks fire
+            # Return session payload with filepath - callbacks will reload from disk
             return (
                 status,
                 {'display': 'block'},
-                {'session_id': session_id},
+                session_payload,
                 f"{len(processor.segments)}",
                 f"{ready_to_line_count}",
                 f"{processor.total_footage:,.0f} ft",
@@ -415,8 +414,9 @@ def create_dash_app(flask_app):
             # Return empty figure instead of PreventUpdate to ensure component renders
             return go.Figure()
 
-        session_id = session_data['session_id']
-        processor = get_session_processor(session_id)
+        # Reload processor from filepath (stateless - works across workers)
+        filepath = session_data.get('filepath')
+        processor = get_processor(filepath)
         if not processor:
             # Data not yet available, return empty figure
             return go.Figure()
@@ -567,8 +567,8 @@ def create_dash_app(flask_app):
         if not session_data or not ready_signal:
             return go.Figure()
 
-        session_id = session_data['session_id']
-        processor = get_session_processor(session_id)
+        filepath = session_data.get('filepath')
+        processor = get_processor(filepath)
         if not processor:
             return go.Figure()
 
@@ -657,8 +657,8 @@ def create_dash_app(flask_app):
         if not session_data or not ready_signal:
             return go.Figure()
 
-        session_id = session_data['session_id']
-        processor = get_session_processor(session_id)
+        filepath = session_data.get('filepath')
+        processor = get_processor(filepath)
         if not processor:
             return go.Figure()
 
@@ -748,8 +748,8 @@ def create_dash_app(flask_app):
         if not session_data or not ready_signal:
             return go.Figure()
 
-        session_id = session_data['session_id']
-        processor = get_session_processor(session_id)
+        filepath = session_data.get('filepath')
+        processor = get_processor(filepath)
         if not processor:
             return go.Figure()
 
@@ -803,8 +803,8 @@ def create_dash_app(flask_app):
         if not session_data or not ready_signal:
             return go.Figure()
 
-        session_id = session_data['session_id']
-        processor = get_session_processor(session_id)
+        filepath = session_data.get('filepath')
+        processor = get_processor(filepath)
         if not processor:
             return go.Figure()
 
@@ -848,8 +848,8 @@ def create_dash_app(flask_app):
         if not session_data or not ready_signal:
             return go.Figure()
 
-        session_id = session_data['session_id']
-        processor = get_session_processor(session_id)
+        filepath = session_data.get('filepath')
+        processor = get_processor(filepath)
         if not processor:
             return go.Figure()
 
@@ -900,8 +900,8 @@ def create_dash_app(flask_app):
         if not session_data or not ready_signal:
             return go.Figure()
 
-        session_id = session_data['session_id']
-        processor = get_session_processor(session_id)
+        filepath = session_data.get('filepath')
+        processor = get_processor(filepath)
         if not processor:
             return go.Figure()
 
@@ -953,8 +953,8 @@ def create_dash_app(flask_app):
         if not session_data or not ready_signal:
             return html.Div("Upload a file to view summary tables", className='text-muted text-center p-4')
 
-        session_id = session_data['session_id']
-        processor = get_session_processor(session_id)
+        filepath = session_data.get('filepath')
+        processor = get_processor(filepath)
         if not processor:
             return html.Div("Loading data...", className='text-muted text-center p-4')
 
@@ -1011,9 +1011,8 @@ def create_dash_app(flask_app):
         if not session_data or not ready_signal:
             return html.Div("Upload a file to view original Excel data", className='text-muted text-center p-4')
 
-        session_id = session_data['session_id']
-        filepath = get_session_filepath(session_id)
-        if not filepath:
+        filepath = session_data.get('filepath')
+        if not filepath or not os.path.exists(filepath):
             return html.Div("Loading data...", className='text-muted text-center p-4')
 
         # Read the original Excel file
@@ -1202,14 +1201,14 @@ def create_dash_app(flask_app):
             raise PreventUpdate
 
         session_id = session_data['session_id']
-        processor = get_session_processor(session_id)
-        original_filepath = get_session_filepath(session_id)
+        filepath = session_data.get('filepath')
+        processor = get_processor(filepath)
 
-        if not processor or not original_filepath:
+        if not processor or not filepath:
             raise PreventUpdate
 
         # Generate Excel file (modifying original)
-        generator = ExcelDashboardGeneratorV2(processor, original_filepath)
+        generator = ExcelDashboardGeneratorV2(processor, filepath)
 
         output_path = outputs_dir / f"{session_id}_{approach}.xlsx"
 
@@ -1261,8 +1260,8 @@ def create_dash_app(flask_app):
         if not session_data or not ready_signal:
             raise PreventUpdate
 
-        session_id = session_data['session_id']
-        processor = get_session_processor(session_id)
+        filepath = session_data.get('filepath')
+        processor = get_processor(filepath)
         if not processor:
             raise PreventUpdate
 
@@ -1294,8 +1293,8 @@ def create_dash_app(flask_app):
         if not session_data or not ready_signal:
             raise PreventUpdate
 
-        session_id = session_data['session_id']
-        processor = get_session_processor(session_id)
+        filepath = session_data.get('filepath')
+        processor = get_processor(filepath)
         if not processor:
             raise PreventUpdate
 
