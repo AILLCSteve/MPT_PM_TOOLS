@@ -676,6 +676,25 @@
                     </ul>
                     <button class="tool-button" onclick="event.stopPropagation(); showAuthModal('/progress-estimator', 'CIPP Production Estimator')">Launch Estimator →</button>
                 </div>
+
+                <!-- Visual Project Summary Tool -->
+                <div class="tool-card" onclick="window.location.href='/cipp-dashboard/'" style="cursor: pointer;">
+                    <span class="tool-icon">📈</span>
+                    <span class="tool-status">Available</span>
+                    <h3 class="tool-title">Visual Project Summary</h3>
+                    <p class="tool-description">
+                        Transform CIPP shot schedule Excel files into comprehensive visual dashboards with analytics.
+                        Upload, analyze, and export professional project summaries with multiple visualization approaches.
+                    </p>
+                    <ul class="tool-features">
+                        <li>5 analytical summary tables (stage, pipe size, length bins)</li>
+                        <li>Interactive visualizations (progress charts, distributions)</li>
+                        <li>Multiple Excel export formats (native charts, enhanced, Plotly)</li>
+                        <li>Real-time dashboard with KPIs and metrics</li>
+                        <li>Drag-and-drop Excel file upload</li>
+                    </ul>
+                    <button class="tool-button" onclick="event.stopPropagation(); window.location.href='/cipp-dashboard/'">Launch Dashboard →</button>
+                </div>
             </div>
         </div>
 

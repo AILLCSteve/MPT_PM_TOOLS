@@ -429,6 +429,20 @@ def progress_estimator():
 
 
 # ============================================================================
+# VISUAL PROJECT SUMMARY (DASH APP INTEGRATION)
+# ============================================================================
+
+# Import and initialize Dash app
+try:
+    from services.cipp_dashboard.dash_app import create_dash_app
+    dash_app = create_dash_app(app)
+    logger.info("Visual Project Summary (Dash) integrated successfully")
+except ImportError as e:
+    logger.warning(f"Visual Project Summary not available: {e}")
+    dash_app = None
+
+
+# ============================================================================
 # ERROR HANDLERS
 # ============================================================================
 
