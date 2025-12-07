@@ -382,11 +382,13 @@ def create_dash_app(flask_app):
     # Callback for overall progress bar (project lifecycle filling up + lining completion)
     @dash_app.callback(
         Output('overall-progress-chart', 'figure'),
-        Input('session-data', 'data')
+        Input('session-data', 'data'),
+        prevent_initial_call=False
     )
     def update_overall_progress(session_data):
         if not session_data:
-            raise PreventUpdate
+            # Return empty figure instead of PreventUpdate to ensure component renders
+            return go.Figure()
 
         session_id = session_data['session_id']
         processor = processed_data_store[session_id]['processor']
@@ -528,11 +530,12 @@ def create_dash_app(flask_app):
     # Callback for stage progress bar (horizontal bars showing completed ft / total ft per stage)
     @dash_app.callback(
         Output('progress-bar-chart', 'figure'),
-        Input('session-data', 'data')
+        Input('session-data', 'data'),
+        prevent_initial_call=False
     )
     def update_progress_bar(session_data):
         if not session_data:
-            raise PreventUpdate
+            return go.Figure()
 
         session_id = session_data['session_id']
         processor = processed_data_store[session_id]['processor']
@@ -613,11 +616,12 @@ def create_dash_app(flask_app):
     # Callback for radial bar chart (segment characteristics)
     @dash_app.callback(
         Output('radar-chart', 'figure'),
-        Input('session-data', 'data')
+        Input('session-data', 'data'),
+        prevent_initial_call=False
     )
     def update_radar_chart(session_data):
         if not session_data:
-            raise PreventUpdate
+            return go.Figure()
 
         session_id = session_data['session_id']
         processor = processed_data_store[session_id]['processor']
@@ -699,11 +703,12 @@ def create_dash_app(flask_app):
     # Callback for pipe progress chart
     @dash_app.callback(
         Output('pipe-progress-chart', 'figure'),
-        Input('session-data', 'data')
+        Input('session-data', 'data'),
+        prevent_initial_call=False
     )
     def update_pipe_progress(session_data):
         if not session_data:
-            raise PreventUpdate
+            return go.Figure()
 
         session_id = session_data['session_id']
         processor = processed_data_store[session_id]['processor']
@@ -749,11 +754,12 @@ def create_dash_app(flask_app):
     # Callback for pipe size distribution (donut chart)
     @dash_app.callback(
         Output('pipe-size-chart', 'figure'),
-        Input('session-data', 'data')
+        Input('session-data', 'data'),
+        prevent_initial_call=False
     )
     def update_pipe_size_chart(session_data):
         if not session_data:
-            raise PreventUpdate
+            return go.Figure()
 
         session_id = session_data['session_id']
         processor = processed_data_store[session_id]['processor']
@@ -789,11 +795,12 @@ def create_dash_app(flask_app):
     # Callback for length distribution (horizontal bar chart)
     @dash_app.callback(
         Output('length-distribution-chart', 'figure'),
-        Input('session-data', 'data')
+        Input('session-data', 'data'),
+        prevent_initial_call=False
     )
     def update_length_distribution(session_data):
         if not session_data:
-            raise PreventUpdate
+            return go.Figure()
 
         session_id = session_data['session_id']
         processor = processed_data_store[session_id]['processor']
@@ -836,11 +843,12 @@ def create_dash_app(flask_app):
     # Callback for easement/traffic/regular segment types (pie chart)
     @dash_app.callback(
         Output('easement-traffic-chart', 'figure'),
-        Input('session-data', 'data')
+        Input('session-data', 'data'),
+        prevent_initial_call=False
     )
     def update_easement_traffic(session_data):
         if not session_data:
-            raise PreventUpdate
+            return go.Figure()
 
         session_id = session_data['session_id']
         processor = processed_data_store[session_id]['processor']
@@ -884,11 +892,12 @@ def create_dash_app(flask_app):
     @dash_app.callback(
         Output('table-content', 'children'),
         [Input('table-tabs', 'active_tab'),
-         Input('session-data', 'data')]
+         Input('session-data', 'data')],
+        prevent_initial_call=False
     )
     def render_table_content(active_tab, session_data):
         if not session_data:
-            raise PreventUpdate
+            return html.Div("Upload a file to view summary tables", className='text-muted text-center p-4')
 
         session_id = session_data['session_id']
         processor = processed_data_store[session_id]['processor']
@@ -937,11 +946,12 @@ def create_dash_app(flask_app):
     # Callback for original Excel table
     @dash_app.callback(
         Output('excel-table-container', 'children'),
-        Input('session-data', 'data')
+        Input('session-data', 'data'),
+        prevent_initial_call=False
     )
     def render_excel_table(session_data):
         if not session_data:
-            raise PreventUpdate
+            return html.Div("Upload a file to view original Excel data", className='text-muted text-center p-4')
 
         session_id = session_data['session_id']
         filepath = processed_data_store[session_id]['filepath']
