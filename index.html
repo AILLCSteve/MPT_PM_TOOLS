@@ -678,7 +678,7 @@
                 </div>
 
                 <!-- Visual Project Summary Tool -->
-                <div class="tool-card" onclick="window.location.href='/cipp-dashboard/'" style="cursor: pointer;">
+                <div class="tool-card" onclick="showAuthModal('/cipp-dashboard/', 'Visual Project Summary')" style="cursor: pointer;">
                     <span class="tool-icon">📈</span>
                     <span class="tool-status">Available</span>
                     <h3 class="tool-title">Visual Project Summary</h3>
@@ -693,7 +693,7 @@
                         <li>Real-time dashboard with KPIs and metrics</li>
                         <li>Drag-and-drop Excel file upload</li>
                     </ul>
-                    <button class="tool-button" onclick="event.stopPropagation(); window.location.href='/cipp-dashboard/'">Launch Dashboard →</button>
+                    <button class="tool-button" onclick="event.stopPropagation(); showAuthModal('/cipp-dashboard/', 'Visual Project Summary')">Launch Dashboard →</button>
                 </div>
             </div>
         </div>

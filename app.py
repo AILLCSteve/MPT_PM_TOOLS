@@ -117,6 +117,21 @@ def authenticate():
         'user': {'email': username, 'name': AUTHORIZED_USERS[username]['name']}
     })
 
+@app.route('/api/verify-session', methods=['POST'])
+def verify_session():
+    data = request.get_json()
+    token = data.get('token', '')
+
+    if token not in active_sessions:
+        return jsonify({'valid': False}), 401
+
+    session = active_sessions[token]
+    if datetime.now() > session['expires_at']:
+        del active_sessions[token]
+        return jsonify({'valid': False}), 401
+
+    return jsonify({'valid': True, 'user': {'email': session['username'], 'name': session['name']}})
+
 
 # ============================================================================
 # API KEY
