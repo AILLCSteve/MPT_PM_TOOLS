@@ -77,6 +77,44 @@ A comprehensive suite of professional tools for construction and infrastructure 
    http://localhost:5000
    ```
 
+## 📁 Project Structure
+
+```
+PM Tools Buildout/
+├── app.py                      # Main Flask application
+├── gunicorn_config.py          # Production server config
+├── requirements.txt            # Python dependencies
+├── render.yaml                 # Render deployment config
+├── claude.md                   # Engineering playbook
+│
+├── services/                   # Live microservices
+│   ├── hotdog/                 # HOTDOG AI document analysis orchestrator
+│   ├── cipp_dashboard/         # CIPP dashboard service with Dash/Plotly
+│   ├── document_extractor.py   # Document extraction utilities
+│   ├── excel_dashboard.py      # Excel dashboard generator
+│   └── pdf_extractor.py        # PDF processing utilities
+│
+├── config/                     # Runtime configuration
+│   ├── cipp_questions_default.json
+│   └── model_config.json
+│
+├── shared/                     # Branding assets and shared resources
+├── images/                     # Image assets
+│
+├── docs/                       # Documentation (organized)
+│   ├── README.md               # Documentation index
+│   ├── architecture/           # System architecture docs
+│   ├── deployment/             # Deployment guides
+│   ├── research/               # Research and analysis
+│   └── sessions/               # Session summaries
+│
+├── scripts/                    # Utility scripts
+├── outputs/                    # Runtime outputs (logs, spec files)
+└── legacy/                     # Archived code (see legacy/LEGACY.md)
+```
+
+For detailed documentation, see [docs/README.md](docs/README.md).
+
 ## 💻 Local Development
 
 ### Running in Development Mode
