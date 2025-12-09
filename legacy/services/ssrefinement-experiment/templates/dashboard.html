@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIPP Dashboard - {{ filename }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <nav class="navbar navbar-dark bg-primary mb-4">
+            <div class="container-fluid">
+                <span class="navbar-brand mb-0 h1">
+                    <i class="fas fa-chart-line me-2"></i>
+                    CIPP Project Dashboard
+                </span>
+                <a href="/" class="btn btn-light btn-sm">
+                    <i class="fas fa-upload me-2"></i>Upload New File
+                </a>
+            </div>
+        </nav>
+
+        <div class="container-fluid px-4">
+            <!-- File Info & KPIs -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-4">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-file-excel text-success me-2"></i>
+                                        {{ filename }}
+                                    </h5>
+                                </div>
+                                <div class="col-md-8">
+                                    <div class="row">
+                                        <div class="col-md-4 text-center">
+                                            <div class="kpi-box">
+                                                <i class="fas fa-list text-primary"></i>
+                                                <h3 class="mb-0">{{ total_segments }}</h3>
+                                                <small class="text-muted">Total Segments</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 text-center">
+                                            <div class="kpi-box">
+                                                <i class="fas fa-ruler text-success"></i>
+                                                <h3 class="mb-0">{{ "%.0f"|format(total_footage) }}</h3>
+                                                <small class="text-muted">Total Feet</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 text-center">
+                                            <div class="kpi-box">
+                                                <i class="fas fa-calculator text-warning"></i>
+                                                <h3 class="mb-0">{{ "%.1f"|format(total_footage / total_segments) }}</h3>
+                                                <small class="text-muted">Avg Length (ft)</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visualization Approach Selector -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-eye me-2"></i>
+                                        Select Visualization Approach:
+                                    </label>
+                                    <select class="form-select" id="approachSelector">
+                                        <option value="plotly" selected>Plotly Interactive (Recommended)</option>
+                                        <option value="chartjs">Chart.js Alternative</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-download me-2"></i>
+                                        Download Excel Files:
+                                    </label>
+                                    <div class="btn-group w-100" role="group">
+                                        <a href="/download/{{ session_id }}/approach1" class="btn btn-outline-primary">
+                                            <i class="fas fa-file-excel me-1"></i>Approach 1
+                                        </a>
+                                        <a href="/download/{{ session_id }}/approach2" class="btn btn-outline-success">
+                                            <i class="fas fa-file-excel me-1"></i>Approach 2
+                                        </a>
+                                        <a href="/download/{{ session_id }}/approach3" class="btn btn-outline-warning">
+                                            <i class="fas fa-file-excel me-1"></i>Approach 3
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="row">
+                <div class="col-12">
+                    <h4 class="mb-3">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        Interactive Visualizations
+                    </h4>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-lg-6 mb-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">Overall Progress by Stage</h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="chart1" class="chart-container"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6 mb-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">Progress by Pipe Size</h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="chart2" class="chart-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-lg-6 mb-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">Pipe Size Mix</h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="chart3" class="chart-container"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6 mb-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">Length Distribution</h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="chart4" class="chart-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-lg-8 offset-lg-2 mb-4">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">Easement & Traffic Control Distribution</h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="chart5" class="chart-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Tables Section -->
+            <div class="row">
+                <div class="col-12">
+                    <h4 class="mb-3">
+                        <i class="fas fa-table me-2"></i>
+                        Summary Tables
+                    </h4>
+                </div>
+            </div>
+
+            <!-- Table Tabs -->
+            <div class="row mb-5">
+                <div class="col-12">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <ul class="nav nav-tabs" id="tableTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="table1-tab" data-bs-toggle="tab"
+                                            data-bs-target="#table1" type="button" role="tab">
+                                        Stage Summary
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="table2-tab" data-bs-toggle="tab"
+                                            data-bs-target="#table2" type="button" role="tab">
+                                        Stage by Pipe Size
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="table3-tab" data-bs-toggle="tab"
+                                            data-bs-target="#table3" type="button" role="tab">
+                                        Pipe Size Mix
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="table4-tab" data-bs-toggle="tab"
+                                            data-bs-target="#table4" type="button" role="tab">
+                                        Length Bins
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="table5-tab" data-bs-toggle="tab"
+                                            data-bs-target="#table5" type="button" role="tab">
+                                        Easement/Traffic
+                                    </button>
+                                </li>
+                            </ul>
+                            <div class="tab-content mt-3" id="tableTabContent">
+                                <div class="tab-pane fade show active" id="table1" role="tabpanel">
+                                    <div id="table1-container"></div>
+                                </div>
+                                <div class="tab-pane fade" id="table2" role="tabpanel">
+                                    <div id="table2-container"></div>
+                                </div>
+                                <div class="tab-pane fade" id="table3" role="tabpanel">
+                                    <div id="table3-container"></div>
+                                </div>
+                                <div class="tab-pane fade" id="table4" role="tabpanel">
+                                    <div id="table4-container"></div>
+                                </div>
+                                <div class="tab-pane fade" id="table5" role="tabpanel">
+                                    <div id="table5-container"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const sessionId = "{{ session_id }}";
+        let currentApproach = 'plotly';
+
+        // Load charts on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCharts();
+            loadTables();
+        });
+
+        // Handle approach selector change
+        document.getElementById('approachSelector').addEventListener('change', (e) => {
+            currentApproach = e.target.value;
+            loadCharts();
+        });
+
+        async function loadCharts() {
+            try {
+                const response = await fetch(`/api/charts/${sessionId}/${currentApproach}`);
+                const charts = await response.json();
+
+                if (currentApproach === 'plotly') {
+                    // Render Plotly charts
+                    Plotly.newPlot('chart1', charts.chart1.data, charts.chart1.layout, {responsive: true});
+                    Plotly.newPlot('chart2', charts.chart2.data, charts.chart2.layout, {responsive: true});
+                    Plotly.newPlot('chart3', charts.chart3.data, charts.chart3.layout, {responsive: true});
+                    Plotly.newPlot('chart4', charts.chart4.data, charts.chart4.layout, {responsive: true});
+                    Plotly.newPlot('chart5', charts.chart5.data, charts.chart5.layout, {responsive: true});
+                }
+            } catch (error) {
+                console.error('Error loading charts:', error);
+            }
+        }
+
+        async function loadTables() {
+            try {
+                const response = await fetch(`/api/tables/${sessionId}`);
+                const tables = await response.json();
+
+                // Render each table
+                renderTable('table1-container', tables.stage_footage_summary);
+                renderTable('table2-container', tables.stage_by_pipe_size);
+                renderTable('table3-container', tables.pipe_size_mix);
+                renderTable('table4-container', tables.length_bins);
+                renderTable('table5-container', tables.easement_traffic_summary);
+            } catch (error) {
+                console.error('Error loading tables:', error);
+            }
+        }
+
+        function renderTable(containerId, data) {
+            if (!data || data.length === 0) {
+                document.getElementById(containerId).innerHTML = '<p class="text-muted">No data available</p>';
+                return;
+            }
+
+            const headers = Object.keys(data[0]);
+            let html = '<div class="table-responsive"><table class="table table-striped table-hover">';
+
+            // Header row
+            html += '<thead class="table-primary"><tr>';
+            headers.forEach(header => {
+                html += `<th>${header}</th>`;
+            });
+            html += '</tr></thead>';
+
+            // Data rows
+            html += '<tbody>';
+            data.forEach(row => {
+                html += '<tr>';
+                headers.forEach(header => {
+                    let value = row[header];
+
+                    // Format values
+                    if (header.includes('Pct') || header.includes('%')) {
+                        value = (value * 100).toFixed(2) + '%';
+                    } else if (typeof value === 'number' && !header.includes('Size')) {
+                        value = value.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+                    } else if (value === null || value === '') {
+                        value = '-';
+                    }
+
+                    html += `<td>${value}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+
+            document.getElementById(containerId).innerHTML = html;
+        }
+    </script>
+</body>
+</html>

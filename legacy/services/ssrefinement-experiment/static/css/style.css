@@ -1,0 +1,321 @@
+/* CIPP Dashboard Generator - Custom Styles */
+
+:root {
+    --primary-color: #4472C4;
+    --success-color: #70AD47;
+    --warning-color: #FFC000;
+    --danger-color: #ED7D31;
+    --info-color: #5B9BD5;
+    --light-gray: #F3F4F6;
+    --dark-gray: #374151;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+    min-height: 100vh;
+}
+
+/* Navbar */
+.navbar-brand {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+/* Welcome Card */
+.welcome-card {
+    border: none;
+    border-radius: 15px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+}
+
+.welcome-card .card-body {
+    padding: 3rem !important;
+}
+
+/* Feature Items */
+.feature-item {
+    padding: 1rem;
+    border-left: 3px solid var(--primary-color);
+    margin-bottom: 1rem;
+    background: white;
+    border-radius: 5px;
+}
+
+.feature-item i {
+    font-size: 1.3rem;
+}
+
+/* Upload Section */
+.upload-section {
+    background: white;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.form-control-lg {
+    border-radius: 8px;
+    border: 2px solid #e5e7eb;
+}
+
+.form-control-lg:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(68, 114, 196, 0.15);
+}
+
+.btn-lg {
+    padding: 0.75rem 2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: #365a9e;
+    border-color: #365a9e;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(68, 114, 196, 0.3);
+}
+
+/* Loading Spinner */
+#loadingSpinner {
+    text-align: center;
+}
+
+#loadingSpinner .spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Approach Cards */
+.approach-card {
+    padding: 1rem;
+    background: white;
+    border-radius: 8px;
+    border: 2px solid #e5e7eb;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.approach-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+/* KPI Boxes */
+.kpi-box {
+    padding: 1rem;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.kpi-box:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.kpi-box i {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.kpi-box h3 {
+    font-weight: 700;
+    color: var(--dark-gray);
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.card-header {
+    border-radius: 10px 10px 0 0 !important;
+    font-weight: 600;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+/* Chart Containers */
+.chart-container {
+    min-height: 400px;
+    padding: 1rem;
+}
+
+/* Tables */
+.table {
+    margin-bottom: 0;
+}
+
+.table thead th {
+    border-bottom: 2px solid var(--primary-color);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(68, 114, 196, 0.05);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(68, 114, 196, 0.1);
+    cursor: pointer;
+}
+
+/* Tabs */
+.nav-tabs {
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.nav-tabs .nav-link {
+    border: none;
+    color: var(--dark-gray);
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: transparent;
+    color: var(--primary-color);
+    background-color: rgba(68, 114, 196, 0.05);
+}
+
+.nav-tabs .nav-link.active {
+    color: var(--primary-color);
+    background-color: transparent;
+    border-bottom: 3px solid var(--primary-color);
+    font-weight: 600;
+}
+
+/* Download Buttons */
+.btn-group .btn {
+    transition: all 0.3s ease;
+}
+
+.btn-group .btn:hover {
+    transform: translateY(-2px);
+    z-index: 1;
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-outline-success:hover {
+    background-color: var(--success-color);
+    border-color: var(--success-color);
+}
+
+.btn-outline-warning:hover {
+    background-color: var(--warning-color);
+    border-color: var(--warning-color);
+}
+
+/* Alerts */
+.alert {
+    border-radius: 8px;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .welcome-card .card-body {
+        padding: 1.5rem !important;
+    }
+
+    .kpi-box {
+        margin-bottom: 1rem;
+    }
+
+    .chart-container {
+        min-height: 250px;
+    }
+
+    /* Ensure cards don't overflow on mobile */
+    .card {
+        overflow-x: auto;
+    }
+
+    /* Stack table horizontally scrollable on mobile */
+    .dash-table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Reduce font sizes slightly on mobile for better fit */
+    body {
+        font-size: 14px;
+    }
+
+    .navbar-brand {
+        font-size: 1.2rem !important;
+    }
+
+    h6 {
+        font-size: 1rem;
+    }
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.card {
+    animation: fadeIn 0.5s ease;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #365a9e;
+}
+
+/* Print Styles */
+@media print {
+    .navbar, .btn-group, #approachSelector {
+        display: none;
+    }
+
+    .card {
+        page-break-inside: avoid;
+    }
+}
