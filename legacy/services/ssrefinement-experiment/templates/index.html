@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIPP Dashboard Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <nav class="navbar navbar-dark bg-primary mb-4">
+            <div class="container-fluid">
+                <span class="navbar-brand mb-0 h1">
+                    <i class="fas fa-chart-line me-2"></i>
+                    CIPP Project Dashboard Generator
+                </span>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <!-- Welcome Card -->
+                    <div class="card shadow-lg mb-4 welcome-card">
+                        <div class="card-body text-center p-5">
+                            <i class="fas fa-file-excel fa-5x text-success mb-4"></i>
+                            <h2 class="card-title mb-3">Welcome to CIPP Dashboard Generator</h2>
+                            <p class="card-text lead mb-4">
+                                Upload your CIPP shot schedule Excel file to generate comprehensive dashboards with multiple visualization approaches.
+                            </p>
+
+                            <!-- Features -->
+                            <div class="row text-start mb-4">
+                                <div class="col-md-6">
+                                    <div class="feature-item">
+                                        <i class="fas fa-chart-bar text-primary me-2"></i>
+                                        <strong>5 Summary Tables</strong>
+                                        <p class="text-muted small">Stage progress, pipe sizes, length bins, and more</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="feature-item">
+                                        <i class="fas fa-chart-pie text-success me-2"></i>
+                                        <strong>5 Visualizations</strong>
+                                        <p class="text-muted small">Interactive charts showing project insights</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="feature-item">
+                                        <i class="fas fa-download text-warning me-2"></i>
+                                        <strong>3 Excel Formats</strong>
+                                        <p class="text-muted small">Native charts, XlsxWriter, and Plotly images</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="feature-item">
+                                        <i class="fas fa-desktop text-info me-2"></i>
+                                        <strong>Live Web Dashboard</strong>
+                                        <p class="text-muted small">Interactive web-based visualizations</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Upload Form -->
+                            <div class="upload-section">
+                                <form id="uploadForm" enctype="multipart/form-data">
+                                    <div class="mb-3">
+                                        <label for="fileInput" class="form-label">
+                                            <i class="fas fa-cloud-upload-alt me-2"></i>
+                                            Select Excel File (.xlsx)
+                                        </label>
+                                        <input type="file" class="form-control form-control-lg" id="fileInput"
+                                               name="file" accept=".xlsx" required>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-primary btn-lg px-5" id="uploadBtn">
+                                        <i class="fas fa-upload me-2"></i>
+                                        Upload & Generate Dashboard
+                                    </button>
+                                </form>
+
+                                <!-- Loading Spinner -->
+                                <div id="loadingSpinner" class="mt-4" style="display: none;">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Processing...</span>
+                                    </div>
+                                    <p class="mt-2">Processing your file...</p>
+                                </div>
+
+                                <!-- Alert Messages -->
+                                <div id="alertContainer" class="mt-4"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Instructions Card -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                How It Works
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <ol class="mb-0">
+                                <li class="mb-2">
+                                    <strong>Upload your Excel file</strong> containing CIPP shot schedule data
+                                </li>
+                                <li class="mb-2">
+                                    <strong>Processing</strong> - The system will:
+                                    <ul class="mt-1">
+                                        <li>Validate and extract segment data</li>
+                                        <li>Compute stages based on completion dates</li>
+                                        <li>Generate 5 analytical summary tables</li>
+                                        <li>Create Excel files with 3 different charting approaches</li>
+                                    </ul>
+                                </li>
+                                <li class="mb-2">
+                                    <strong>View Results</strong> - Access:
+                                    <ul class="mt-1">
+                                        <li>Interactive web dashboard with live charts</li>
+                                        <li>Download Excel files with embedded visualizations</li>
+                                        <li>All 5 summary tables with detailed data</li>
+                                    </ul>
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <!-- Three Approaches Info -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">
+                                <i class="fas fa-layer-group me-2"></i>
+                                Three Visualization Approaches
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <div class="approach-card">
+                                        <h6 class="text-primary">
+                                            <i class="fas fa-chart-bar me-2"></i>
+                                            Approach 1: openpyxl
+                                        </h6>
+                                        <p class="small mb-0">Native Excel charts with full interactivity. Best for standard Excel workflows.</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <div class="approach-card">
+                                        <h6 class="text-success">
+                                            <i class="fas fa-palette me-2"></i>
+                                            Approach 2: xlsxwriter
+                                        </h6>
+                                        <p class="small mb-0">Enhanced formatting and styling. Superior aesthetics and control.</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <div class="approach-card">
+                                        <h6 class="text-warning">
+                                            <i class="fas fa-image me-2"></i>
+                                            Approach 3: Plotly Images
+                                        </h6>
+                                        <p class="small mb-0">Publication-quality static images. Beautiful, modern visualizations.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                showAlert('Please select a file', 'warning');
+                return;
+            }
+
+            // Show loading
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('uploadBtn').disabled = true;
+            document.getElementById('alertContainer').innerHTML = '';
+
+            // Upload file
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showAlert(`File processed successfully! Found ${result.total_segments} segments with ${result.total_footage.toFixed(0)} total feet.`, 'success');
+
+                    // Redirect to dashboard
+                    setTimeout(() => {
+                        window.location.href = `/dashboard/${result.session_id}`;
+                    }, 1500);
+                } else {
+                    showAlert(`Error: ${result.error || 'Unknown error'}`, 'danger');
+                    document.getElementById('loadingSpinner').style.display = 'none';
+                    document.getElementById('uploadBtn').disabled = false;
+                }
+            } catch (error) {
+                showAlert(`Error: ${error.message}`, 'danger');
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('uploadBtn').disabled = false;
+            }
+        });
+
+        function showAlert(message, type) {
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            document.getElementById('alertContainer').innerHTML = alertHtml;
+        }
+    </script>
+</body>
+</html>
