@@ -1,103 +1,624 @@
-# Project Digest Synopsis - PM Tools Suite
+# PM Tools Suite - Comprehensive Technical Digest
+## HOTDOG AI Document Analysis Platform
 
-**Last Updated:** 2025-12-05
-**Project Version:** 2.0.0 (HOTDOG AI Integrated, Production Ready)
-**Status:** ✅ DEPLOYED & OPERATIONAL
-**Session Reviewed:** Complete three-pass deep-dive analysis
+**Generated**: 2025-12-08
+**Methodology**: Three-pass exhaustive digest (Documentation → Code Review → Deep-Dive)
+**Scope**: Production codebase only (excludes legacy/, scripts/, outputs/, docs/sessions/)
+**Purpose**: Canonical technical reference for refactoring, debugging, and extension
 
 ---
 
-## 1. HIGH-LEVEL SUMMARY
+## 1. HIGH-LEVEL SUMMARY (150-175 words)
 
-### Project Purpose
-The **PM Tools Suite** is a comprehensive web-based platform for construction and infrastructure project management professionals, currently featuring two specialized tools:
+The PM Tools Suite is a **Flask-based web application** providing AI-powered document analysis tools for construction/infrastructure project management. The centerpiece is **HOTDOG AI** (Hierarchical Orchestrated Thorough Document Oversight & Guidance), a sophisticated 7-layer architecture that analyzes bid specifications and technical documents using OpenAI's GPT-4.
 
-1. **CIPP Spec Analyzer** - AI-powered document analysis engine using HOTDOG (Hierarchical Orchestrated Thorough Document Oversight & Guidance) AI architecture for automated bid specification analysis
-2. **Sewer Jetting Production Estimator** - Production rate calculator with advanced recycler efficiency modeling
+**Core Capabilities**: The system ingests PDFs, extracts text with page-number preservation, routes questions to dynamically-generated AI expert personas, processes documents in 3-page windows with parallel expert execution, smart-accumulates answers while preserving citations, and exports results to Excel dashboards with embedded charts.
 
-### Core Technology Stack
-- **Backend:** Python 3.11+ with Flask 3.0 web framework
-- **Frontend:** Pure HTML5, CSS3, vanilla JavaScript (no frameworks - intentionally lightweight)
-- **AI/ML:** OpenAI GPT-4o via async API integration
-- **Deployment:** Render.com with Gunicorn WSGI server
-- **Document Processing:** Multi-library PDF extraction (PyMuPDF primary, PyPDF2/pdfplumber fallbacks)
-- **Data Export:** openpyxl for executive Excel dashboards with native charts
+**Architecture**: Threading-based async execution allows long-running AI analysis (10-15 minutes) without blocking the Flask server. Server-Sent Events (SSE) provide real-time progress updates to the frontend. The codebase follows SOLID principles with clean separation: Flask routes in app.py, business logic in services/, HOTDOG orchestration across 7 modular layers, and shared utilities for document extraction and Excel generation.
 
-### Project Scale & Complexity
-- **Total Python Code:** ~7,893 lines (excluding venv/archives)
-- **Total HTML/Frontend:** ~15,242 lines (excluding archives/builds)
-- **Core Application:** `app.py` - 445 lines (clean, modular architecture)
-- **HOTDOG AI Modules:** 8 specialized processors totaling ~3,500+ lines
-- **Dependencies:** 13 primary packages (see requirements.txt)
-
-### Current Deployment State
-**Production URL:** Deployed on Render.com
-**Auth Model:** Simple email/password authentication (2 authorized users)
-**API Integration:** OpenAI API via environment variables
-**Worker Architecture:** Threading-based with SSE (Server-Sent Events) for real-time progress
+**Deployment**: Production-ready on Render.com with Gunicorn (threading workers), environment-based configuration, password-protected access, and comprehensive error handling.
 
 ---
 
 ## 2. ARCHITECTURE & MAJOR COMPONENTS
 
-### 2.1 Three-Tier Architecture
+### 2.1 System Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  PRESENTATION TIER - Browser (HTML/CSS/JavaScript)               │
-│  - Pure client-side rendering                                   │
-│  - Real-time SSE event handling                                 │
-│  - Multiple export formats (client-side generation)             │
-└────────────┬────────────────────────────────────────────────────┘
-             │ HTTP/HTTPS + SSE
-┌────────────┴────────────────────────────────────────────────────┐
-│  APPLICATION TIER - Flask Application (app.py)                   │
-│  - 11 route handlers                                             │
-│  - Threading-based async processing                              │
-│  - SSE progress streaming                                        │
-│  - Session management                                             │
-│  - Authentication middleware                                      │
-└────────────┬─────────────────────────────────────────────────────┘
-             │ Service Layer
-┌────────────┴──────────────────────────────────────────────────────┐
-│  BUSINESS LOGIC TIER - Services Layer                             │
-│                                                                    │
-│  ┌────────────────────────────────────────────────────────┐      │
-│  │  HOTDOG AI ARCHITECTURE (Multi-Layer Orchestration)    │      │
-│  │                                                          │      │
-│  │  Layer 0: Document Ingestion (PDF 3-page windowing)    │      │
-│  │  Layer 1: Configuration Loader (JSON question parsing)  │      │
-│  │  Layer 2: Expert Persona Generator (GPT-4o dynamic)     │      │
-│  │  Layer 3: Multi-Expert Processor (parallel execution)   │      │
-│  │  Layer 4: Smart Accumulator (deduplication & merging)   │      │
-│  │  Layer 5: Token Budget Manager (75K token optimization) │      │
-│  │  Layer 6: Output Compiler (browser-ready formatting)    │      │
-│  │                                                          │      │
-│  │  + Layer 3.5: Second Pass Processor (enhanced scrutiny) │      │
-│  └────────────────────────────────────────────────────────┘      │
-│                                                                    │
-│  ┌────────────────────────────────────────────────────────┐      │
-│  │  Support Services                                       │      │
-│  │  - DocumentExtractor (multi-format PDF extraction)      │      │
-│  │  - ExcelDashboardGenerator (openpyxl charts)            │      │
-│  │  - TokenOptimizer (model limit detection)               │      │
-│  └────────────────────────────────────────────────────────┘      │
-└────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                    USER (Browser)                         │
+│  ┌───────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │  Landing Page │  │ CIPP Analyzer│  │   Progress   │  │
+│  │  index.html   │  │  (HOTDOG AI) │  │  Estimator   │  │
+│  └───────────────┘  └──────────────┘  └──────────────┘  │
+└──────────────────────────────────────────────────────────┘
+                            │ HTTP/SSE
+                            ▼
+┌──────────────────────────────────────────────────────────┐
+│               FLASK APPLICATION (app.py)                  │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │ Routes (25 endpoints):                             │  │
+│  │  • Authentication (/api/authenticate)              │  │
+│  │  • File Upload (/api/upload)                       │  │
+│  │  • SSE Progress Stream (/api/progress/<sid>)      │  │
+│  │  • HOTDOG Analysis (/api/analyze)                 │  │
+│  │  • Results Retrieval (/api/results/<sid>)         │  │
+│  │  • Excel Export (/api/export/excel-dashboard/<sid>)│  │
+│  │  • Tool Frontends (/cipp-analyzer, /progress-est) │  │
+│  └────────────────────────────────────────────────────┘  │
+│                                                            │
+│  Global State:                                             │
+│  • progress_queues: {session_id → Queue}                 │
+│  • analysis_threads: {session_id → Thread}               │
+│  • analysis_results: {session_id → result_data}          │
+│  • active_sessions: {token → user_data}                  │
+└──────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌──────────────────────────────────────────────────────────┐
+│                   SERVICES LAYER                          │
+│  ┌─────────────────────────────────────────────────────┐ │
+│  │ services/hotdog/ - HOTDOG AI Orchestration (7 layers)│ │
+│  │ services/document_extractor.py - Multi-format extract│ │
+│  │ services/pdf_extractor.py - PDF-specific extraction │ │
+│  │ services/excel_dashboard.py - openpyxl dashboards   │ │
+│  │ services/cipp_dashboard/ - Dash/Plotly visualization│ │
+│  └─────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌──────────────────────────────────────────────────────────┐
+│                  EXTERNAL DEPENDENCIES                    │
+│  • OpenAI API (GPT-4) - AI expert personas & QA          │
+│  • PyMuPDF/pdfplumber - PDF text extraction              │
+│  • openpyxl/xlsxwriter - Excel generation               │
+│  • Dash/Plotly - Interactive visualizations             │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 Flask Application Routes (app.py)
+### 2.2 HOTDOG AI Architecture (7 Layers)
 
-**COMPLETE ROUTE MAPPING:**
+**Design Philosophy**: User-centric, exhaustive analysis with perfect PDF page citation preservation.
 
-| Route | Method | Purpose | Status |
-|-------|--------|---------|--------|
-| `/` | GET | Landing page (index.html) | ✅ Active |
-| `/health` | GET | Health check endpoint | ✅ Active |
-| `/api/authenticate` | POST | User authentication | ✅ Active |
-| `/api/config/apikey` | GET | Retrieve OpenAI API key | ✅ Active |
-| `/api/upload` | POST | PDF file upload to temp storage | ✅ Active |
-| `/api/progress/<session_id>` | GET | SSE progress stream | ✅ Active |
-| `/api/analyze` | POST | Start HOTDOG analysis (non-blocking) | ✅ Active |
+#### Layer 0: Document Ingestion
+- **Purpose**: Extract text from PDFs with mandatory page number tracking
+- **Implementation**: `DocumentIngestionLayer` using PyMuPDF (primary) with fallbacks
+- **Output**: `List[PageData]` where each page is immutable with `page_num`, `text`, `char_count`
+- **Validation**: Ensures sequential page numbers, detects blank pages
+
+#### Layer 1: Configuration Loading
+- **Purpose**: Load question sets dynamically from JSON (not hardcoded)
+- **Implementation**: `ConfigurationLoader` parsing `config/cipp_questions_default.json`
+- **Output**: `ParsedConfig` with `sections`, `questions`, lookup maps
+- **Flexibility**: Supports variable question counts (50-500+), custom sections
+
+#### Layer 2: Expert Persona Generation
+- **Purpose**: Dynamically create AI experts from section metadata
+- **Implementation**: `ExpertPersonaGenerator` with caching
+- **Process**:
+  1. Hash section name → cache_key
+  2. Check cache (Redis/in-memory)
+  3. If miss: GPT-4 call to generate `ExpertPersona`
+  4. Store persona with system_prompt, specialization, citation_strategy
+- **Output**: `ExpertPersona` per section (e.g., "CIPP Materials & Standards Specialist")
+
+#### Layer 3: Multi-Expert Processing
+- **Purpose**: Process 3-page windows with parallel expert execution
+- **Implementation**: `MultiExpertProcessor` using asyncio
+- **Process**:
+  1. Group questions by section → route to expert
+  2. Build expert prompts with window context
+  3. Execute 9-10 AI calls IN PARALLEL (3-5 sec vs 30s sequential)
+  4. Parse JSON responses
+  5. **VALIDATE** mandatory page citations
+- **Output**: `WindowResult` with `{question_id → Answer}`
+
+#### Layer 4: Smart Accumulation
+- **Purpose**: Merge answers from multiple windows without information loss
+- **Implementation**: `SmartAccumulator` using embedding similarity
+- **Process**:
+  1. Calculate cosine similarity with existing answers
+  2. If similarity ≥ 0.80 → MERGE (combine text, aggregate pages, max confidence)
+  3. If similarity < 0.80 → APPEND as distinct variant
+  4. Track merge history (windows, merge_count)
+- **Key**: Preserves ALL unique information + aggregates ALL page citations
+
+#### Layer 5: Token Budget Management
+- **Purpose**: Ensure exhaustive coverage within OpenAI limits
+- **Implementation**: `TokenBudgetManager`
+- **Process**:
+  1. Estimate tokens needed per window
+  2. Adjust context length if over budget
+  3. Prioritize unanswered questions
+  4. Track usage per window
+- **Limits**: 4K prompt tokens, 16K completion tokens (GPT-4)
+
+#### Layer 6: Output Compilation
+- **Purpose**: Format results for browser display and Excel export
+- **Implementation**: `OutputCompiler`
+- **Outputs**:
+  - **Browser**: Markdown with unitary log table (105 questions × best answer)
+  - **Excel**: Multi-sheet dashboard with embedded charts (openpyxl)
+
+#### Layer 7: Orchestrator (Central Coordinator)
+- **Purpose**: Coordinate all layers end-to-end
+- **Implementation**: `HotdogOrchestrator`
+- **Methods**:
+  - `analyze_document()` - Main async workflow
+  - `_emit_progress()` - SSE event emission
+  - `get_browser_output()` - Format for display
+
+### 2.3 Threading-Based Async Execution
+
+**Problem Solved**: AI analysis takes 10-15 minutes. Flask sync workers block entire server.
+
+**Solution**: Background threads + SSE streaming
+
+```python
+# app.py pattern:
+def analyze_document():
+    # Create progress queue for SSE
+    progress_q = progress_queues[session_id]
+
+    # Define callback
+    def progress_callback(event_type, data):
+        progress_q.put_nowait((event_type, data))
+
+    # Run analysis in background thread
+    def run_analysis():
+        orchestrator = HotdogOrchestrator(progress_callback=progress_callback)
+        result = loop.run_until_complete(orchestrator.analyze_document(pdf_path))
+        analysis_results[session_id] = result
+        progress_q.put(('done', {}))
+
+    thread = threading.Thread(target=run_analysis, daemon=True)
+    thread.start()
+
+    return jsonify({'success': True, 'session_id': session_id})
+
+# SSE endpoint streams events from queue
+def progress_stream(session_id):
+    def generate():
+        while True:
+            event_type, data = progress_q.get(timeout=15)
+            if event_type == 'done': break
+            yield f"data: {json.dumps({'event': event_type, **data})}\n\n"
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
+```
+
+**Benefits**:
+- Flask thread pool handles 10 concurrent connections
+- Analysis runs asynchronously without blocking
+- Real-time progress updates via SSE
+- Graceful timeout handling (15 min limit)
+
+---
+
+## 3. DATA MODELS & INTEGRATIONS
+
+### 3.1 Core Data Models (services/hotdog/models.py)
+
+All models follow DDD principles with clear Entity vs Value Object distinctions:
+
+#### Value Objects (Immutable)
+
+```python
+@dataclass(frozen=True)
+class PageData:
+    page_num: int  # 1-indexed
+    text: str
+    char_count: int
+    has_content: bool
+    # Validation ensures page_num ≥ 1, text is string
+
+@dataclass(frozen=True)
+class Question:
+    id: str  # "Q1", "Q28"
+    text: str
+    section_id: str
+    required: bool = True
+    expected_type: str = "string"
+
+@dataclass(frozen=True)
+class ExpertPersona:
+    id: str
+    name: str  # "CIPP Materials & Standards Specialist"
+    section_id: str
+    specialization: str  # 2-3 sentences
+    system_prompt: str  # Full prompt for GPT-4
+    citation_strategy: str
+    answer_format: str
+    created_at: datetime
+    cache_key: Optional[str]
+
+@dataclass(frozen=True)
+class WindowContext:
+    window_num: int
+    pages: List[int]  # [13, 14, 15]
+    text: str  # Combined text
+    page_data: List[PageData]
+```
+
+#### Entities (Mutable)
+
+```python
+@dataclass
+class Section:
+    id: str  # "general_info", "materials"
+    name: str  # "Materials & Equipment Specifications"
+    description: str
+    questions: List[Question]
+    expert_persona: Optional[ExpertPersona]
+
+    def add_question(question: Question)
+    def question_count() -> int
+
+@dataclass
+class Answer:
+    question_id: str
+    text: str  # With <PDF pg X> citation MANDATORY
+    pages: List[int]  # MANDATORY, never empty
+    confidence: float  # 0.0 - 1.0
+    expert: str
+    window: int
+    windows: List[int]  # All contributing windows
+    merge_count: int
+    created_at: datetime
+    updated_at: datetime
+
+    # CRITICAL VALIDATION in __post_init__:
+    # - pages must not be empty
+    # - text must contain "<PDF pg"
+    # - confidence must be 0.0-1.0
+
+    def merge_with(other: Answer)  # Aggregates pages, uses max confidence
+    def get_confidence_level() -> ConfidenceLevel
+```
+
+### 3.2 External Integrations
+
+#### OpenAI API
+- **Purpose**: GPT-4 calls for expert persona generation and QA
+- **Configuration**: `OPENAI_API_KEY` environment variable
+- **Models Used**: `gpt-4` (primary), `gpt-4-turbo` (optional)
+- **Rate Limits**: Managed by TokenBudgetManager
+- **Cost Tracking**: ~$0.03 per 1K tokens (estimated in AnalysisResult)
+
+#### Document Processing Libraries
+```python
+# Strategy pattern with fallbacks:
+PDF Extraction:
+  1. PyMuPDF (fitz) - Primary, most robust
+  2. pdfplumber - Fallback, good layout preservation
+  3. PyPDF2 - Fallback, lightweight
+
+Text Files:
+  - Native Python (encoding='utf-8', errors='ignore')
+
+Word Documents (.docx):
+  - python-docx library
+
+RTF Documents:
+  - striprtf library
+```
+
+#### Excel Generation (openpyxl)
+```python
+Features:
+  - Multi-sheet workbooks
+  - Embedded charts (PieChart, BarChart, LineChart)
+  - Professional styling (colors, fonts, borders)
+  - Data validation
+  - Freeze panes, merged cells
+
+Sheets Created:
+  1. Executive Dashboard - Overview with charts
+  2. Detailed Results - Q&A table
+  3. Section Analysis - Section breakdown
+  4. Confidence Analysis - Distribution charts
+  5. Footnotes - Page citations index
+```
+
+---
+
+## 4. CRITICAL FLOWS & BEHAVIORS
+
+### 4.1 Authentication Flow
+
+```python
+# 1. User submits credentials
+POST /api/authenticate
+{
+  "username": "stephenb@munipipe.com",
+  "password": "REDACTED_PASSWORD"
+}
+
+# 2. Backend validates
+username_normalized = username.strip().lower()
+password_hash = hashlib.sha256(password.encode()).hexdigest()
+if password_hash != AUTHORIZED_USERS[username]['password_hash']:
+    return 401
+
+# 3. Generate session token
+token = secrets.token_urlsafe(32)
+expires_at = datetime.now() + timedelta(hours=24)
+active_sessions[token] = {
+    'username': username,
+    'name': user_data['name'],
+    'expires_at': expires_at
+}
+
+# 4. Return token to client
+return {'success': True, 'token': token, 'user': {...}}
+
+# 5. Client includes token in subsequent requests
+# Frontend stores in localStorage, includes in headers/cookies
+```
+
+**Security Considerations**:
+- Passwords hashed with SHA-256 (not salted - improvement opportunity)
+- Hardcoded user list in `app.py` (should move to database)
+- 24-hour session expiration
+- No HTTPS enforced at app level (relies on Render)
+
+### 4.2 Complete HOTDOG Analysis Workflow
+
+```
+1. USER UPLOADS PDF
+   ├─ POST /api/upload → save to tempfile
+   └─ Return filepath + session_id
+
+2. FRONTEND CONNECTS SSE
+   ├─ EventSource(/api/progress/<session_id>)
+   └─ Receives: 'connected' event
+
+3. FRONTEND STARTS ANALYSIS
+   ├─ POST /api/analyze with {pdf_path, context_guardrails, session_id}
+   └─ Backend spawns analysis thread
+
+4. BACKGROUND THREAD EXECUTES HOTDOG
+   ├─ Layer 0: Extract 50 pages with PyMuPDF
+   ├─ Layer 1: Load 105 questions in 9 sections
+   ├─ Layer 2: Generate/cache 9 expert personas
+   ├─ Layer 3-4-5: Process 17 windows (50 pages ÷ 3)
+   │   For each window:
+   │   ├─ Token budget check
+   │   ├─ 9 parallel expert calls (asyncio.gather)
+   │   ├─ Parse responses + validate citations
+   │   ├─ Accumulate/merge answers
+   │   └─ Emit SSE progress event
+   └─ Layer 6: Compile final output
+
+5. SSE STREAMS EVENTS TO FRONTEND
+   ├─ 'document_ingested': {pages: 50, chars: 98000}
+   ├─ 'config_loaded': {questions: 105, sections: 9}
+   ├─ 'expert_generated': {name: "Materials Specialist"}
+   ├─ 'window_processing': {window: 5, pages: [13,14,15]}
+   ├─ 'experts_dispatched': {count: 9}
+   ├─ 'window_complete': {answers_found: 42, tokens: 8234}
+   ├─ 'progress_milestone': {percent: 60}
+   └─ 'done': {}
+
+6. ANALYSIS COMPLETES
+   ├─ Thread stores result in analysis_results[session_id]
+   ├─ SSE sends 'done' event
+   └─ Frontend fetches results
+
+7. FRONTEND RETRIEVES RESULTS
+   ├─ GET /api/results/<session_id>
+   └─ Receives: {result: {...}, statistics: {...}}
+
+8. USER EXPORTS EXCEL
+   ├─ GET /api/export/excel-dashboard/<session_id>
+   └─ Receives: multi-sheet .xlsx with embedded charts
+```
+
+---
+
+## 5. RISKS, GAPS, AND OPEN QUESTIONS
+
+### 5.1 Security Risks
+
+#### Authentication System
+- **RISK**: Passwords stored as unsalted SHA-256 hashes
+  - **Impact**: Vulnerable to rainbow table attacks
+  - **Mitigation**: Use bcrypt/argon2 with salts
+  - **Location**: `app.py` lines 54-62
+
+- **RISK**: Hardcoded user credentials in source code
+  - **Impact**: Credentials exposed in git history
+  - **Mitigation**: Move to database with environment-based admin password
+  - **Location**: `app.py` AUTHORIZED_USERS dict
+
+- **RISK**: No rate limiting on authentication endpoint
+  - **Impact**: Brute force attacks possible
+  - **Mitigation**: Add Flask-Limiter with IP-based rate limiting
+
+#### Session Management
+- **RISK**: Tokens stored in plain dict, lost on server restart
+  - **Impact**: Users must re-login after deploy
+  - **Mitigation**: Use Redis for persistent session storage
+
+- **RISK**: No CSRF protection
+  - **Impact**: Vulnerable to cross-site request forgery
+  - **Mitigation**: Add Flask-WTF with CSRF tokens
+
+### 5.2 Performance Risks
+
+#### Threading Model
+- **RISK**: Daemon threads never joined, potential resource leaks
+  - **Impact**: Memory/thread count grows over time
+  - **Mitigation**: Track threads, join on completion, limit concurrent analyses
+
+- **RISK**: No limit on concurrent analyses
+  - **Impact**: Server overload if 10+ users analyze simultaneously
+  - **Mitigation**: Add semaphore limiting to 3-5 concurrent analyses
+
+#### Memory Usage
+- **RISK**: Large PDFs (100+ pages) load entirely into memory
+  - **Impact**: OOM errors on constrained environments
+  - **Mitigation**: Stream processing or chunked reading
+
+- **RISK**: Analysis results stored indefinitely in memory
+  - **Impact**: Memory leak over long uptimes
+  - **Mitigation**: TTL-based expiration (e.g., 1 hour) or Redis storage
+
+### 5.3 Code Quality Gaps
+
+#### Testing
+- **GAP**: No unit tests, integration tests, or end-to-end tests
+  - **Impact**: Regressions undetected, refactoring risky
+  - **Mitigation**: Add pytest suite with mock OpenAI calls
+
+#### Logging
+- **GAP**: Inconsistent logging levels, no structured logging
+  - **Impact**: Difficult to debug production issues
+  - **Mitigation**: Add structured JSON logging with correlation IDs
+
+---
+
+## 6. EDGE CASES, FAILURE MODES, AND QUALITY
+
+### 6.1 Known Failure Modes
+
+#### OpenAI API Failures
+- **Rate limit exceeded**: No retry logic → immediate failure
+  - **Mitigation**: Add exponential backoff retry
+- **API timeout**: 60 second default → may fail on slow responses
+  - **Mitigation**: Increase timeout to 120 seconds
+- **Invalid API key**: Analysis fails, error event emitted
+  - **Mitigation**: Validate API key on startup
+
+#### Memory Exhaustion
+- **100+ page PDFs**: Each page ~2KB → 200KB+ in memory
+- **Multiple concurrent analyses**: 10 users × 200KB = 2MB+
+- **No cleanup**: Results accumulate until restart
+  - **Mitigation**: Add result expiration
+
+### 6.2 Quality Metrics (Observed)
+
+#### SOLID Compliance
+- **SRP**: Each HOTDOG layer has single responsibility ✅
+- **OCP**: Expert persona generation extensible without modifying core ✅
+- **LSP**: Strategy pattern for document extraction ✅
+- **ISP**: Interfaces segregated by layer ✅
+- **DIP**: Depends on abstractions (DocumentExtractionStrategy, etc.) ✅
+
+---
+
+## 7. OPPORTUNITIES AND NEXT STEPS
+
+### 7.1 Immediate Improvements (High Priority)
+
+1. **Add Comprehensive Testing**
+   - pytest suite with fixtures
+   - Mock OpenAI API calls
+   - Test all HOTDOG layers independently
+   - Target: 80%+ code coverage
+
+2. **Implement Retry Logic for OpenAI Calls**
+   - Exponential backoff with jitter
+   - Max 3 retries
+   - Handle rate limits gracefully
+
+3. **Add Result Expiration**
+   - TTL of 1 hour for analysis_results
+   - Background task to cleanup old sessions
+   - Or migrate to Redis with automatic expiration
+
+4. **Fix Authentication Security**
+   - Use bcrypt for password hashing
+   - Move credentials to database
+   - Add rate limiting (Flask-Limiter)
+
+### 7.2 Medium-Term Enhancements
+
+5. **Add Database Layer**
+   - SQLAlchemy ORM
+   - Models: User, AnalysisSession, AnalysisResult
+   - Persist analysis results for history
+
+6. **Implement Celery for Background Tasks**
+   - Replace threading with Celery workers
+   - Better scalability, monitoring
+   - Redis as broker
+
+7. **Add API Documentation**
+   - Flask-RESTX for Swagger/OpenAPI
+   - Auto-generated API docs
+
+8. **Enhance HOTDOG AI**
+   - OCR support for scanned PDFs (Tesseract)
+   - Custom expert persona editing
+   - Question set versioning
+
+---
+
+## 8. EXHAUSTIVE FUNCTION MAP
+
+### 8.1 app.py - Flask Application (Routes + Utilities)
+
+#### Routes
+
+```python
+# Core Pages
+@app.route('/')
+def index() → send index.html
+    Location: Line 71
+
+@app.route('/shared/<path:filename>')
+def serve_shared_assets(filename) → serve static assets
+    Location: Line 74-76
+
+@app.route('/health')
+def health() → JSON health check
+    Location: Line 79-85
+
+# Authentication
+@app.route('/api/authenticate', methods=['POST'])
+def authenticate() → validate credentials, generate token
+    Location: Line 92-118
+
+@app.route('/api/verify-session', methods=['POST'])
+def verify_session() → validate existing token
+    Location: Line 120-133
+
+# File Upload
+@app.route('/api/upload', methods=['POST'])
+def upload_file() → save PDF to temp, return path
+    Location: Line 157-181
+
+# SSE Progress Stream
+@app.route('/api/progress/<session_id>')
+def progress_stream(session_id) → SSE generator
+    Location: Line 188-235
+
+# HOTDOG Analysis
+@app.route('/api/analyze', methods=['POST'])
+def analyze_document() → start background analysis
+    Location: Line 242-329
+
+# Results Retrieval
+@app.route('/api/results/<session_id>', methods=['GET'])
+def get_results(session_id) → return analysis result
+    Location: Line 336-365
+
+# Excel Export
+@app.route('/api/export/excel-dashboard/<session_id>', methods=['GET'])
+def export_excel_dashboard(session_id) → generate Excel file
+    Location: Line 372-406
+
+# Analysis Control
+@app.route('/api/stop/<session_id>', methods=['POST'])
+def stop_analysis(session_id) → stop ongoing analysis
+    Location: Line 413-428
+
+# Frontend Tool Routes
+@app.route('/cipp-analyzer')
+def cipp_analyzer() → serve CIPP Analyzer HTML
+
+@app.route('/progress-estimator')
+def progress_estimator() → serve Progress Estimator HTML
 | `/api/results/<session_id>` | GET | Retrieve completed analysis results | ✅ Active |
 | `/api/export/excel-dashboard/<session_id>` | GET | Generate Excel dashboard with charts | ✅ Active |
 | `/api/stop/<session_id>` | POST | Stop ongoing analysis | ⚠️ Limited (thread marker only) |
