@@ -1,0 +1,295 @@
+Here’s a concrete plan you can hand straight to Claude Code.
+1. Exact summary tables for Dashboard_Data
+Assume:
+Data sheet name: WEST DES MOINES, IA Shot Schedu
+Valid segment rows: any row where:
+VIDEO ID is numeric and ≥ 1
+Map Length is a positive number
+Rows 4–23 meet this for your current file; the logic should work for future jobs too.
+Also define a Stage per segment with this priority logic:
+If Grout State Date not blank → "Grouted/Done"
+Else if Final Post TV Date not blank → "Post TV Complete"
+Else if Lining Date not blank → "Lined"
+Else if Ready to Line - Certified by Prep Crew Lead is TRUE → "Ready to Line"
+Else if Prep Complete is TRUE → "Prep Complete"
+Else → "Not Started"
+Use that same Stage value in all the tables below.
+Create a new sheet called Dashboard_Data and drop these tables in the indicated regions.
+Table 1 – Stage_Footage_Summary (overall progress)
+Purpose: feeds a 100% stacked bar showing how much footage is at each stage.
+Location: Dashboard_Data!A1:D7
+Layout:
+Row 1 (headers):
+A1: Stage
+B1: Segment_Count
+C1: Total_Feet
+D1: %_of_Total_Feet
+Rows 2–7 (fixed list of stages, one per row, in this order):
+A2: Not Started
+A3: Prep Complete
+A4: Ready to Line
+A5: Lined
+A6: Post TV Complete
+A7: Grouted/Done
+Logic per row (implemented in Python, not Excel formulas):
+For each stage S:
+Segment_Count = count of segments where Stage == S
+Total_Feet = sum of Map Length where Stage == S
+%_of_Total_Feet = Total_Feet / (sum of Map Length across all valid segments)
+Table 2 – Stage_by_PipeSize (progress by diameter)
+Purpose: feeds a stacked bar: pipe size on Y, feet by stage for each bar.
+Location: Dashboard_Data!A10:H?
+Layout:
+Row 10 (headers):
+A10: Pipe Size
+B10: Not Started
+C10: Prep Complete
+D10: Ready to Line
+E10: Lined
+F10: Post TV Complete
+G10: Grouted/Done
+H10: Total_Feet
+Rows 11+:
+One row per unique Pipe Size from the data (sorted ascending: 8, 15, 18, 21, …).
+For each row (pipe size P):
+Not Started = sum of Map Length where Pipe Size == P and Stage == "Not Started"
+Prep Complete = sum of Map Length where Pipe Size == P and Stage == "Prep Complete"
+Ready to Line = sum of Map Length where Pipe Size == P and Stage == "Ready to Line"
+Lined = sum where Stage == "Lined"
+Post TV Complete = sum where Stage == "Post TV Complete"
+Grouted/Done = sum where Stage == "Grouted/Done"
+Total_Feet = row sum of columns B–G
+Table 3 – Pipe_Size_Mix (how much of each diameter)
+Purpose: feeds a clustered column chart showing #segments and total feet per pipe size.
+Location: Dashboard_Data!A19:E?
+Layout:
+Row 19 (headers):
+A19: Pipe Size
+B19: Segment_Count
+C19: Total_Feet
+D19: Avg_Length_ft
+E19: %_of_Total_Feet
+Rows 20+:
+One row per unique Pipe Size (same list/order as Table 2).
+For each pipe size P:
+Segment_Count = number of segments with Pipe Size == P
+Total_Feet = sum of Map Length where Pipe Size == P
+Avg_Length_ft = Total_Feet / Segment_Count
+%_of_Total_Feet = Total_Feet / (sum of Map Length across all valid segments)
+Table 4 – Length_Bins (distribution of run lengths)
+Purpose: feeds a histogram-style chart (short vs medium vs long runs).
+Location: Dashboard_Data!A27:F32
+Bins: adjust if your programs use different length thresholds. A simple starting set:
+0–50
+51–150
+151–250
+251–350
+351+
+Layout:
+Row 27 (headers):
+A27: Length_Bin_Label
+B27: Min_Length_ft
+C27: Max_Length_ft (blank for open-ended top bin)
+D27: Segment_Count
+E27: Total_Feet
+F27: %_of_Total_Feet
+Rows 28–32:
+Row 28: Length_Bin_Label = 0–50, Min_Length_ft = 0, Max_Length_ft = 50
+Row 29: Length_Bin_Label = 51–150, Min_Length_ft = 51, Max_Length_ft = 150
+Row 30: Length_Bin_Label = 151–250,Min_Length_ft = 151, Max_Length_ft = 250
+Row 31: Length_Bin_Label = 251–350,Min_Length_ft = 251, Max_Length_ft = 350
+Row 32: Length_Bin_Label = 351+, Min_Length_ft = 351, Max_Length_ft = (leave blank / NULL)
+Logic per bin row:
+For each segment with Map Length = L:
+It belongs to the first bin where:
+L >= Min_Length_ft, and
+either Max_Length_ft is blank OR L <= Max_Length_ft
+Then, for that bin:
+Segment_Count = number of assigned segments
+Total_Feet = sum of Map Length for those segments
+%_of_Total_Feet = Total_Feet / (sum of Map Length across all valid segments)
+Table 5 – Easement_Traffic_Summary
+(this is the “extra” you asked for: add it on top of the others, don’t replace anything)
+Purpose: show how much of the program is easement work and/or requires traffic control.
+Uses columns:
+Easement (TRUE/False/blank)
+Traffic Control (TRUE/False/blank)
+Treat any truthy value (True, "TRUE", "Yes", 1) as Yes. Everything else (including blanks) is No.
+Location: Dashboard_Data!A37:E41
+Layout:
+Row 37 (headers):
+A37: Category (Easement vs Traffic Control)
+B37: Flag (Yes / No)
+C37: Segment_Count
+D37: Total_Feet
+E37: %_of_Total_Feet
+Rows:
+Row 38: Category = Easement, Flag = Yes
+Row 39: Category = Easement, Flag = No
+Row 40: Category = Traffic Control, Flag = Yes
+Row 41: Category = Traffic Control, Flag = No
+Logic per row:
+Let total footage T = sum of Map Length across all valid segments.
+Row 38 (Easement = Yes):
+Segment_Count = number of segments where Easement is truthy
+Total_Feet = sum of Map Length for those segments
+%_of_Total_Feet = Total_Feet / T
+Row 39 (Easement = No): use segments where Easement is NOT truthy.
+Row 40 (Traffic Control = Yes): use segments where Traffic Control is truthy.
+Row 41 (Traffic Control = No): use segments where Traffic Control is NOT truthy.
+This table lets you build:
+One clustered/stacked column chart comparing Yes vs No by Category, and
+Quick “KPI” cards (e.g., “% of feet in easements”, “% requiring traffic control”).
+2. How the 5 dashboard visuals map to these tables
+When Claude Code builds the Dashboard sheet, the 5 “hero” visuals should be:
+Overall progress
+Chart: 100% stacked column
+Data: Table 1 (Stage_Footage_Summary).
+Progress by pipe size
+Chart: stacked bar (Y = pipe size, segments of bar = stage feet)
+Data: Table 2 (Stage_by_PipeSize).
+Pipe size mix
+Chart: clustered column (two series: Segment_Count and Total_Feet)
+Data: Table 3 (Pipe_Size_Mix).
+Length distribution
+Chart: column chart (X=Length_Bin_Label, Y=Total_Feet or Segment_Count)
+Data: Table 4 (Length_Bins).
+Easement & traffic stats
+Chart: clustered column or stacked bar where:
+X axis: combination of Category + " " + Flag (e.g., "Easement Yes", "Easement No", "Traffic Yes", "Traffic No"),
+Y axis: Total_Feet (with data labels for %_of_Total_Feet).
+Data: Table 5 (Easement_Traffic_Summary).
+3. Prompt for your Claude Code session (copy-paste this)
+You can paste this directly as the user prompt in a Claude Code chat:
+You are an expert Python engineer and data visualization helper. 
+
+Goal:
+Take my existing CIPP shot schedule workbook, build reusable summary tables using openpyxl, and create 5 dashboard-style charts in a new worksheet. I want the result to be a template I can reuse for future jobs.
+
+Important constraints:
+- Use Python with openpyxl (you may also use standard Python collections).
+- Do NOT depend on external services or interactive input.
+- Keep the code modular and readable (helper functions are good).
+- Assume the input file exists in the current working directory with this name:
+  "WEST DES MOINES_ IA Shot Schedule CIPP#2025-64.xlsx"
+- Preserve the original data sheet; write all summary tables to a new sheet called "Dashboard_Data" and the charts to a sheet called "Dashboard".
+- If those sheets already exist, delete or clear them and recreate them.
+
+Data assumptions:
+- Main data sheet name: "WEST DES MOINES, IA Shot Schedu".
+- Header row is row 1.
+- Valid “segment” rows are any rows where:
+  - VIDEO ID column is numeric and >= 1
+  - Map Length is a positive number
+- Ignore row 2 "SUMMARY SHEET" and any non-data rows.
+- Relevant columns (use these exact header names):
+  - "VIDEO ID"
+  - "Line Segment"
+  - "Pipe Size"
+  - "Map Length"
+  - "Prep Complete"
+  - "Ready to Line - Certified by Prep Crew Lead"
+  - "Lining Date"
+  - "Final Post TV Date"
+  - "Grout State Date"
+  - "Easement"
+  - "Traffic Control"
+
+Stage logic:
+For each valid segment, derive a text Stage using this priority order:
+1) If "Grout State Date" is not blank -> Stage = "Grouted/Done"
+2) Else if "Final Post TV Date" is not blank -> "Post TV Complete"
+3) Else if "Lining Date" is not blank -> "Lined"
+4) Else if "Ready to Line - Certified by Prep Crew Lead" is truthy -> "Ready to Line"
+5) Else if "Prep Complete" is truthy -> "Prep Complete"
+6) Else -> "Not Started"
+
+Treat “truthy” as Python truthiness: True, "TRUE", "Yes", "YES", 1 should count as True; blanks, None, 0, False, etc. are False.
+
+Part 1 – Load data and compute Stage per segment
+- Open the workbook.
+- Read the main sheet.
+- Build a list of dicts, one per valid segment, including at least:
+  - line_segment, pipe_size, map_length, easement_flag, traffic_flag, stage
+- Implement a helper function to map the raw row into that dictionary, including the Stage logic above.
+
+Part 2 – Create the Dashboard_Data sheet and summary tables
+Create a new sheet "Dashboard_Data" and build these 5 tables exactly with the shapes below. Write numeric values as actual numbers, not strings.
+
+Table 1: Stage_Footage_Summary (overall progress)
+- Location: start at A1
+- Columns: Stage, Segment_Count, Total_Feet, %_of_Total_Feet
+- Fixed Stage rows in this order:
+  ["Not Started", "Prep Complete", "Ready to Line", "Lined", "Post TV Complete", "Grouted/Done"]
+- For each stage:
+  - Segment_Count = number of segments with that Stage
+  - Total_Feet = sum of Map Length for segments with that Stage
+- %_of_Total_Feet = Total_Feet / (sum of Map Length across all segments), as a decimal (e.g., 0.42).
+
+Table 2: Stage_by_PipeSize (progress by diameter)
+- Location: start at A10
+- Header row: ["Pipe Size", "Not Started", "Prep Complete", "Ready to Line", "Lined", "Post TV Complete", "Grouted/Done", "Total_Feet"]
+- One row per unique pipe size (numeric), sorted ascending.
+- Each stage column = sum of Map Length where Pipe Size and Stage match.
+- Total_Feet = sum of the stage columns on that row.
+
+Table 3: Pipe_Size_Mix
+- Location: start at A19
+- Header row: ["Pipe Size", "Segment_Count", "Total_Feet", "Avg_Length_ft", "%_of_Total_Feet"]
+- One row per unique pipe size.
+- Segment_Count = number of segments for that pipe size.
+- Total_Feet = sum of Map Length for that pipe size.
+- Avg_Length_ft = Total_Feet / Segment_Count.
+- %_of_Total_Feet = Total_Feet / (sum of Map Length across all segments).
+
+Table 4: Length_Bins (distribution of run lengths)
+- Location: start at A27
+- Header row: ["Length_Bin_Label", "Min_Length_ft", "Max_Length_ft", "Segment_Count", "Total_Feet", "%_of_Total_Feet"]
+- Create 5 bins:
+  Row 28: "0–50",   Min=0,   Max=50
+  Row 29: "51–150", Min=51,  Max=150
+  Row 30: "151–250",Min=151, Max=250
+  Row 31: "251–350",Min=251, Max=350
+  Row 32: "351+",   Min=351, Max=None (treat as no upper bound)
+- For each bin:
+  - Assign segments whose Map Length is >= Min and <= Max, or >= Min for the open-ended bin.
+  - Fill Segment_Count, Total_Feet, and %_of_Total_Feet (against total Map Length).
+
+Table 5: Easement_Traffic_Summary
+- Location: start at A37
+- Header row: ["Category", "Flag", "Segment_Count", "Total_Feet", "%_of_Total_Feet"]
+- Rows:
+  - Row 38: Category="Easement", Flag="Yes"
+  - Row 39: Category="Easement", Flag="No"
+  - Row 40: Category="Traffic Control", Flag="Yes"
+  - Row 41: Category="Traffic Control", Flag="No"
+- Use the same truthiness logic as the Stage calculation to determine “Yes”.
+- For each row:
+  - Segment_Count = number of segments that match the Category/Flag condition.
+  - Total_Feet = sum of Map Length for those segments.
+  - %_of_Total_Feet = Total_Feet / (sum of Map Length across all segments).
+
+Part 3 – Create the Dashboard sheet and charts
+- Create a new sheet "Dashboard".
+- Add a few KPI cells at the top (e.g., Total Feet, Total Segments, % Ready to Line), using direct references to Dashboard_Data.
+- Then add these 5 charts using openpyxl.chart:
+  1) Overall progress: 100% stacked column based on Table 1 (Stage vs Total_Feet).
+  2) Progress by pipe size: stacked bar based on Table 2 (Pipe Size vs feet by Stage).
+  3) Pipe size mix: clustered column using Table 3 (series = Segment_Count and Total_Feet).
+  4) Length distribution: column chart using Table 4 (X = Length_Bin_Label, Y = Total_Feet).
+  5) Easement and Traffic: clustered column from Table 5
+     - X axis = Category & Flag combined (e.g. "Easement Yes", "Easement No", etc.)
+     - Y axis = Total_Feet, with data labels or tooltips showing %_of_Total_Feet if possible.
+
+Chart details:
+- Give each chart a descriptive title.
+- Label axes where appropriate (e.g. "Feet of Pipe", "Stage", "Pipe Size").
+- Position charts neatly on the Dashboard sheet (e.g., arrange in a grid).
+
+Part 4 – Save output
+- Save the updated workbook under a new name, e.g. 
+  "WEST DES MOINES_ IA Shot Schedule CIPP#2025-64_dashboard.xlsx".
+
+Finally:
+- Show me the full Python script in one code block.
+- Make sure it runs from a clean environment and will not crash if some later-stage dates are blank.
