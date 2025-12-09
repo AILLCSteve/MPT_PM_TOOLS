@@ -38,17 +38,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Authentication credentials (in production, use a database)
-# Password hashes generated using hashlib.sha256(password.encode()).hexdigest()
+# Authentication credentials (LEGACY - REDACTED FOR SECURITY)
+# WARNING: Credentials removed due to security exposure
+# Use environment variables in production (see current app.py)
 AUTHORIZED_USERS = {
-    'stephenb@munipipe.com': {
-        'password_hash': hashlib.sha256('REDACTED_PASSWORD'.encode()).hexdigest(),
-        'name': 'Stephen Bartlett'
-    },
-    'sharonm@munipipe.com': {
-        'password_hash': hashlib.sha256('REDACTED_PASSWORD'.encode()).hexdigest(),
-        'name': 'Sharon M'
-    }
+    # Credentials redacted - see main app.py for current implementation
 }
 
 # Session storage for authentication tokens (in production, use Redis or database)

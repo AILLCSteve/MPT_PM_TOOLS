@@ -329,8 +329,8 @@ Sheets Created:
 # 1. User submits credentials
 POST /api/authenticate
 {
-  "username": "stephenb@munipipe.com",
-  "password": "REDACTED_PASSWORD"
+  "username": "user@example.com",
+  "password": "user-password"
 }
 
 # 2. Backend validates

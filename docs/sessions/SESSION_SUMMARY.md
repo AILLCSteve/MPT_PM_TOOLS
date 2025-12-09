@@ -42,8 +42,8 @@
    - In-memory session storage (upgradable to Redis/DB)
 
 4. **Authorized Users**:
-   - **Stephen Bartlett**: `stephenb@munipipe.com` / `REDACTED_PASSWORD`
-   - **Sharon M**: `sharonm@munipipe.com` / `REDACTED_PASSWORD`
+   - Configured via environment variables (see `.env.example`)
+   - User credentials stored as SHA-256 hashes for security
 
 **Bugs Fixed**:
 - **Redirect Issue**: Modal was clearing target URL before redirect - fixed by saving URL to local variable first

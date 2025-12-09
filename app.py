@@ -49,17 +49,39 @@ progress_queues = {}  # session_id -> Queue for SSE progress
 analysis_threads = {}  # session_id -> Thread for cancellation
 analysis_results = {}  # session_id -> result data
 
-# Authentication (simple)
-AUTHORIZED_USERS = {
-    'stephenb@munipipe.com': {
-        'password_hash': hashlib.sha256('REDACTED_PASSWORD'.encode()).hexdigest(),
-        'name': 'Stephen Bartlett'
-    },
-    'sharonm@munipipe.com': {
-        'password_hash': hashlib.sha256('REDACTED_PASSWORD'.encode()).hexdigest(),
-        'name': 'Sharon M'
-    }
-}
+# Authentication - Load from environment variables
+def load_authorized_users():
+    """Load authorized users from environment variables for security."""
+    users = {}
+
+    # User 1
+    user1_email = os.getenv('AUTH_USER1_EMAIL')
+    user1_password = os.getenv('AUTH_USER1_PASSWORD')
+    user1_name = os.getenv('AUTH_USER1_NAME', 'User 1')
+
+    if user1_email and user1_password:
+        users[user1_email] = {
+            'password_hash': hashlib.sha256(user1_password.encode()).hexdigest(),
+            'name': user1_name
+        }
+
+    # User 2
+    user2_email = os.getenv('AUTH_USER2_EMAIL')
+    user2_password = os.getenv('AUTH_USER2_PASSWORD')
+    user2_name = os.getenv('AUTH_USER2_NAME', 'User 2')
+
+    if user2_email and user2_password:
+        users[user2_email] = {
+            'password_hash': hashlib.sha256(user2_password.encode()).hexdigest(),
+            'name': user2_name
+        }
+
+    if not users:
+        print("WARNING: No authorized users configured. Set AUTH_USER*_EMAIL and AUTH_USER*_PASSWORD environment variables.")
+
+    return users
+
+AUTHORIZED_USERS = load_authorized_users()
 active_sessions = {}
 
 
