@@ -435,12 +435,12 @@ def stop_analysis(session_id):
 @app.route('/cipp-analyzer')
 def cipp_analyzer():
     """Serve CIPP Analyzer application"""
-    return send_from_directory(Config.BASE_DIR / 'Bid-Spec Analysis for CIPP', 'cipp_analyzer_clean.html')
+    return send_from_directory(Config.BASE_DIR / 'legacy' / 'services' / 'bid-spec-analysis-v1', 'cipp_analyzer_clean.html')
 
 @app.route('/progress-estimator')
 def progress_estimator():
     """Serve CIPP Production Estimator (Comprehensive - All Penalties/Boosts/Pipe Sizes)"""
-    return send_from_directory(Config.BASE_DIR / 'Progress Estimator', 'CIPPEstimator_Comprehensive.html')
+    return send_from_directory(Config.BASE_DIR / 'legacy' / 'apps' / 'progress-estimator', 'CIPPEstimator_Comprehensive.html')
 
 
 # ============================================================================
