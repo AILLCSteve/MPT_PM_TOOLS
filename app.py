@@ -86,6 +86,79 @@ active_sessions = {}
 
 
 # ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def _transform_to_legacy_format(hotdog_output: dict) -> dict:
+    """
+    Transform HOTDOG's modern output format to legacy frontend format.
+
+    This backwards-compatibility layer ensures the old frontend can display
+    HOTDOG's results without requiring a complete frontend rewrite.
+
+    HOTDOG Format:
+        {
+            "sections": [{
+                "questions": [{
+                    "question_text": "...",
+                    "primary_answer": {"text": "...", "pages": [1,2,3]}
+                }]
+            }]
+        }
+
+    Legacy Format:
+        {
+            "sections": [{
+                "questions": [{
+                    "question": "...",
+                    "answer": "...",
+                    "page_citations": [1,2,3]
+                }]
+            }]
+        }
+    """
+    legacy_sections = []
+
+    for section in hotdog_output.get('sections', []):
+        legacy_section = {
+            'section_name': section.get('section_name', ''),
+            'section_id': section.get('section_id', ''),
+            'description': section.get('description', ''),
+            'questions': []
+        }
+
+        for q in section.get('questions', []):
+            legacy_question = {
+                'question_id': q.get('question_id', ''),
+                'question': q.get('question_text', ''),  # Transform: question_text → question
+            }
+
+            # Transform: primary_answer{text, pages} → answer, page_citations
+            primary_answer = q.get('primary_answer')
+            if primary_answer and q.get('has_answer', False):
+                legacy_question['answer'] = primary_answer.get('text', '')
+                legacy_question['page_citations'] = primary_answer.get('pages', [])
+                legacy_question['confidence'] = primary_answer.get('confidence', 0.0)
+            else:
+                legacy_question['answer'] = None
+                legacy_question['page_citations'] = []
+                legacy_question['confidence'] = 0.0
+
+            legacy_section['questions'].append(legacy_question)
+
+        legacy_sections.append(legacy_section)
+
+    return {
+        'sections': legacy_sections,
+        'document_name': hotdog_output.get('document_name', ''),
+        'total_pages': hotdog_output.get('total_pages', 0),
+        'questions_answered': hotdog_output.get('questions_answered', 0),
+        'total_questions': hotdog_output.get('total_questions', 0),
+        'metadata': hotdog_output.get('metadata', {})
+    }
+
+
+# ============================================================================
 # BASIC ROUTES
 # ============================================================================
 
@@ -373,9 +446,15 @@ def get_results(session_id):
 
     browser_output = orchestrator.get_browser_output(result, parsed_config)
 
+    # ========================================================================
+    # BACKWARDS COMPATIBILITY LAYER
+    # Transform HOTDOG's modern structure to legacy frontend structure
+    # ========================================================================
+    legacy_result = _transform_to_legacy_format(browser_output)
+
     return jsonify({
         'success': True,
-        'result': browser_output,
+        'result': legacy_result,
         'statistics': {
             'processing_time': result.processing_time_seconds,
             'total_tokens': result.total_tokens,
