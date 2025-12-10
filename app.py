@@ -16,6 +16,10 @@ import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()  # CRITICAL: Must be called before any os.getenv() usage
+
 from flask import Flask, request, jsonify, Response, stream_with_context, send_from_directory, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
