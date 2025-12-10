@@ -60,7 +60,7 @@ def load_authorized_users():
     user1_name = os.getenv('AUTH_USER1_NAME', 'User 1')
 
     if user1_email and user1_password:
-        users[user1_email] = {
+        users[user1_email.lower()] = {  # Lowercase for case-insensitive matching
             'password_hash': hashlib.sha256(user1_password.encode()).hexdigest(),
             'name': user1_name
         }
@@ -71,7 +71,7 @@ def load_authorized_users():
     user2_name = os.getenv('AUTH_USER2_NAME', 'User 2')
 
     if user2_email and user2_password:
-        users[user2_email] = {
+        users[user2_email.lower()] = {  # Lowercase for case-insensitive matching
             'password_hash': hashlib.sha256(user2_password.encode()).hexdigest(),
             'name': user2_name
         }
