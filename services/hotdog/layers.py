@@ -321,7 +321,7 @@ class ExpertPersonaGenerator:
     Key Innovation: Uses AI to create AI experts (meta-prompting)
     """
 
-    def __init__(self, openai_client, cache_store=None, model: str = "gpt-4o"):
+    def __init__(self, openai_client, cache_store=None, model: str = "gpt-4o", context_guardrails: str = ""):
         """
         Initialize expert generator.
 
@@ -329,12 +329,16 @@ class ExpertPersonaGenerator:
             openai_client: OpenAI API client
             cache_store: Optional cache (dict or Redis client)
             model: OpenAI model to use for expert generation (default: gpt-4o)
+            context_guardrails: Global context rules to apply to all experts
         """
         self.client = openai_client
         self.cache = cache_store or {}  # In-memory dict fallback
         self.model = model
+        self.context_guardrails = context_guardrails
 
         logger.info(f"🤖 Expert Persona Generator initialized with model: {model}")
+        if context_guardrails:
+            logger.info(f"📋 Context Guardrails will be applied to all experts")
 
     async def generate_expert(self, section: Section) -> ExpertPersona:
         """
@@ -363,6 +367,17 @@ class ExpertPersonaGenerator:
         # Build generation prompt
         sample_questions = '\n'.join([f"- {q.text}" for q in section.questions[:5]])
 
+        # Add context guardrails section if provided
+        guardrails_section = ""
+        if self.context_guardrails:
+            guardrails_section = f"""
+
+**CRITICAL CONTEXT GUARDRAILS:**
+{self.context_guardrails}
+
+The expert's system_prompt MUST incorporate these guardrails as foundational rules that apply to ALL analysis.
+These guardrails define the context and constraints for interpreting the document."""
+
         prompt = f"""You are an expert AI architect designing specialized document analysis personas.
 
 Create an expert AI persona for analyzing construction/engineering bid specifications.
@@ -371,7 +386,7 @@ Create an expert AI persona for analyzing construction/engineering bid specifica
 - Name: {section.name}
 - Description: {section.description}
 - Sample Questions:
-{sample_questions}
+{sample_questions}{guardrails_section}
 
 **Generate the following (output as JSON):**
 
@@ -383,14 +398,19 @@ Create an expert AI persona for analyzing construction/engineering bid specifica
    - Areas of expertise
    - Types of information to extract
    - Required citation format: <PDF pg X>
+   - MUST include direct quotes from document text (in "quotation marks")
    - Precision requirements (measurements, standards, etc.)
-   - Answer style (factual, concise, technical)
+   - Answer style (factual, concise, technical with quoted evidence)
+   - MUST incorporate the context guardrails (if provided above)
 
-4. **citation_strategy**: How this expert should extract and include PDF page numbers
+4. **citation_strategy**: How this expert should extract and include PDF page numbers AND direct text quotes
 
-5. **answer_format**: Structure and style of answers this expert should produce
+5. **answer_format**: Structure and style of answers this expert should produce (must include quoted text)
 
-**CRITICAL**: The expert MUST always include PDF page citations in format: <PDF pg X>
+**CRITICAL**: The expert MUST always include:
+- Direct quotes from the document (in "quotation marks")
+- PDF page citations in format: <PDF pg X>
+Every answer must contain actual quoted text from the source document as evidence.
 
 Output only valid JSON, no markdown formatting."""
 

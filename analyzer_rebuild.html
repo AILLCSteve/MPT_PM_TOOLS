@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIPP Bid-Spec Analyzer - MPT Tools</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            padding: 0;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('/shared/assets/images/bg3.jpg');
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            filter: brightness(0.75);
+            z-index: -2;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(91, 127, 204, 0.4) 0%, rgba(30, 58, 138, 0.5) 100%);
+            z-index: -1;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(2.5px);
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 30px;
+            max-width: 1000px;
+            width: calc(100% - 40px);
+            min-height: 600px;
+            margin: 20px auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #ffffff;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #ffffff;
+            font-size: 1.1em;
+        }
+
+        .section {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid rgba(224, 224, 224, 0.5);
+            border-radius: 8px;
+            background: transparent;
+        }
+
+        .section h3 {
+            color: #ffffff;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #ffffff;
+            font-weight: 500;
+        }
+
+        input[type="text"], input[type="file"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: #5B7FCC;
+        }
+
+        .file-upload {
+            border: 2px dashed rgba(221, 221, 221, 0.7);
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);
+        }
+
+        .file-upload:hover {
+            border-color: #5B7FCC;
+            background: rgba(248, 249, 255, 0.95);
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #5B7FCC, #1E3A8A);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #5B7FCC, #1E3A8A);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #ffffff;
+        }
+
+        .log-container {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            display: none;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+            white-space: pre-wrap;
+        }
+
+        .log-info { color: #17a2b8; }
+        .log-success { color: #28a745; }
+        .log-warning { color: #ffc107; }
+        .log-error { color: #dc3545; }
+
+        .results-section {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .question-sections {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .question-section {
+            border: 1px solid rgba(221, 221, 221, 0.6);
+            border-radius: 6px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(5px);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .question-section:hover {
+            border-color: #5B7FCC;
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .question-section.enabled {
+            border-color: #28a745;
+            background: rgba(248, 255, 248, 0.9);
+        }
+
+        .question-section.disabled {
+            border-color: #dc3545;
+            background: rgba(255, 248, 248, 0.9);
+            opacity: 0.7;
+        }
+
+        .section-header {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-count {
+            font-size: 12px;
+            color: #666;
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+
+        .mpt-navbar {
+            background: linear-gradient(135deg, #1E3A8A, #5B7FCC);
+            padding: 15px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            margin-bottom: 0;
+        }
+
+        .mpt-navbar .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .mpt-navbar img {
+            height: 40px;
+            width: auto;
+        }
+
+        .mpt-navbar .app-title {
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .mpt-navbar .home-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 20px;
+            border: 2px solid white;
+            border-radius: 5px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .mpt-navbar .home-link:hover {
+            background-color: white;
+            color: #1E3A8A;
+        }
+    </style>
+</head>
+<body>
+    <nav class="mpt-navbar">
+        <div class="logo-container">
+            <img src="/shared/assets/images/logo.png" alt="Municipal Pipe Tool">
+            <span class="app-title">CIPP Bid-Spec Analyzer</span>
+        </div>
+        <a href="/" class="home-link">← Home</a>
+    </nav>
+
+    <div class="container">
+        <div class="header">
+            <h1>🏗️ CIPP Bid-Spec Analyzer</h1>
+            <p>Professional bid specification analysis powered by HOTDOG AI</p>
+        </div>
+
+        <!-- File Upload Section -->
+        <div class="section">
+            <h3>📄 Document Upload</h3>
+            <div class="file-upload" id="fileUpload" onclick="document.getElementById('fileInput').click()">
+                <input type="file" id="fileInput" style="display: none;" accept=".pdf">
+                <p><strong>Click to select file</strong> or drag and drop</p>
+                <p>Supported formats: PDF</p>
+            </div>
+            <div id="fileInfo" style="margin-top: 10px; display: none;">
+                <p><strong>Selected file:</strong> <span id="fileName"></span></p>
+                <p><strong>Size:</strong> <span id="fileSize"></span></p>
+            </div>
+        </div>
+
+        <!-- Question Configuration -->
+        <div class="section">
+            <h3>❓ Question Configuration</h3>
+            <div class="form-group">
+                <label>Question Sections (Click to enable/disable):</label>
+                <div id="questionSections" class="question-sections"></div>
+            </div>
+            <div class="form-group">
+                <label>Active Questions: <span id="activeQuestionCount">0</span> questions selected</label>
+            </div>
+
+            <!-- Context Guardrails Input -->
+            <div class="form-group" style="margin-top: 20px; padding: 15px; background: rgba(91, 127, 204, 0.05); border-radius: 8px; border: 2px dashed rgba(91, 127, 204, 0.3);">
+                <label for="contextGuardrails" style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                    <span style="font-size: 1.2em;">📋</span>
+                    <strong>Context Guardrails (Optional)</strong>
+                </label>
+                <textarea
+                    id="contextGuardrails"
+                    placeholder="Enter background rules or context constraints (e.g., 'Only answer questions in regard to CIPP lining')"
+                    style="width: 100%; min-height: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; resize: vertical;"
+                ></textarea>
+                <small style="color: #666; display: block; margin-top: 8px;">
+                    <strong>What are Context Guardrails?</strong> Global rules applied to ALL questions in the analysis.
+                </small>
+            </div>
+        </div>
+
+        <!-- Analysis Controls -->
+        <div class="section">
+            <h3>🎯 Analysis Controls</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+                <button class="btn" id="analyzeBtn" onclick="startAnalysis()" disabled>🚀 Start Analysis</button>
+                <button class="btn btn-danger" id="stopBtn" onclick="stopAnalysis()" disabled>⏹️ Stop Analysis</button>
+                <button class="btn btn-secondary" onclick="clearResults()">🗑️ Clear Results</button>
+            </div>
+
+            <div class="btn-group" style="display: inline-block; position: relative;">
+                <button class="btn btn-secondary" onclick="showExportMenu()" id="exportBtn" disabled>📊 Export Results ▼</button>
+                <div id="exportMenu" style="display: none; position: absolute; background: white; border: 2px solid #ddd; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 280px; top: 100%; left: 0; margin-top: 5px;">
+                    <button onclick="exportResults('excel-simple')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">✨ Excel (Styled Table)</button>
+                    <button onclick="exportResults('csv')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">📄 CSV (Simple)</button>
+                    <button onclick="exportResults('html')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer; border-bottom: 1px solid #eee;">🌐 HTML Report</button>
+                    <button onclick="exportResults('json')" style="width: 100%; padding: 12px; border: none; background: white; text-align: left; cursor: pointer;">📋 JSON Data</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Section -->
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Ready</div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="section">
+            <h3>📋 Activity Log</h3>
+            <div class="log-container" id="logContainer" style="display: block;">
+                <div id="logContent"></div>
+            </div>
+        </div>
+
+        <!-- Live Results Section -->
+        <div class="results-section" id="resultsSection">
+            <h3>📋 Live Analysis Summary</h3>
+            <div id="liveResults" style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: none;">
+                <h4 style="color: #1E3A8A; margin-bottom: 15px;">Running Analysis Summary</h4>
+                <div id="liveResultsContent"></div>
+            </div>
+            <div id="resultsContent"></div>
+        </div>
+    </div>
+
+    <script>
+// ============================================================================
+// CIPP ANALYZER - CLEAN REBUILD FOR HOTDOG AI
+// ============================================================================
+
+// Global State
+let currentFile = null;
+let currentSessionId = null;
+let currentAnalysisResult = null;
+let activeEventSource = null;
+let questionConfig = { sections: [], totalQuestions: 0 };
+let liveAnswers = {}; // Store answers as they come in: { question_id: { question, answer, pages } }
+
+// NEW: Unitary Table State
+let allQuestions = {};  // { question_id: { section_name, question_text, status, answer, pages, footnote } }
+let allFootnotes = [];  // Array of unique footnotes
+
+// ============================================================================
+// LOGGER - Simple, Working
+// ============================================================================
+
+class Logger {
+    static log(message, type = 'info') {
+        const timestamp = new Date().toLocaleTimeString();
+        const logContainer = document.getElementById('logContent');
+        const entry = document.createElement('div');
+        entry.className = `log-entry log-${type}`;
+        entry.textContent = `[${timestamp}] ${message}`;
+        logContainer.appendChild(entry);
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    static info(msg) { this.log(msg, 'info'); }
+    static success(msg) { this.log(msg, 'success'); }
+    static error(msg) { this.log(msg, 'error'); }
+    static warning(msg) { this.log(msg, 'warning'); }
+}
+
+// ============================================================================
+// PROGRESS TRACKER
+// ============================================================================
+
+class ProgressTracker {
+    static show() {
+        document.getElementById('progressContainer').style.display = 'block';
+    }
+
+    static hide() {
+        document.getElementById('progressContainer').style.display = 'none';
+    }
+
+    static update(percentage, text) {
+        document.getElementById('progressFill').style.width = `${percentage}%`;
+        document.getElementById('progressText').textContent = text;
+    }
+}
+
+// ============================================================================
+// FILE UPLOAD HANDLING
+// ============================================================================
+
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    currentFile = file;
+
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent = formatFileSize(file.size);
+    document.getElementById('fileInfo').style.display = 'block';
+    document.getElementById('analyzeBtn').disabled = false;
+
+    Logger.info(`📄 PDF file selected: ${file.name} (${formatFileSize(file.size)})`);
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+// ============================================================================
+// QUESTION CONFIGURATION LOADING
+// ============================================================================
+
+async function loadQuestionConfig() {
+    try {
+        const resp = await fetch('/api/config/questions');
+        const data = await resp.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load questions');
+        }
+
+        questionConfig = data.config;
+
+        // Initialize 'enabled' field for all sections (default to true)
+        questionConfig.sections.forEach(section => {
+            if (section.enabled === undefined) {
+                section.enabled = true;
+            }
+        });
+
+        displayQuestionSections();
+        updateActiveQuestionCount();
+
+        Logger.success(`✅ Loaded ${questionConfig.totalQuestions} questions in ${questionConfig.sections.length} sections`);
+
+    } catch (error) {
+        Logger.error('Failed to load question configuration: ' + error.message);
+    }
+}
+
+function displayQuestionSections() {
+    const container = document.getElementById('questionSections');
+    container.innerHTML = questionConfig.sections.map(section => `
+        <div class="question-section ${section.enabled ? 'enabled' : 'disabled'}"
+             onclick="toggleSection('${section.section_id}')">
+            <div class="section-header">
+                <span>${section.section_name}</span>
+                <span class="section-count">${section.questions.length}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function toggleSection(sectionId) {
+    const section = questionConfig.sections.find(s => s.section_id === sectionId);
+    if (section) {
+        section.enabled = !section.enabled;
+        displayQuestionSections();
+        updateActiveQuestionCount();
+    }
+}
+
+function updateActiveQuestionCount() {
+    const count = questionConfig.sections
+        .filter(s => s.enabled)
+        .reduce((sum, s) => sum + s.questions.length, 0);
+
+    document.getElementById('activeQuestionCount').textContent = count;
+}
+
+// ============================================================================
+// ANALYSIS - Main Flow (CLEAN, SIMPLE SSE)
+// ============================================================================
+
+async function startAnalysis() {
+    if (!currentFile) {
+        Logger.error('Please upload a PDF file first');
+        alert('Please upload a PDF file first');
+        return;
+    }
+
+    try {
+        Logger.info('🔥 Starting HOTDOG AI analysis...');
+
+        const contextGuardrails = document.getElementById('contextGuardrails').value.trim();
+        if (contextGuardrails) {
+            Logger.info(`📋 Context Guardrails: ${contextGuardrails}`);
+        }
+
+        // Reset live answers
+        liveAnswers = {};
+
+        // Hide live summary
+        document.getElementById('liveResults').style.display = 'none';
+
+        // Disable/enable buttons
+        document.getElementById('analyzeBtn').disabled = true;
+        document.getElementById('stopBtn').disabled = false;
+
+        // Show progress
+        ProgressTracker.show();
+        ProgressTracker.update(10, 'Uploading document...');
+
+        // STEP 1: Upload PDF
+        const formData = new FormData();
+        formData.append('file', currentFile);
+
+        const uploadResp = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!uploadResp.ok) {
+            throw new Error('File upload failed');
+        }
+
+        const uploadData = await uploadResp.json();
+        const pdfPath = uploadData.filepath;
+
+        Logger.success(`✅ File uploaded: ${pdfPath}`);
+        ProgressTracker.update(20, 'Connecting to HOTDOG AI...');
+
+        // Generate session ID
+        currentSessionId = `session_${Date.now()}`;
+
+        // STEP 2: Connect to SSE BEFORE starting analysis
+        const progressUrl = `/api/progress/${currentSessionId}`;
+        Logger.info(`📡 Connecting to SSE: ${progressUrl}`);
+
+        activeEventSource = new EventSource(progressUrl);
+
+        activeEventSource.onopen = () => {
+            Logger.success('📡 SSE connection opened (ready state: ' + activeEventSource.readyState + ')');
+        };
+
+        activeEventSource.onmessage = (e) => {
+            try {
+                console.log('[SSE] Raw message received:', e.data);
+                const data = JSON.parse(e.data);
+                console.log('[SSE] Parsed data:', data);
+
+                // Route events to Logger with DETAILED logging
+                if (data.event === 'connected') {
+                    Logger.success('✅ SSE Progress stream connected');
+                    ProgressTracker.update(5, 'Connected to server');
+                }
+                else if (data.event === 'analysis_started') {
+                    Logger.info(`🔥 HOTDOG AI analysis started for: ${data.document || 'document'}`);
+                    ProgressTracker.update(10, 'Analysis starting...');
+                }
+                else if (data.event === 'layer_0_start') {
+                    Logger.info(`📊 Layer 0: ${data.layer} - Starting PDF extraction...`);
+                    ProgressTracker.update(12, 'Reading PDF...');
+                }
+                else if (data.event === 'document_ingested') {
+                    Logger.success(`📄 Document ingested: ${data.total_pages} pages extracted`);
+                    Logger.info(`   ↳ Created ${data.window_count} windows (${data.window_size} pages each)`);
+                    ProgressTracker.update(20, `Extracted ${data.total_pages} pages`);
+                }
+                else if (data.event === 'layer_1_start') {
+                    Logger.info(`📊 Layer 1: ${data.layer} - Loading question configuration...`);
+                    ProgressTracker.update(22, 'Loading questions...');
+                }
+                else if (data.event === 'config_loaded') {
+                    Logger.success(`⚙️ Configuration loaded: ${data.total_questions} questions in ${data.section_count} sections`);
+                    if (data.sections) {
+                        Logger.info(`   ↳ Sections: ${data.sections.join(', ')}`);
+                    }
+                    ProgressTracker.update(25, `Loaded ${data.total_questions} questions`);
+                }
+                else if (data.event === 'layer_2_start') {
+                    Logger.info(`📊 Layer 2: ${data.layer} - Generating AI expert personas...`);
+                    ProgressTracker.update(27, 'Creating AI experts...');
+                }
+                else if (data.event === 'expert_generated') {
+                    Logger.info(`🤖 AI Expert created: ${data.expert_name}`);
+                    if (data.section) {
+                        Logger.info(`   ↳ Specialization: ${data.section}`);
+                    }
+                    ProgressTracker.update(30, `Generating experts...`);
+                }
+                else if (data.event === 'processing_start') {
+                    Logger.success(`🚀 Multi-expert processing started: ${data.total_windows} windows to analyze`);
+                    ProgressTracker.update(35, 'Starting window processing...');
+                }
+                else if (data.event === 'window_processing') {
+                    Logger.info(`🔍 Window ${data.window_num}/${data.total_windows}: Analyzing pages ${data.pages}`);
+                    const progress = 40 + ((data.window_num / data.total_windows) * 45);
+                    ProgressTracker.update(progress, `Window ${data.window_num}/${data.total_windows}`);
+                }
+                else if (data.event === 'experts_dispatched') {
+                    Logger.info(`   ↳ Dispatched ${data.expert_count} experts for ${data.question_count} questions`);
+                }
+                else if (data.event === 'experts_complete') {
+                    Logger.success(`   ↳ Experts returned ${data.answers_returned} answers`);
+                    Logger.info(`   ↳ Tokens used: ${data.tokens_used} | Cost: $${data.cost || '0.00'}`);
+                }
+                else if (data.event === 'window_complete') {
+                    Logger.success(`✅ Window ${data.window_num} complete: ${data.answers_found} answers found in ${data.processing_time.toFixed(1)}s`);
+                    if (data.unitary_log) {
+                        Logger.info(`   ↳ ${data.unitary_log}`);
+                    }
+
+                    // NEW: Update unitary table with new answers
+                    if (data.new_answers && data.new_answers.length > 0) {
+                        updateUnitaryTableWithNewAnswers(data.new_answers);
+                    }
+
+                    // Unitary table updates in real-time via new_answers above
+                    // No need for fetchPartialResults() - it's redundant
+                }
+                else if (data.event === 'progress_milestone') {
+                    Logger.info(`📊 Milestone: ${data.progress_summary}`);
+                }
+                else if (data.event === 'layer_6_start') {
+                    Logger.info(`📊 Layer 6: ${data.layer} - Compiling final output...`);
+                    ProgressTracker.update(90, 'Compiling results...');
+                }
+                else if (data.event === 'layer_6_complete') {
+                    Logger.success(`✅ Output compiled: ${data.questions_answered} questions answered`);
+                    ProgressTracker.update(95, 'Results ready...');
+                }
+                else if (data.event === 'analysis_complete' || data.event === 'done') {
+                    Logger.success(`🎉 HOTDOG AI analysis complete!`);
+                    if (data.statistics) {
+                        Logger.info(`   ↳ Questions answered: ${data.statistics.questions_answered}`);
+                        Logger.info(`   ↳ Processing time: ${data.statistics.processing_time}s`);
+                        Logger.info(`   ↳ Total cost: ${data.statistics.estimated_cost || 'N/A'}`);
+                    }
+                    ProgressTracker.update(100, 'Fetching results...');
+                    activeEventSource.close();
+                    fetchResults();
+                }
+                else if (data.event === 'analysis_failed' || data.event === 'error') {
+                    const errorMsg = data.error || data.error_type || 'Unknown error';
+
+                    if (errorMsg === 'Analysis stopped by user') {
+                        Logger.warning(`⏹️ Analysis stopped by user`);
+                        Logger.info('📊 Fetching partial results...');
+                        activeEventSource.close();
+                        // Fetch partial results
+                        fetchResults();
+                    } else {
+                        Logger.error(`❌ Analysis failed: ${errorMsg}`);
+                        activeEventSource.close();
+                        throw new Error(errorMsg);
+                    }
+                }
+                else {
+                    // Log unknown events for debugging
+                    Logger.warning(`⚠️ Unknown event: ${data.event}`);
+                    console.log('Unknown SSE event data:', data);
+                }
+
+            } catch (err) {
+                Logger.error('Failed to parse SSE message: ' + err.message);
+            }
+        };
+
+        activeEventSource.onerror = (err) => {
+            console.error('[SSE] Connection error:', err);
+            console.log('[SSE] Ready state:', activeEventSource.readyState);
+            console.log('[SSE] URL:', activeEventSource.url);
+
+            if (activeEventSource.readyState === EventSource.CONNECTING) {
+                Logger.warning('📡 SSE reconnecting...');
+            } else if (activeEventSource.readyState === EventSource.CLOSED) {
+                Logger.error('📡 SSE connection closed');
+            } else {
+                Logger.error('📡 SSE connection error (state: ' + activeEventSource.readyState + ')');
+            }
+        };
+
+        // STEP 3: Get enabled section IDs
+        const enabledSectionIds = questionConfig.sections
+            .filter(s => s.enabled)
+            .map(s => s.section_id);
+
+        Logger.info(`📊 Analyzing ${enabledSectionIds.length} enabled sections`);
+
+        // STEP 4: Start analysis (returns immediately - runs in background)
+        const analyzeResp = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                session_id: currentSessionId,
+                pdf_path: pdfPath,
+                context_guardrails: contextGuardrails || undefined,
+                enabled_sections: enabledSectionIds  // NEW: Only analyze enabled sections
+            })
+        });
+
+        if (!analyzeResp.ok) {
+            throw new Error('Analysis failed to start');
+        }
+
+        const analyzeData = await analyzeResp.json();
+        Logger.success(`✅ Analysis started in background (Session: ${currentSessionId})`);
+        Logger.info(`📊 HOTDOG AI is now processing your document...`);
+
+        // NOW initialize unitary table (after analysis successfully started)
+        initializeUnitaryTableState();
+
+    } catch (error) {
+        Logger.error('Analysis failed: ' + error.message);
+        alert('Analysis failed: ' + error.message);
+        ProgressTracker.hide();
+        document.getElementById('analyzeBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        if (activeEventSource) {
+            activeEventSource.close();
+        }
+    }
+}
+
+// ============================================================================
+// FETCH RESULTS (Called when 'done' event received)
+// ============================================================================
+
+async function fetchResults() {
+    try {
+        const resp = await fetch(`/api/results/${currentSessionId}`);
+        const data = await resp.json();
+
+        if (!data.success) {
+            throw new Error(data.error);
+        }
+
+        currentAnalysisResult = data.result;
+        const isPartial = data.partial || false;
+
+        Logger.success(`Questions answered: ${data.statistics.questions_answered}/${data.statistics.total_questions}`);
+        if (data.statistics.processing_time) {
+            Logger.success(`Processing time: ${data.statistics.processing_time.toFixed(2)}s`);
+        }
+
+        // Update unitary table with final results (instead of separate display)
+        updateUnitaryTableAsFinal(data.result, isPartial);
+
+        // Enable export
+        document.getElementById('exportBtn').disabled = false;
+
+        ProgressTracker.hide();
+        document.getElementById('analyzeBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+
+    } catch (error) {
+        Logger.error('Failed to fetch results: ' + error.message);
+    }
+}
+
+// ============================================================================
+// FETCH PARTIAL RESULTS (Live Updates)
+// ============================================================================
+
+async function fetchPartialResults() {
+    try {
+        Logger.info('📊 Fetching partial results...');
+        const resp = await fetch(`/api/results/${currentSessionId}`);
+        const data = await resp.json();
+
+        if (data.success && data.result) {
+            Logger.success(`✅ Partial results received - updating live display`);
+            updateLiveSummary(data.result);
+        } else {
+            Logger.warning('⚠️ Partial results not ready yet');
+        }
+    } catch (error) {
+        Logger.warning(`⚠️ Could not fetch partial results: ${error.message}`);
+    }
+}
+
+// ============================================================================
+// LIVE SUMMARY UPDATE - Shows actual answers as they're found
+// ============================================================================
+
+function updateLiveSummary(result) {
+    const liveResultsDiv = document.getElementById('liveResults');
+    const liveContent = document.getElementById('liveResultsContent');
+    const resultsSection = document.getElementById('resultsSection');
+
+    // Show sections
+    resultsSection.style.display = 'block';
+    liveResultsDiv.style.display = 'block';
+
+    // Count answers
+    let totalAnswers = 0;
+    let totalQuestions = 0;
+
+    result.sections.forEach(section => {
+        section.questions.forEach(q => {
+            totalQuestions++;
+            if (q.answer && q.answer.trim()) {
+                totalAnswers++;
+            }
+        });
+    });
+
+    // Build live table
+    let html = `
+        <div style="margin-bottom: 15px; padding: 12px; background: #f0f7ff; border-radius: 6px; border-left: 4px solid #5B7FCC;">
+            <strong style="color: #1E3A8A;">Live Progress:</strong>
+            <span style="color: #28a745; font-weight: 600;">${totalAnswers}</span> answers found
+            (${totalQuestions} questions analyzed so far)
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <thead>
+                <tr style="background: #f8f9fa; color: #333;">
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd; width: 25%;">Question</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd; width: 60%;">Answer Found</th>
+                    <th style="padding: 10px; text-align: center; border: 1px solid #ddd; width: 15%;">PDF Pages</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    result.sections.forEach(section => {
+        section.questions.forEach(q => {
+            if (q.answer && q.answer.trim()) {
+                const pdfPages = (q.page_citations && q.page_citations.length > 0)
+                    ? q.page_citations.join(', ')
+                    : '—';
+
+                html += `
+                    <tr style="border-bottom: 1px solid #e0e0e0;">
+                        <td style="padding: 8px; border: 1px solid #ddd; vertical-align: top; font-size: 12px;">
+                            ${q.question}
+                        </td>
+                        <td style="padding: 8px; border: 1px solid #ddd; vertical-align: top; white-space: pre-wrap;">
+                            ${q.answer.substring(0, 200)}${q.answer.length > 200 ? '...' : ''}
+                        </td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: center; vertical-align: top; font-weight: 600; color: #5B7FCC;">
+                            ${pdfPages}
+                        </td>
+                    </tr>
+                `;
+            }
+        });
+    });
+
+    html += `
+            </tbody>
+        </table>
+        <p style="margin-top: 12px; color: #666; font-size: 12px; font-style: italic;">
+            ⚡ Updating live as analysis progresses... Full results will display when complete.
+        </p>
+    `;
+
+    liveContent.innerHTML = html;
+}
+
+// ============================================================================
+// DISPLAY RESULTS (LEGACY TABLE FORMAT)
+// ============================================================================
+
+function displayResults(result) {
+    const resultsSection = document.getElementById('resultsSection');
+    const resultsContent = document.getElementById('resultsContent');
+    const liveResultsDiv = document.getElementById('liveResults');
+
+    if (!result || !result.sections) {
+        Logger.error('No results to display');
+        return;
+    }
+
+    // Hide live summary, show final results
+    liveResultsDiv.style.display = 'none';
+
+    let html = '<div style="background: white; padding: 20px; border-radius: 8px; overflow-x: auto;">';
+
+    html += `
+        <h2 style="color: #1E3A8A; margin-bottom: 20px;">Analysis Results</h2>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+                <tr style="background: linear-gradient(135deg, #1E3A8A, #5B7FCC); color: white;">
+                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd; min-width: 180px;">Section</th>
+                    <th style="padding: 12px; text-align: center; border: 1px solid #ddd; width: 40px;">#</th>
+                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd; min-width: 250px;">Question</th>
+                    <th style="padding: 12px; text-align: left; border: 1px solid #ddd; min-width: 300px;">Answer</th>
+                    <th style="padding: 12px; text-align: center; border: 1px solid #ddd; width: 100px;">PDF Pages</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    // Populate table rows
+    result.sections.forEach(section => {
+        section.questions.forEach((q, index) => {
+            const questionNumber = index + 1;
+            const answer = q.answer || '<em style="color: #999;">Not found in document</em>';
+            const pdfPages = (q.page_citations && q.page_citations.length > 0)
+                ? q.page_citations.join(', ')
+                : '—';
+
+            html += `
+                <tr style="border-bottom: 1px solid #e0e0e0;">
+                    <td style="padding: 10px; border: 1px solid #ddd; vertical-align: top; background: #f8f9fa;">
+                        <strong>${section.section_name}</strong>
+                    </td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center; vertical-align: top;">
+                        ${questionNumber}
+                    </td>
+                    <td style="padding: 10px; border: 1px solid #ddd; vertical-align: top;">
+                        ${q.question}
+                    </td>
+                    <td style="padding: 10px; border: 1px solid #ddd; vertical-align: top; white-space: pre-wrap;">
+                        ${answer}
+                    </td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center; vertical-align: top; font-weight: 600; color: #5B7FCC;">
+                        ${pdfPages}
+                    </td>
+                </tr>
+            `;
+        });
+    });
+
+    html += `
+            </tbody>
+        </table>
+    </div>`;
+
+    resultsContent.innerHTML = html;
+    resultsSection.style.display = 'block';
+}
+
+// ============================================================================
+// STOP ANALYSIS
+// ============================================================================
+
+async function stopAnalysis() {
+    if (!currentSessionId) {
+        Logger.warning('No active analysis to stop');
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/api/stop/${currentSessionId}`, {
+            method: 'POST'
+        });
+
+        const data = await resp.json();
+
+        if (data.success) {
+            Logger.warning('⏹️ Analysis stopped by user');
+            if (activeEventSource) {
+                activeEventSource.close();
+            }
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('analyzeBtn').disabled = false;
+
+            // Fetch partial results
+            fetchResults();
+        }
+
+    } catch (error) {
+        Logger.error('Failed to stop analysis: ' + error.message);
+    }
+}
+
+// ============================================================================
+// EXPORT FUNCTIONS
+// ============================================================================
+
+function showExportMenu() {
+    const menu = document.getElementById('exportMenu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function exportResults(format) {
+    if (!currentAnalysisResult) {
+        alert('No results to export');
+        return;
+    }
+
+    Logger.info(`📤 Exporting as ${format}...`);
+
+    if (format === 'json') {
+        downloadJSON(currentAnalysisResult, 'cipp_analysis.json');
+    }
+    else if (format === 'csv') {
+        downloadCSV(currentAnalysisResult);
+    }
+    else if (format === 'excel-simple') {
+        exportExcelSimple(currentAnalysisResult);
+    }
+    else if (format === 'html') {
+        exportHTML(currentAnalysisResult);
+    }
+
+    document.getElementById('exportMenu').style.display = 'none';
+}
+
+function downloadJSON(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+}
+
+function downloadCSV(data) {
+    let csv = 'Section,#,Question,Answer,PDF Pages\n';
+
+    data.sections.forEach(section => {
+        section.questions.forEach((q, index) => {
+            const answer = q.answer ? q.answer.replace(/"/g, '""') : 'Not found';
+            const pages = q.page_citations ? q.page_citations.join(';') : '';
+            csv += `"${section.section_name}","${index + 1}","${q.question}","${answer}","${pages}"\n`;
+        });
+    });
+
+    const blob = new Blob([csv], {type: 'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cipp_analysis.csv';
+    a.click();
+}
+
+function exportExcelSimple(data) {
+    const wb = XLSX.utils.book_new();
+    const wsData = [['Section', '#', 'Question', 'Answer', 'PDF Pages']];
+
+    data.sections.forEach(section => {
+        section.questions.forEach((q, index) => {
+            wsData.push([
+                section.section_name,
+                index + 1,
+                q.question,
+                q.answer || 'Not found in document',
+                q.page_citations ? q.page_citations.join(', ') : ''
+            ]);
+        });
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    ws['!cols'] = [
+        {wch: 35},  // Section
+        {wch: 5},   // #
+        {wch: 70},  // Question
+        {wch: 90},  // Answer
+        {wch: 22}   // Pages
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Analysis Results');
+    XLSX.writeFile(wb, 'cipp_analysis.xlsx');
+    Logger.success('✅ Excel file downloaded');
+}
+
+function exportHTML(data) {
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CIPP Analysis Report</title>
+    <style>
+        body { font-family: Calibri, Arial, sans-serif; font-size: 15pt; margin: 40px; }
+        h1 { color: #1E3A8A; border-bottom: 4px solid #5B7FCC; padding-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: #1E3A8A; color: white; padding: 12px; text-align: left; }
+        td { padding: 10px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h1>CIPP Bid-Spec Analysis</h1>
+    <p>Generated: ${new Date().toLocaleString()}</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Section</th>
+                <th>#</th>
+                <th>Question</th>
+                <th>Answer</th>
+                <th>PDF Pages</th>
+            </tr>
+        </thead>
+        <tbody>
+`;
+
+    data.sections.forEach(section => {
+        section.questions.forEach((q, index) => {
+            html += `<tr>
+                <td>${section.section_name}</td>
+                <td>${index + 1}</td>
+                <td>${q.question}</td>
+                <td>${q.answer || 'Not found in document'}</td>
+                <td>${q.page_citations ? q.page_citations.join(', ') : ''}</td>
+            </tr>`;
+        });
+    });
+
+    html += `
+        </tbody>
+    </table>
+</body>
+</html>`;
+
+    const blob = new Blob([html], {type: 'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cipp_analysis_report.html';
+    a.click();
+    Logger.success('✅ HTML report downloaded');
+}
+
+// ============================================================================
+// CLEAR RESULTS
+// ============================================================================
+
+function clearResults() {
+    document.getElementById('resultsSection').style.display = 'none';
+    document.getElementById('resultsContent').innerHTML = '';
+    document.getElementById('logContent').innerHTML = '';
+    document.getElementById('exportBtn').disabled = true;
+    currentAnalysisResult = null;
+    currentSessionId = null;
+    ProgressTracker.hide();
+    Logger.info('🗑️ Results cleared');
+}
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    Logger.info('🚀 CIPP Bid-Spec Analyzer initialized (HOTDOG AI)');
+    Logger.info('✅ Ready for document analysis');
+
+    // Load question configuration
+    loadQuestionConfig();
+
+    // Setup file input
+    document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+
+    // Setup drag-and-drop
+    const dropZone = document.getElementById('fileUpload');
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#5b7fcc';
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.style.borderColor = '#ddd';
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#ddd';
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            document.getElementById('fileInput').files = files;
+            handleFileSelect({target: {files: files}});
+        }
+    });
+});
+
+// ============================================================================
+// UNITARY TABLE FUNCTIONS - Live Analysis Display
+// ============================================================================
+
+function initializeUnitaryTableState() {
+    allQuestions = {};
+    allFootnotes = [];
+
+    if (!questionConfig || !questionConfig.sections) {
+        Logger.warning('Question config not loaded yet');
+        return;
+    }
+
+    // Build master question registry with all questions
+    questionConfig.sections.filter(s => s.enabled).forEach(section => {
+        section.questions.forEach((q, idx) => {
+            allQuestions[q.id] = {  // FIX: Use q.id, not q.question_id
+                question_id: q.id,  // Store the ID in the object for easy access
+                section_name: section.section_name,
+                question_number: idx + 1,
+                question_text: q.text,
+                status: 'pending',  // pending | found
+                answer: null,
+                pages: [],
+                footnote: null
+            };
+        });
+    });
+
+    Logger.info(`📊 Initialized unitary table: ${Object.keys(allQuestions).length} questions`);
+
+    // Render initial table with all pending questions
+    renderUnitaryTable();
+}
+
+function updateUnitaryTableWithNewAnswers(newAnswers) {
+    const updatedQuestionIds = [];
+
+    newAnswers.forEach(answer => {
+        if (allQuestions[answer.question_id]) {
+            // Update question state
+            allQuestions[answer.question_id].status = 'found';
+            allQuestions[answer.question_id].answer = answer.answer_text;
+            allQuestions[answer.question_id].pages = answer.pages;
+            allQuestions[answer.question_id].footnote = answer.footnote;
+
+            updatedQuestionIds.push(answer.question_id);
+
+            // Add footnote to global list if it exists and is not empty
+            if (answer.footnote && answer.footnote.trim()) {
+                if (!allFootnotes.includes(answer.footnote)) {
+                    allFootnotes.push(answer.footnote);
+                }
+            }
+        }
+    });
+
+    // Update only the changed rows for efficiency
+    updateUnitaryTableRows(updatedQuestionIds);
+
+    Logger.info(`📊 Updated ${updatedQuestionIds.length} questions in unitary table`);
+}
+
+function updateUnitaryTableAsFinal(result, isPartial) {
+    /**
+     * Update unitary table with final/complete results
+     * Called when analysis completes or is stopped
+     */
+    Logger.info('📊 Updating unitary table with final results...');
+
+    // Update allQuestions state from final result
+    result.sections.forEach(section => {
+        section.questions.forEach(q => {
+            const questionId = q.question_id;
+            if (allQuestions[questionId]) {
+                // Update with final data
+                allQuestions[questionId].status = q.answer ? 'found' : 'pending';
+                allQuestions[questionId].answer = q.answer || null;
+                allQuestions[questionId].pages = q.page_citations || [];
+                allQuestions[questionId].footnote = q.footnote || null;
+
+                // Add footnote to global list if not already there
+                if (q.footnote && q.footnote.trim() && !allFootnotes.includes(q.footnote)) {
+                    allFootnotes.push(q.footnote);
+                }
+            }
+        });
+    });
+
+    // Add completion banner to results container
+    const container = document.getElementById('resultsContent');
+    const bannerColor = isPartial ? '#FFA500' : '#4CAF50';
+    const bannerIcon = isPartial ? '⚠️' : '✅';
+    const bannerText = isPartial ? 'Partial Results (Analysis Stopped)' : 'Analysis Complete';
+
+    const banner = `
+        <div style="background: ${bannerColor}; color: white; padding: 12px 20px; margin-bottom: 15px; border-radius: 6px; font-weight: 600; text-align: center;">
+            ${bannerIcon} ${bannerText}
+        </div>
+    `;
+
+    // Re-render unitary table (will include the data updates)
+    renderUnitaryTable();
+
+    // Prepend banner to container
+    container.innerHTML = banner + container.innerHTML;
+
+    Logger.success(`✅ Final results display updated${isPartial ? ' (partial)' : ''}`);
+}
+
+function renderUnitaryTable() {
+    const container = document.getElementById('resultsContent');
+    const resultsSection = document.getElementById('resultsSection');
+    resultsSection.style.display = 'block';
+
+    const questionsList = Object.values(allQuestions);
+    const answeredCount = questionsList.filter(q => q.status === 'found').length;
+    const totalCount = questionsList.length;
+
+    let html = `
+        <div style="background: white; padding: 20px; border-radius: 8px;">
+            <h3 style="color: #1E3A8A; margin-bottom: 15px;">📊 Unitary Log - Live Analysis</h3>
+
+            <!-- Progress Stats -->
+            <div style="background: #f0f4ff; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+                <div style="font-weight: 600; color: #1E3A8A;">
+                    Answered: ${answeredCount}/${totalCount} questions (${((answeredCount/totalCount)*100).toFixed(1)}%)
+                </div>
+                <div style="margin-top: 5px; color: #666;">
+                    Footnotes: ${allFootnotes.length}
+                </div>
+            </div>
+
+            <!-- Unitary Table -->
+            <div style="overflow-x: auto;">
+                <table class="unitary-table" style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                    <thead>
+                        <tr style="background: #1E3A8A; color: white;">
+                            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Section</th>
+                            <th style="padding: 12px; text-align: left; border: 1px solid #ddd; width: 50px;">#</th>
+                            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Question</th>
+                            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Answer</th>
+                            <th style="padding: 12px; text-align: left; border: 1px solid #ddd; width: 100px;">PDF Pages</th>
+                            <th style="padding: 12px; text-align: left; border: 1px solid #ddd; width: 80px;">Footnote</th>
+                        </tr>
+                    </thead>
+                    <tbody id="unitaryTableBody">
+    `;
+
+    // Group by section
+    const sections = {};
+    questionsList.forEach(q => {
+        if (!sections[q.section_name]) {
+            sections[q.section_name] = [];
+        }
+        sections[q.section_name].push(q);
+    });
+
+    // Render rows grouped by section
+    Object.entries(sections).forEach(([sectionName, questions]) => {
+        questions.forEach((q, idx) => {
+            const isPending = q.status === 'pending';
+            const rowColor = isPending ? '#fafafa' : '#e8f5e9';
+
+            html += `
+                <tr id="row-${q.question_id}" style="background: ${rowColor};">
+                    <td style="padding: 10px; border: 1px solid #ddd;">${idx === 0 ? sectionName : ''}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${q.question_number}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">${q.question_text}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; ${isPending ? 'color: #999; font-style: italic;' : ''}">
+                        ${isPending ? 'Analyzing...' : q.answer}
+                    </td>
+                    <td style="padding: 10px; border: 1px solid #ddd;">${isPending ? '-' : q.pages.join(', ')}</td>
+                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${q.footnote ? '✓' : '-'}</td>
+                </tr>
+            `;
+        });
+    });
+
+    html += `
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footnotes Section -->
+            ${renderFootnotesSection()}
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+function updateUnitaryTableRows(questionIds) {
+    questionIds.forEach(qid => {
+        const row = document.getElementById(`row-${qid}`);
+        if (row && allQuestions[qid]) {
+            const q = allQuestions[qid];
+            const isPending = q.status === 'pending';
+            const rowColor = isPending ? '#fafafa' : '#e8f5e9';
+
+            row.style.background = rowColor;
+
+            // Update cells (skip section and number, update question/answer/pages/footnote)
+            const cells = row.cells;
+            if (cells.length >= 6) {
+                cells[3].innerHTML = isPending ? '<span style="color: #999; font-style: italic;">Analyzing...</span>' : q.answer;
+                cells[3].style.color = isPending ? '#999' : '';
+                cells[3].style.fontStyle = isPending ? 'italic' : '';
+                cells[4].innerHTML = isPending ? '-' : q.pages.join(', ');
+                cells[5].innerHTML = q.footnote ? '✓' : '-';
+            }
+        }
+    });
+
+    // Update footnotes section
+    const footnotesContainer = document.querySelector('.footnotes-section');
+    if (footnotesContainer) {
+        footnotesContainer.outerHTML = renderFootnotesSection();
+    }
+}
+
+function renderFootnotesSection() {
+    if (allFootnotes.length === 0) return '';
+
+    return `
+        <div class="footnotes-section" style="margin-top: 30px; padding: 20px; background: #fffaeb; border-radius: 8px; border-left: 4px solid #ff9800;">
+            <h4 style="color: #1E3A8A; margin-bottom: 15px;">📝 Footnotes (PDF Pages & Context)</h4>
+            <ol style="margin: 0; padding-left: 20px;">
+                ${allFootnotes.map(fn => `<li style="margin-bottom: 10px;">${fn}</li>`).join('')}
+            </ol>
+        </div>
+    `;
+}
+
+    </script>
+</body>
+</html>

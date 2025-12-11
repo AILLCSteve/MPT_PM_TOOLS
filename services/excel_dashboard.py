@@ -32,7 +32,7 @@ class ExcelDashboardGenerator:
         bottom=Side(style='thin', color='000000')
     )
 
-    def __init__(self, analysis_result):
+    def __init__(self, analysis_result, is_partial=False):
         """
         Initialize dashboard generator
 
@@ -43,13 +43,15 @@ class ExcelDashboardGenerator:
                         {
                             'section_name': str,
                             'questions': [
-                                {'question': str, 'answer': str, 'page_citations': [int]}
+                                {'question': str, 'answer': str, 'page_citations': [int], 'footnote': str}
                             ]
                         }
                     ]
                 }
+            is_partial: Boolean flag indicating if this is a partial/stopped analysis
         """
         self.result = analysis_result
+        self.is_partial = is_partial
         self.wb = Workbook()
 
     def generate(self):
@@ -61,6 +63,7 @@ class ExcelDashboardGenerator:
         # Create all sheets
         self._create_executive_summary()
         self._create_detailed_results()
+        self._create_footnotes_sheet()
         self._create_unanswered_questions()
         self._create_page_citations_index()
 
@@ -87,8 +90,19 @@ class ExcelDashboardGenerator:
         ws['A3'].font = Font(name='Calibri', size=14, italic=True)
         ws.merge_cells('A3:E3')
 
+        # Partial Results Banner (if applicable)
+        row = 4
+        if self.is_partial:
+            ws[f'A{row}'] = '⚠️ PARTIAL RESULTS - ANALYSIS STOPPED'
+            ws[f'A{row}'].font = Font(name='Calibri', size=16, bold=True, color="FFFFFF")
+            ws[f'A{row}'].fill = PatternFill(start_color="FFA500", end_color="FFA500", fill_type="solid")
+            ws[f'A{row}'].alignment = Alignment(horizontal='center', vertical='center')
+            ws.merge_cells(f'A{row}:E{row}')
+            ws.row_dimensions[row].height = 25
+            row += 1
+
         # Statistics Section
-        row = 5
+        row += 1
         ws[f'A{row}'] = 'ANALYSIS STATISTICS'
         ws[f'A{row}'].font = self.SUBHEADER_FONT
         ws[f'A{row}'].fill = self.SUBHEADER_FILL
@@ -186,8 +200,8 @@ class ExcelDashboardGenerator:
         """Sheet 2: Detailed Q&A Results - Professionally Styled"""
         ws = self.wb.create_sheet('Detailed Results')
 
-        # Headers
-        headers = ['Section', 'Question', 'Answer', 'Page Citations', 'Status']
+        # Headers (added "Inline Citations" and "Footnote" columns)
+        headers = ['Section', 'Question', 'Answer', 'PDF Pages', 'Inline Citations', 'Footnote', 'Status']
         for col, header in enumerate(headers, start=1):
             cell = ws.cell(1, col, header)
             cell.font = self.HEADER_FONT
@@ -198,33 +212,100 @@ class ExcelDashboardGenerator:
         row = 2
         for section in self.result['sections']:
             for q in section['questions']:
+                answer_text = q.get('answer', 'Not found in document')
+
                 ws.cell(row, 1, section['section_name']).font = self.DATA_FONT
                 ws.cell(row, 2, q['question']).font = self.DATA_FONT
-                ws.cell(row, 3, q.get('answer', 'Not found in document')).font = self.DATA_FONT
-                ws.cell(row, 4, ', '.join(map(str, q.get('page_citations', [])))).font = self.DATA_FONT
+                ws.cell(row, 3, answer_text).font = self.DATA_FONT
+                ws.cell(row, 4, ', '.join(map(str, q.get('page_citations', [])))).font = self.DATA_FONT_BOLD
 
-                status_cell = ws.cell(row, 5, '✓ Answered' if q.get('answer') else '✗ Not Found')
+                # Extract inline citations (Section X.Y.Z references) from answer text
+                inline_citations = self._extract_inline_citations(answer_text) if answer_text and answer_text != 'Not found in document' else []
+                ws.cell(row, 5, '; '.join(inline_citations) if inline_citations else '-').font = self.DATA_FONT
+
+                # Add footnote column (NEW)
+                footnote_text = q.get('footnote', '') or '-'
+                ws.cell(row, 6, footnote_text).font = self.DATA_FONT
+
+                status_cell = ws.cell(row, 7, '✓ Answered' if q.get('answer') else '✗ Not Found')
                 status_cell.font = Font(name='Calibri', size=15, bold=True)
                 status_cell.fill = self.ANSWERED_FILL if q.get('answer') else self.UNANSWERED_FILL
 
                 # Borders and wrapping
-                for col in range(1, 6):
+                for col in range(1, 8):  # Updated to include footnote column
                     cell = ws.cell(row, col)
                     cell.border = self.BORDER_THIN
                     cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
 
                 row += 1
 
-        # Column widths
-        ws.column_dimensions['A'].width = 35
-        ws.column_dimensions['B'].width = 70
-        ws.column_dimensions['C'].width = 90
-        ws.column_dimensions['D'].width = 20
-        ws.column_dimensions['E'].width = 18
+        # Column widths (adjusted for footnote column)
+        ws.column_dimensions['A'].width = 30   # Section
+        ws.column_dimensions['B'].width = 60   # Question
+        ws.column_dimensions['C'].width = 70   # Answer
+        ws.column_dimensions['D'].width = 12   # PDF Pages (bold, smaller width)
+        ws.column_dimensions['E'].width = 20   # Inline Citations
+        ws.column_dimensions['F'].width = 45   # Footnote (NEW)
+        ws.column_dimensions['G'].width = 15   # Status
 
         # Row heights for readability
         for r in range(2, row):
-            ws.row_dimensions[r].height = 60
+            ws.row_dimensions[r].height = 70  # Increased from 60 for wrapped text
+
+    def _create_footnotes_sheet(self):
+        """Sheet 3: Footnotes - PDF Pages & Section References"""
+        ws = self.wb.create_sheet('Footnotes')
+
+        # Title
+        ws['A1'] = 'FOOTNOTES - PDF PAGES & SECTION REFERENCES'
+        ws['A1'].font = Font(name='Calibri', size=18, bold=True, color="667eea")
+        ws.merge_cells('A1:B1')
+
+        ws['A2'] = 'Each footnote includes PDF page numbers (<PDF pg #>) and document section references'
+        ws['A2'].font = Font(name='Calibri', size=12, italic=True, color="666666")
+        ws.merge_cells('A2:B2')
+
+        # Headers
+        headers = ['#', 'Footnote']
+        for col, header in enumerate(headers, start=1):
+            cell = ws.cell(4, col, header)
+            cell.font = self.HEADER_FONT
+            cell.fill = self.HEADER_FILL
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            cell.border = self.BORDER_THIN
+
+        # Get footnotes from result
+        footnotes = self.result.get('footnotes', [])
+
+        if footnotes:
+            row = 5
+            for idx, footnote in enumerate(footnotes, start=1):
+                # Number column
+                num_cell = ws.cell(row, 1, idx)
+                num_cell.font = Font(name='Calibri', size=14, bold=True)
+                num_cell.alignment = Alignment(horizontal='center', vertical='top')
+                num_cell.border = self.BORDER_THIN
+
+                # Footnote text
+                footnote_cell = ws.cell(row, 2, footnote)
+                footnote_cell.font = self.DATA_FONT
+                footnote_cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+                footnote_cell.border = self.BORDER_THIN
+
+                row += 1
+
+            # Column widths
+            ws.column_dimensions['A'].width = 8
+            ws.column_dimensions['B'].width = 120
+
+            # Row heights for readability
+            for r in range(5, row):
+                ws.row_dimensions[r].height = 40
+        else:
+            ws.cell(5, 1, 'No footnotes generated - answers did not contain detailed section references.').font = Font(name='Calibri', size=14, italic=True, color="666666")
+            ws.merge_cells('A5:B5')
+            ws.column_dimensions['A'].width = 8
+            ws.column_dimensions['B'].width = 120
 
     def _create_unanswered_questions(self):
         """Sheet 3: Unanswered Questions for Manual Review"""
@@ -349,3 +430,45 @@ class ExcelDashboardGenerator:
         """Get formatted timestamp"""
         from datetime import datetime
         return datetime.now().strftime('%B %d, %Y at %I:%M %p')
+
+    def _extract_inline_citations(self, answer_text):
+        """
+        Extract inline citations (Section X.Y.Z references) from answer text.
+
+        Matches patterns like:
+        - Section 3.2.1
+        - Division 02, Section 02505
+        - Part 3.2.1
+
+        Returns:
+            List of citation strings
+        """
+        import re
+
+        if not answer_text:
+            return []
+
+        citations = []
+
+        # Pattern 1: Section X.Y.Z or Section X.Y or Section X
+        section_pattern = re.compile(r'Section\s+(\d+(?:\.\d+)*)', re.IGNORECASE)
+        for match in section_pattern.finditer(answer_text):
+            citation = f"Section {match.group(1)}"
+            if citation not in citations:
+                citations.append(citation)
+
+        # Pattern 2: Division X, Section Y
+        division_pattern = re.compile(r'Division\s+(\d+),?\s*Section\s+(\d+)', re.IGNORECASE)
+        for match in division_pattern.finditer(answer_text):
+            citation = f"Division {match.group(1)}, Section {match.group(2)}"
+            if citation not in citations:
+                citations.append(citation)
+
+        # Pattern 3: Part X.Y.Z
+        part_pattern = re.compile(r'Part\s+(\d+(?:\.\d+)*)', re.IGNORECASE)
+        for match in part_pattern.finditer(answer_text):
+            citation = f"Part {match.group(1)}"
+            if citation not in citations:
+                citations.append(citation)
+
+        return citations

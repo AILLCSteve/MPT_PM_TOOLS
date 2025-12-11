@@ -87,3 +87,10 @@ credentials.json
 # OS
 Thumbs.db
 .DS_Store
+
+# Development Documentation (temporary session notes)
+REGRESSION_*.md
+*_ANALYSIS.md
+SESSION_STATUS.md
+FIXES_APPLIED.md
+test_*.html

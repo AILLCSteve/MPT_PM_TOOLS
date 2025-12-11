@@ -51,7 +51,9 @@ CORS(app)
 # Global state
 progress_queues = {}  # session_id -> Queue for SSE progress
 analysis_threads = {}  # session_id -> Thread for cancellation
-analysis_results = {}  # session_id -> result data
+analysis_results = {}  # session_id -> result data (completed analyses)
+active_analyses = {}  # session_id -> {'orchestrator': HotdogOrchestrator, 'config_path': str} (in-progress analyses)
+session_timestamps = {}  # session_id -> last_access_time (for cleanup)
 
 # Authentication - Load from environment variables
 def load_authorized_users():
@@ -94,6 +96,42 @@ logger.info("AUTHORIZED USERS LOADED:")
 for email, data in AUTHORIZED_USERS.items():
     logger.info(f"  User: {email} | Name: {data.get('name', 'N/A')}")
 logger.info("="*60)
+
+
+# ============================================================================
+# SESSION CLEANUP (Memory Management)
+# ============================================================================
+
+def cleanup_expired_sessions():
+    """
+    Remove sessions older than 1 hour to prevent memory exhaustion.
+    Reschedules itself every 15 minutes using threading.Timer.
+    """
+    try:
+        cutoff = datetime.now() - timedelta(hours=1)
+        expired = [
+            sid for sid, ts in session_timestamps.items()
+            if ts < cutoff
+        ]
+
+        for sid in expired:
+            progress_queues.pop(sid, None)
+            analysis_threads.pop(sid, None)
+            analysis_results.pop(sid, None)
+            active_analyses.pop(sid, None)
+            session_timestamps.pop(sid, None)
+            logger.info(f"✅ Cleaned up expired session: {sid}")
+
+        if expired:
+            logger.info(f"🧹 Cleaned up {len(expired)} expired sessions")
+
+    except Exception as e:
+        logger.error(f"❌ Session cleanup failed: {e}")
+
+    # Reschedule cleanup in 15 minutes (900 seconds)
+    timer = threading.Timer(900, cleanup_expired_sessions)
+    timer.daemon = True
+    timer.start()
 
 
 # ============================================================================
@@ -144,16 +182,20 @@ def _transform_to_legacy_format(hotdog_output: dict) -> dict:
                 'question': q.get('question_text', ''),  # Transform: question_text → question
             }
 
-            # Transform: primary_answer{text, pages} → answer, page_citations
+            # Transform: primary_answer{text, pages, footnote} → answer, page_citations, footnote
             primary_answer = q.get('primary_answer')
-            if primary_answer and q.get('has_answer', False):
+            # Check if answer exists: either has_answer=True OR primary_answer is not None
+            has_answer = q.get('has_answer', primary_answer is not None)
+            if primary_answer and has_answer:
                 legacy_question['answer'] = primary_answer.get('text', '')
                 legacy_question['page_citations'] = primary_answer.get('pages', [])
                 legacy_question['confidence'] = primary_answer.get('confidence', 0.0)
+                legacy_question['footnote'] = primary_answer.get('footnote', '')  # Include footnote
             else:
                 legacy_question['answer'] = None
                 legacy_question['page_citations'] = []
                 legacy_question['confidence'] = 0.0
+                legacy_question['footnote'] = None
 
             legacy_section['questions'].append(legacy_question)
 
@@ -367,7 +409,11 @@ def analyze_document():
     data = request.json
     pdf_path = data.get('pdf_path')
     context_guardrails = data.get('context_guardrails', '')
+    enabled_sections = data.get('enabled_sections', None)  # NEW: Optional list of enabled section IDs
     session_id = data.get('session_id', f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+
+    # Track session timestamp for cleanup
+    session_timestamps[session_id] = datetime.now()
 
     # Validate
     if not pdf_path or not os.path.exists(pdf_path):
@@ -395,6 +441,8 @@ def analyze_document():
     def run_analysis():
         try:
             logger.info(f"Starting analysis in thread: {session_id}")
+            if enabled_sections:
+                logger.info(f"Enabled sections: {enabled_sections}")
 
             # Get config path
             config_path = str(Config.BASE_DIR / 'config' / 'cipp_questions_default.json')
@@ -407,20 +455,32 @@ def analyze_document():
                 progress_callback=progress_callback
             )
 
+            # Store in active_analyses IMMEDIATELY (for partial results)
+            active_analyses[session_id] = {
+                'orchestrator': orchestrator,
+                'config_path': config_path,
+                'pdf_path': pdf_path
+            }
+            logger.info(f"Orchestrator stored in active_analyses: {session_id}")
+
             # Run analysis (blocking in THIS thread, not main Flask thread)
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
                 result = loop.run_until_complete(
-                    orchestrator.analyze_document(pdf_path, config_path)
+                    orchestrator.analyze_document(pdf_path, config_path, enabled_sections)
                 )
 
-                # Store result
+                # Move to completed results
                 analysis_results[session_id] = {
                     'result': result,
                     'orchestrator': orchestrator,
                     'config_path': config_path
                 }
+
+                # Remove from active analyses
+                if session_id in active_analyses:
+                    del active_analyses[session_id]
 
                 # Signal done
                 progress_q.put(('done', {}))
@@ -432,7 +492,18 @@ def analyze_document():
 
         except Exception as e:
             logger.error(f"Analysis failed: {e}", exc_info=True)
-            progress_q.put(('error', str(e)))
+            error_msg = str(e)
+            progress_q.put(('error', error_msg))
+
+            # Don't delete session if user stopped (allow partial results fetch)
+            # Keep session in active_analyses so /api/results can return partial data
+            if 'stopped by user' not in error_msg.lower():
+                # Clean up active analysis on actual errors
+                if session_id in active_analyses:
+                    del active_analyses[session_id]
+                    logger.info(f"Session cleaned up due to error: {session_id}")
+            else:
+                logger.info(f"Analysis stopped by user, preserving session for partial results: {session_id}")
 
     # Start analysis thread
     thread = threading.Thread(target=run_analysis, daemon=True)
@@ -455,57 +526,10 @@ def analyze_document():
 
 @app.route('/api/results/<session_id>', methods=['GET'])
 def get_results(session_id):
-    """Get analysis results after completion"""
+    """Get analysis results (supports both completed and in-progress analyses)"""
 
-    if session_id not in analysis_results:
-        return jsonify({'success': False, 'error': 'Session not found'}), 404
-
-    session_data = analysis_results[session_id]
-    result = session_data['result']
-    orchestrator = session_data['orchestrator']
-
-    # Get browser-formatted output
-    from services.hotdog.layers import ConfigurationLoader
-    config_loader = ConfigurationLoader()
-    parsed_config = config_loader.load_from_json(session_data['config_path'])
-
-    browser_output = orchestrator.get_browser_output(result, parsed_config)
-
-    # ========================================================================
-    # BACKWARDS COMPATIBILITY LAYER
-    # Transform HOTDOG's modern structure to legacy frontend structure
-    # ========================================================================
-    legacy_result = _transform_to_legacy_format(browser_output)
-
-    return jsonify({
-        'success': True,
-        'result': legacy_result,
-        'statistics': {
-            'processing_time': result.processing_time_seconds,
-            'total_tokens': result.total_tokens,
-            'estimated_cost': f"${result.estimated_cost:.4f}",
-            'questions_answered': result.questions_answered,
-            'total_questions': parsed_config.total_questions,
-            'average_confidence': f"{result.average_confidence:.0%}"
-        }
-    })
-
-
-# ============================================================================
-# EXCEL DASHBOARD EXPORT
-# ============================================================================
-
-@app.route('/api/export/excel-dashboard/<session_id>', methods=['GET'])
-def export_excel_dashboard(session_id):
-    """Generate executive Excel dashboard with charts"""
-
-    if session_id not in analysis_results:
-        return jsonify({'success': False, 'error': 'Session not found'}), 404
-
-    try:
-        # Lazy import to prevent app crash if openpyxl not installed
-        from services.excel_dashboard import ExcelDashboardGenerator
-
+    # Check if analysis is complete
+    if session_id in analysis_results:
         session_data = analysis_results[session_id]
         result = session_data['result']
         orchestrator = session_data['orchestrator']
@@ -514,17 +538,138 @@ def export_excel_dashboard(session_id):
         from services.hotdog.layers import ConfigurationLoader
         config_loader = ConfigurationLoader()
         parsed_config = config_loader.load_from_json(session_data['config_path'])
+
         browser_output = orchestrator.get_browser_output(result, parsed_config)
 
-        # Generate Excel dashboard
-        generator = ExcelDashboardGenerator(browser_output)
+        # ========================================================================
+        # BACKWARDS COMPATIBILITY LAYER
+        # Transform HOTDOG's modern structure to legacy frontend structure
+        # ========================================================================
+        legacy_result = _transform_to_legacy_format(browser_output)
+
+        return jsonify({
+            'success': True,
+            'result': legacy_result,
+            'statistics': {
+                'processing_time': result.processing_time_seconds,
+                'total_tokens': result.total_tokens,
+                'estimated_cost': f"${result.estimated_cost:.4f}",
+                'questions_answered': result.questions_answered,
+                'total_questions': parsed_config.total_questions,
+                'average_confidence': f"{result.average_confidence:.0%}"
+            }
+        })
+
+    # Check if analysis is active (in-progress - return partial results)
+    elif session_id in active_analyses:
+        logger.info(f"Fetching partial results for active analysis: {session_id}")
+
+        session_data = active_analyses[session_id]
+        orchestrator = session_data['orchestrator']
+        config_path = session_data['config_path']
+
+        # Get accumulated answers so far
+        accumulated_answers = orchestrator.layer4_accumulator.get_accumulated_answers()
+
+        # Load config
+        from services.hotdog.layers import ConfigurationLoader
+        config_loader = ConfigurationLoader()
+        parsed_config = config_loader.load_from_json(config_path)
+
+        # Build partial browser output
+        partial_browser_output = orchestrator._build_partial_browser_output(
+            accumulated_answers,
+            parsed_config
+        )
+
+        # Transform to legacy format
+        legacy_result = _transform_to_legacy_format(partial_browser_output)
+
+        return jsonify({
+            'success': True,
+            'result': legacy_result,
+            'partial': True,  # Flag indicating partial results
+            'statistics': {
+                'processing_time': 0,  # Not yet available
+                'total_tokens': orchestrator.layer5_token_manager.total_tokens_used,
+                'estimated_cost': 'In progress',
+                'questions_answered': len([a for answers in accumulated_answers.values() for a in answers]),
+                'total_questions': parsed_config.total_questions,
+                'average_confidence': 'In progress'
+            }
+        })
+
+    else:
+        return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+
+# ============================================================================
+# EXCEL DASHBOARD EXPORT
+# ============================================================================
+
+@app.route('/api/export/excel-dashboard/<session_id>', methods=['GET'])
+def export_excel_dashboard(session_id):
+    """Generate executive Excel dashboard with charts (supports partial results)"""
+
+    browser_output = None
+    is_partial = False
+
+    # Check completed results first
+    if session_id in analysis_results:
+        logger.info(f"Exporting completed analysis: {session_id}")
+        session_data = analysis_results[session_id]
+        result = session_data['result']
+        orchestrator = session_data['orchestrator']
+        config_path = session_data['config_path']
+
+        # Get complete browser-formatted output
+        from services.hotdog.layers import ConfigurationLoader
+        config_loader = ConfigurationLoader()
+        parsed_config = config_loader.load_from_json(config_path)
+        browser_output = orchestrator.get_browser_output(result, parsed_config)
+        is_partial = False
+
+    # Check active/stopped analyses
+    elif session_id in active_analyses:
+        logger.info(f"Exporting partial/stopped analysis: {session_id}")
+        session_data = active_analyses[session_id]
+        orchestrator = session_data['orchestrator']
+        config_path = session_data['config_path']
+
+        # Get accumulated answers so far
+        accumulated_answers = orchestrator.layer4_accumulator.get_accumulated_answers()
+
+        # Load config
+        from services.hotdog.layers import ConfigurationLoader
+        config_loader = ConfigurationLoader()
+        parsed_config = config_loader.load_from_json(config_path)
+
+        # Build partial browser output
+        browser_output = orchestrator._build_partial_browser_output(
+            accumulated_answers,
+            parsed_config
+        )
+        is_partial = True
+
+    else:
+        return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+    try:
+        # Lazy import to prevent app crash if openpyxl not installed
+        from services.excel_dashboard import ExcelDashboardGenerator
+
+        # Generate Excel dashboard (now works with both complete and partial)
+        generator = ExcelDashboardGenerator(browser_output, is_partial=is_partial)
         excel_file = generator.generate()
+
+        # Use different filename for partial exports
+        filename = 'CIPP_Executive_Dashboard_PARTIAL.xlsx' if is_partial else 'CIPP_Executive_Dashboard.xlsx'
 
         return send_file(
             excel_file,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
-            download_name='CIPP_Executive_Dashboard.xlsx'
+            download_name=filename
         )
 
     except Exception as e:
@@ -560,8 +705,42 @@ def stop_analysis(session_id):
 
 @app.route('/cipp-analyzer')
 def cipp_analyzer():
-    """Serve CIPP Analyzer application"""
-    return send_from_directory(Config.BASE_DIR / 'legacy' / 'services' / 'bid-spec-analysis-v1', 'cipp_analyzer_clean.html')
+    """Serve CIPP Analyzer application (REBUILT for HOTDOG AI)"""
+    return send_from_directory(Config.BASE_DIR, 'analyzer_rebuild.html')
+
+@app.route('/api/config/questions', methods=['GET'])
+def get_question_config():
+    """Load question configuration from JSON file"""
+    try:
+        config_path = Config.BASE_DIR / 'config' / 'cipp_questions_default.json'
+
+        if not config_path.exists():
+            return jsonify({
+                'success': False,
+                'error': 'Question configuration file not found'
+            }), 404
+
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config_data = json.load(f)
+
+        # Transform to frontend format
+        sections = config_data.get('sections', [])
+        total_questions = sum(len(section.get('questions', [])) for section in sections)
+
+        return jsonify({
+            'success': True,
+            'config': {
+                'sections': sections,
+                'totalQuestions': total_questions
+            }
+        })
+
+    except Exception as e:
+        logger.error(f'Failed to load question config: {str(e)}')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/progress-estimator')
 def progress_estimator():
@@ -584,6 +763,21 @@ except ImportError as e:
 
 
 # ============================================================================
+# HEALTH CHECK
+# ============================================================================
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for Render monitoring"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'active_sessions': len(active_analyses),
+        'completed_sessions': len(analysis_results)
+    }), 200
+
+
+# ============================================================================
 # ERROR HANDLERS
 # ============================================================================
 
@@ -593,18 +787,38 @@ def not_found(error):
 
 @app.errorhandler(500)
 def internal_error(error):
+    logger.error(f"Internal server error: {error}", exc_info=True)
     return jsonify({'error': 'Internal Server Error'}), 500
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Global exception handler - return JSON instead of HTML"""
+    logger.error(f"Unhandled exception: {e}", exc_info=True)
+    return jsonify({
+        'success': False,
+        'error': 'An unexpected error occurred. Please try again.'
+    }), 500
 
 
 # ============================================================================
 # MAIN
 # ============================================================================
 
+# Start session cleanup scheduler
+cleanup_expired_sessions()
+logger.info("🧹 Session cleanup scheduler started (15-minute intervals)")
+
 if __name__ == '__main__':
     logger.info("="*60)
     logger.info("PM Tools Suite - Clean Rebuild")
     logger.info("="*60)
-    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
+
+    # Get port and debug from environment (Render compatibility)
+    port = int(os.getenv('PORT', 5000))
+    debug = os.getenv('DEBUG', 'false').lower() == 'true'
+
+    logger.info(f"Starting server on port {port} (debug={debug})")
+    app.run(host='0.0.0.0', port=port, debug=debug, threaded=True)
 else:
     # For gunicorn
     logger.info("PM Tools Suite loaded (gunicorn mode)")

@@ -125,6 +125,7 @@ class Answer:
     confidence: float  # 0.0 - 1.0
     expert: str  # Which expert provided this answer
     window: int  # Which 3-page window this came from
+    footnote: str = ""  # Contextual footnote with PDF page + section ref + bidding context
     windows: List[int] = field(default_factory=list)  # All windows that contributed
     merge_count: int = 0  # How many times merged
     created_at: datetime = field(default_factory=datetime.now)
@@ -192,6 +193,13 @@ class Answer:
 
         # Use highest confidence
         self.confidence = max(self.confidence, other.confidence)
+
+        # Merge footnotes (keep both if different)
+        if other.footnote and other.footnote != self.footnote:
+            if self.footnote:
+                self.footnote = f"{self.footnote} | {other.footnote}"
+            else:
+                self.footnote = other.footnote
 
         # Track merge history
         self.windows = sorted(set(self.windows + other.windows))

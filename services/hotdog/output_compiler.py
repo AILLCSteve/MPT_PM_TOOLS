@@ -243,7 +243,8 @@ class OutputCompiler:
             },
             'expert': answer.expert,
             'windows': answer.windows,
-            'merge_count': answer.merge_count
+            'merge_count': answer.merge_count,
+            'footnote': answer.footnote  # Include footnote for browser display
         }
 
     def format_for_excel(self, result: AnalysisResult, config: ParsedConfig) -> Dict:

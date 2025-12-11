@@ -23,6 +23,7 @@ CRITICAL FEATURES:
 
 import asyncio
 import logging
+import os
 from typing import Dict, List, Optional, Callable
 from datetime import datetime
 from pathlib import Path
@@ -100,7 +101,8 @@ class HotdogOrchestrator:
         self.layer1_config = ConfigurationLoader()
         self.layer2_experts = ExpertPersonaGenerator(
             openai_client=self.openai_client,
-            model=self.model
+            model=self.model,
+            context_guardrails=self.context_guardrails
         )
         self.layer3_processor = MultiExpertProcessor(
             openai_client=self.openai_client,
@@ -139,7 +141,8 @@ class HotdogOrchestrator:
     async def analyze_document(
         self,
         pdf_path: str,
-        config_path: Optional[str] = None
+        config_path: Optional[str] = None,
+        enabled_sections: Optional[List[str]] = None
     ) -> AnalysisResult:
         """
         Perform complete document analysis.
@@ -149,6 +152,7 @@ class HotdogOrchestrator:
         Args:
             pdf_path: Path to PDF document to analyze
             config_path: Path to question configuration (overrides default)
+            enabled_sections: Optional list of section IDs to analyze (if None, analyze all)
 
         Returns:
             Complete AnalysisResult with all answers and metadata
@@ -161,6 +165,7 @@ class HotdogOrchestrator:
         logger.info(f"🚀 Starting HOTDOG analysis: {pdf_path}")
         self._emit_progress('analysis_started', {
             'pdf_path': pdf_path,
+            'document': os.path.basename(pdf_path),  # For frontend display
             'started_at': started_at.isoformat()  # Convert to JSON-serializable string
         })
 
@@ -178,7 +183,8 @@ class HotdogOrchestrator:
             self._emit_progress('document_ingested', {
                 'document_name': doc_metadata.get('document_name', 'Unknown'),
                 'total_pages': len(pages),
-                'window_count': len(windows)
+                'window_count': len(windows),
+                'window_size': 3  # Standard window size
             })
 
             # Cache windows for potential second pass
@@ -195,6 +201,25 @@ class HotdogOrchestrator:
                 raise ValueError("No configuration file provided")
 
             config = self.layer1_config.load_from_json(config_file)
+
+            # FILTER CONFIG: Only include enabled sections if specified
+            if enabled_sections is not None:
+                original_section_count = len(config.sections)
+                original_question_count = config.total_questions
+
+                # Filter to only enabled sections
+                config.sections = [s for s in config.sections if s.id in enabled_sections]
+
+                # Rebuild maps based on filtered sections
+                config.section_map = {s.id: s for s in config.sections}
+                config.question_map = {}
+                for section in config.sections:
+                    for question in section.questions:
+                        config.question_map[question.id] = question
+
+                # Log filtering (properties auto-compute from filtered data)
+                logger.info(f"  🔍 Filtered to {config.total_sections}/{original_section_count} enabled sections")
+                logger.info(f"  🔍 Analyzing {config.total_questions}/{original_question_count} questions")
 
             logger.info(f"  ✅ Loaded {config.total_questions} questions in {config.total_sections} sections")
             self._emit_progress('config_loaded', {
@@ -305,13 +330,31 @@ class HotdogOrchestrator:
                     accumulated_so_far, config, window_idx, len(windows)
                 )
 
+                # Build new_answers array with full details for frontend table
+                new_answers = []
+                for answer in window_result.answers.values():
+                    question = config.question_map.get(answer.question_id)
+                    if question:
+                        section = config.section_map.get(question.section_id)
+                        new_answers.append({
+                            'question_id': answer.question_id,
+                            'question_text': question.text,
+                            'section_id': question.section_id,
+                            'section_name': section.name if section else question.section_id,
+                            'answer_text': answer.text,
+                            'pages': answer.pages,
+                            'confidence': answer.confidence,
+                            'footnote': answer.footnote  # NEW: Include footnote
+                        })
+
                 self._emit_progress('window_complete', {
                     'window_num': window_idx,
                     'answers_found': len(window_result.answers),
                     'tokens_used': window_result.tokens_used,
                     'processing_time': window_result.processing_time,
                     'accumulation_stats': accumulation_stats,
-                    'unitary_log_markdown': unitary_log_markdown  # LIVE UNITARY LOG
+                    'unitary_log_markdown': unitary_log_markdown,  # LIVE UNITARY LOG
+                    'new_answers': new_answers  # NEW: Full answer details with footnotes
                 })
 
                 # Progress update every 3 windows
@@ -650,6 +693,59 @@ class HotdogOrchestrator:
             Formatted text report
         """
         return self.layer6_compiler.generate_text_report(result, config)
+
+    def _build_partial_browser_output(self, accumulated_answers: dict, config: ParsedConfig) -> dict:
+        """
+        Build partial browser output from accumulated answers (for in-progress analyses).
+
+        Args:
+            accumulated_answers: Dict mapping question_id -> List[Answer]
+            config: Question configuration
+
+        Returns:
+            Dict ready for browser display (partial results)
+        """
+        sections = []
+
+        for section in config.sections:
+            section_data = {
+                'section_id': section.id,
+                'section_name': section.name,
+                'description': section.description,
+                'questions': []
+            }
+
+            for question in section.questions:
+                answers_list = accumulated_answers.get(question.id, [])
+
+                # Get primary answer if exists
+                if answers_list:
+                    primary = answers_list[0]
+                    question_data = {
+                        'question_id': question.id,
+                        'question_text': question.text,
+                        'has_answer': True,
+                        'primary_answer': {
+                            'text': primary.text,
+                            'pages': primary.pages,
+                            'confidence': primary.confidence,
+                            'footnote': primary.footnote  # Include footnote for partial results
+                        }
+                    }
+                else:
+                    # No answer yet
+                    question_data = {
+                        'question_id': question.id,
+                        'question_text': question.text,
+                        'has_answer': False,
+                        'primary_answer': None
+                    }
+
+                section_data['questions'].append(question_data)
+
+            sections.append(section_data)
+
+        return {'sections': sections}
 
 
 # =============================================================================

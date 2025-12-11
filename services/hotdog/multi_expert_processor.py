@@ -281,28 +281,34 @@ QUESTIONS TO ANSWER:
 CRITICAL INSTRUCTIONS:
 1. Answer ONLY the questions listed above
 2. Base answers ONLY on the text provided (Pages {page_numbers})
-3. EVERY answer MUST include PDF page citation in format: <PDF pg X> where X is the page number
+3. EVERY answer MUST include:
+   - Direct quotes from the document text (use "quotation marks")
+   - PDF page citation in format: <PDF pg X> where X is the page number
+   - Footnote with additional context (PDF page reference + section number + bidding implications)
 4. If information spans multiple pages, cite ALL pages: <PDF pg 5, 6, 7>
 5. If you cannot find information for a question, respond with "NOT FOUND" and confidence 0.0
-6. Be specific and factual - extract exact information from the text
+6. Be specific and factual - include relevant quoted text from the document
 7. Include your confidence level (0.0-1.0) for each answer
+8. Format answers with interpretation AND direct quotes: [Summary with "quoted text from document"] <PDF pg X>
+9. FOOTNOTE FORMAT: Start with "Found on <PDF pg X>" then add section reference and any bidding context
 
 OUTPUT FORMAT (JSON):
 {{
   "answers": [
     {{
       "question_id": "Q1",
-      "text": "The answer text with <PDF pg X> citation included",
-      "pages": [5, 6],
-      "confidence": 0.85,
-      "reasoning": "Brief explanation of how you found this answer"
+      "text": "The project specifies \"ultra-high molecular weight polyethylene\" as the required material <PDF pg 5>",
+      "pages": [5],
+      "confidence": 0.95,
+      "reasoning": "Found exact material specification with direct quote from technical requirements",
+      "footnote": "Found on <PDF pg 5>, Section 3.2.1: ASTM F1216 compliance required for material certification. Cross-reference warranty terms in General Conditions."
     }}
   ]
 }}
 
 {expert.citation_strategy}
 
-Remember: Every answer MUST have a <PDF pg X> citation. This is MANDATORY."""
+Remember: Every answer MUST include BOTH direct quotes (in "quotation marks") AND <PDF pg X> citation. This is MANDATORY."""
 
         return prompt
 
@@ -335,6 +341,7 @@ Remember: Every answer MUST have a <PDF pg X> citation. This is MANDATORY."""
             text = answer_data.get('text', '').strip()
             pages = answer_data.get('pages', [])
             confidence = answer_data.get('confidence', 0.0)
+            footnote = answer_data.get('footnote', '').strip()  # NEW: Extract footnote
 
             # Skip "NOT FOUND" responses
             if text == "NOT FOUND" or confidence == 0.0:
@@ -370,10 +377,11 @@ Remember: Every answer MUST have a <PDF pg X> citation. This is MANDATORY."""
                     pages=valid_pages,
                     confidence=confidence,
                     expert=expert.name,
-                    window=window.window_num
+                    window=window.window_num,
+                    footnote=footnote  # NEW: Include footnote
                 )
                 answers.append(answer)
-                logger.debug(f"✅ Question {question_id}: Answer validated (pages: {valid_pages})")
+                logger.debug(f"✅ Question {question_id}: Answer validated (pages: {valid_pages}, footnote: {len(footnote)} chars)")
 
             except ValueError as e:
                 logger.error(f"Question {question_id}: Validation failed - {e}")
