@@ -739,14 +739,19 @@
             <h2 id="authModalTitle">Tool Access</h2>
             <p style="margin-bottom: 1.5rem; text-align: left;">Please enter your credentials to access this tool.</p>
 
-            <form id="authForm" onsubmit="handleAuthentication(event)" style="text-align: left;">
+            <form id="authForm" onsubmit="handleAuthentication(event)" style="text-align: left;" autocomplete="on">
                 <div style="margin-bottom: 1.5rem;">
                     <label for="username" style="display: block; margin-bottom: 0.5rem; color: #1E3A8A; font-weight: 600;">Email</label>
                     <input
                         type="email"
                         id="username"
+                        name="username"
                         required
                         placeholder="user@munipipe.com"
+                        autocomplete="email"
+                        autocapitalize="none"
+                        autocorrect="off"
+                        spellcheck="false"
                         style="width: 100%; padding: 0.75rem; border: 2px solid #E5E7EB; border-radius: 6px; font-size: 1rem; transition: border-color 0.3s ease;"
                         onfocus="this.style.borderColor='#5B7FCC'"
                         onblur="this.style.borderColor='#E5E7EB'"
@@ -757,8 +762,13 @@
                     <input
                         type="password"
                         id="password"
+                        name="password"
                         required
                         placeholder="Enter your password"
+                        autocomplete="current-password"
+                        autocapitalize="none"
+                        autocorrect="off"
+                        spellcheck="false"
                         style="width: 100%; padding: 0.75rem; border: 2px solid #E5E7EB; border-radius: 6px; font-size: 1rem; transition: border-color 0.3s ease;"
                         onfocus="this.style.borderColor='#5B7FCC'"
                         onblur="this.style.borderColor='#E5E7EB'"
@@ -901,7 +911,8 @@
         async function handleAuthentication(event) {
             event.preventDefault();
 
-            const username = document.getElementById('username').value;
+            // Get and normalize input values (trim whitespace, handle mobile autocorrect)
+            const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
             const submitBtn = document.getElementById('authSubmitBtn');
             const errorDiv = document.getElementById('authError');
@@ -910,6 +921,9 @@
             submitBtn.disabled = true;
             submitBtn.textContent = 'Authenticating...';
             errorDiv.style.display = 'none';
+
+            // Debug logging for mobile troubleshooting
+            console.log('[Auth] Attempting authentication for:', username);
 
             try {
                 const response = await fetch('/api/authenticate', {
@@ -921,28 +935,39 @@
                 });
 
                 const data = await response.json();
+                console.log('[Auth] Server response:', response.status, data);
 
                 if (response.ok && data.success) {
-                    // Store authentication token
-                    sessionStorage.setItem('authToken', data.token);
-                    sessionStorage.setItem('userEmail', username);
+                    // Store authentication token with fallback for mobile storage issues
+                    try {
+                        sessionStorage.setItem('authToken', data.token);
+                        sessionStorage.setItem('userEmail', username);
+                        console.log('[Auth] Token stored successfully');
+                    } catch (storageError) {
+                        console.warn('[Auth] SessionStorage failed, using fallback:', storageError);
+                        // Fallback: Use cookie if sessionStorage fails (some mobile browsers)
+                        document.cookie = `authToken=${data.token}; path=/; max-age=86400; SameSite=Strict`;
+                    }
 
                     // Save URL before closing modal (closeAuthModal clears targetToolUrl)
                     const redirectUrl = targetToolUrl;
 
                     // Close modal and redirect to tool
                     closeAuthModal();
-                    window.location.href = redirectUrl;
+
+                    // Use replace instead of href for better mobile compatibility
+                    window.location.replace(redirectUrl);
                 } else {
                     // Show error message
+                    console.error('[Auth] Authentication failed:', data.message);
                     errorDiv.textContent = data.message || 'Invalid credentials. Please try again.';
                     errorDiv.style.display = 'block';
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Access Tool';
                 }
             } catch (error) {
-                console.error('Authentication error:', error);
-                errorDiv.textContent = 'An error occurred. Please try again.';
+                console.error('[Auth] Authentication error:', error);
+                errorDiv.textContent = 'An error occurred. Please check your connection and try again.';
                 errorDiv.style.display = 'block';
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Access Tool';
