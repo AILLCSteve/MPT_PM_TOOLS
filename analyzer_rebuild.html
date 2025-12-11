@@ -635,6 +635,12 @@ async function startAnalysis() {
                     Logger.success('✅ SSE Progress stream connected');
                     ProgressTracker.update(5, 'Connected to server');
                 }
+                else if (data.event === 'diagnostic_test') {
+                    // DIAGNOSTIC: Immediate yield test to detect buffering
+                    const receivedTime = Date.now();
+                    Logger.info(`🔬 DIAGNOSTIC: Received test event (timestamp: ${data.timestamp}, received at: ${receivedTime})`);
+                    console.log('[DIAGNOSTIC] Test event received:', data);
+                }
                 else if (data.event === 'analysis_started') {
                     Logger.info(`🔥 HOTDOG AI analysis started for: ${data.document || 'document'}`);
                     ProgressTracker.update(10, 'Analysis starting...');

@@ -361,22 +361,34 @@ def progress_stream(session_id):
     """SSE endpoint for real-time progress updates"""
 
     def generate():
+        import time
+
         # Create or get queue
         if session_id not in progress_queues:
             progress_queues[session_id] = queue.Queue(maxsize=100)
 
         q = progress_queues[session_id]
 
+        # DIAGNOSTIC: Log SSE connection with timestamp
+        start_time = time.time()
+        logger.info(f"🔵 SSE connection opened: {session_id} at {datetime.now().isoformat()}")
+
         # Send connection event
-        logger.info(f"🔵 SSE connection opened: {session_id}")
         yield f"data: {json.dumps({'event': 'connected', 'session_id': session_id})}\n\n"
+        logger.info(f"📤 Sent 'connected' event to client: {session_id}")
+
+        # DIAGNOSTIC: Immediate test yield (should appear instantly in browser if no buffering)
+        time.sleep(0.5)
+        test_timestamp = time.time()
+        yield f"data: {json.dumps({{'event': 'diagnostic_test', 'message': 'Immediate yield test', 'timestamp': test_timestamp}})}\n\n"
+        logger.info(f"📤 Sent diagnostic test event: {session_id} (delta: {test_timestamp - start_time:.2f}s)")
 
         # Stream events
         while True:
             try:
                 # Get next event (15 second timeout for keepalive)
                 event_type, data = q.get(timeout=15)
-                logger.debug(f"📡 SSE sending: {event_type}")  # Debug logging
+                logger.info(f"📡 SSE sending: {event_type} at {datetime.now().isoformat()}")  # Changed to INFO
 
                 # Check for done/error signals
                 if event_type == 'done':
@@ -394,7 +406,7 @@ def progress_stream(session_id):
 
             except queue.Empty:
                 # Send keepalive
-                logger.debug(f"💓 SSE keepalive: {session_id}")
+                logger.info(f"💓 SSE keepalive: {session_id} at {datetime.now().isoformat()}")  # Changed to INFO
                 yield ": keepalive\n\n"
 
         # Cleanup
@@ -448,7 +460,7 @@ def analyze_document():
     def progress_callback(event_type: str, event_data: dict):
         try:
             progress_q.put_nowait((event_type, event_data))
-            logger.debug(f"📤 Event queued: {event_type}")  # Debug logging
+            logger.info(f"📥 Event queued: {event_type} (queue size: {progress_q.qsize()}) at {datetime.now().isoformat()}")  # Changed to INFO
         except queue.Full:
             logger.warning(f"Progress queue full, dropping event: {event_type}")
 
