@@ -365,7 +365,7 @@ def progress_stream(session_id):
 
         # Create or get queue
         if session_id not in progress_queues:
-            progress_queues[session_id] = queue.Queue(maxsize=100)
+            progress_queues[session_id] = queue.Queue(maxsize=1000)
 
         q = progress_queues[session_id]
 
@@ -452,7 +452,7 @@ def analyze_document():
 
     # Create progress queue for this session
     if session_id not in progress_queues:
-        progress_queues[session_id] = queue.Queue(maxsize=100)
+        progress_queues[session_id] = queue.Queue(maxsize=1000)
 
     progress_q = progress_queues[session_id]
 
