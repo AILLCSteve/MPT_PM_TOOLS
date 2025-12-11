@@ -974,9 +974,14 @@
             const submitBtn = document.getElementById('authSubmitBtn');
             const errorDiv = document.getElementById('authError');
 
-            // TEMPORARY DEBUG: Show character codes on mobile
+            // TEMPORARY DEBUG: Show character codes on mobile (ON-SCREEN)
             if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
                 const chars = Array.from(password).map(c => c.charCodeAt(0));
+                const debugMsg = `Password Debug:\nLength: ${password.length}\nChars: ${chars.join(', ')}`;
+
+                // Show on-screen alert for debugging
+                alert(debugMsg);
+
                 console.log('Password char codes:', chars);
                 console.log('Password length:', password.length);
             }
