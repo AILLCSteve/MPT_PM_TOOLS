@@ -754,18 +754,41 @@ def export_excel_dashboard(session_id):
 @app.route('/api/stop/<session_id>', methods=['POST'])
 def stop_analysis(session_id):
     """Stop ongoing analysis"""
+    logger.info(f"Stop requested for: {session_id}")
+
+    # Check if analysis is active (check active_analyses AND analysis_threads)
+    found = False
+
+    if session_id in active_analyses:
+        # Set stop flag on orchestrator
+        orchestrator = active_analyses[session_id]['orchestrator']
+        orchestrator.stop_requested = True
+        logger.info(f"Stop flag set on orchestrator: {session_id}")
+        found = True
 
     if session_id in analysis_threads:
-        # Note: Python threads can't be directly killed
-        # We can only mark them and wait for orchestrator to check
-        logger.info(f"Stop requested for: {session_id}")
+        logger.info(f"Found in analysis_threads: {session_id}")
+        found = True
 
-        # Send error event to close SSE
+    if found:
+        # Send error event to close SSE gracefully
         if session_id in progress_queues:
-            progress_queues[session_id].put(('error', 'Analysis stopped by user'))
+            try:
+                progress_queues[session_id].put_nowait(('error', 'Analysis stopped by user'))
+                logger.info(f"Stop event queued for SSE: {session_id}")
+            except:
+                pass  # Queue might be full
 
         return jsonify({'success': True, 'message': 'Stop signal sent'})
 
+    # Check completed analyses
+    if session_id in analysis_results:
+        logger.info(f"Analysis already complete: {session_id}")
+        return jsonify({'success': True, 'message': 'Analysis already complete'})
+
+    logger.warning(f"Session not found: {session_id}")
+    logger.info(f"Active analyses: {list(active_analyses.keys())}")
+    logger.info(f"Analysis threads: {list(analysis_threads.keys())}")
     return jsonify({'success': False, 'error': 'Session not found'}), 404
 
 
