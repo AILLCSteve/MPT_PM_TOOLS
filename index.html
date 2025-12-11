@@ -952,10 +952,22 @@
             // Get and normalize input values (trim whitespace, handle mobile autocorrect)
             const username = document.getElementById('username').value.trim();
 
-            // CRITICAL FIX: Normalize dashes in password (iPhone smart punctuation converts - to – or —)
+            // CRITICAL FIX: Normalize Unicode variants (iPhone/mobile keyboards convert these)
             let password = document.getElementById('password').value;
-            // Replace en dash (–), em dash (—), minus sign (−) with regular hyphen (-)
-            password = password.replace(/[\u2013\u2014\u2212]/g, '-');
+
+            // Normalize all dash/hyphen/minus variants to ASCII hyphen-minus (-)
+            password = password.replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-');
+
+            // Normalize fullwidth punctuation to ASCII
+            password = password.replace(/\uFF01/g, '!');  // ！ → !
+            password = password.replace(/\uFF1F/g, '?');  // ？ → ?
+            password = password.replace(/\uFF0E/g, '.');  // ． → .
+            password = password.replace(/\uFF0C/g, ',');  // ， → ,
+
+            // Normalize fullwidth digits to ASCII (0-9)
+            password = password.replace(/[\uFF10-\uFF19]/g, (c) =>
+                String.fromCharCode(c.charCodeAt(0) - 0xFEE0)
+            );
             const submitBtn = document.getElementById('authSubmitBtn');
             const errorDiv = document.getElementById('authError');
 
