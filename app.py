@@ -363,10 +363,8 @@ def progress_stream(session_id):
     def generate():
         import time
 
-        # Create or get queue
-        if session_id not in progress_queues:
-            progress_queues[session_id] = queue.Queue(maxsize=1000)
-
+        # Create or get queue (atomic to prevent race condition)
+        progress_queues.setdefault(session_id, queue.Queue(maxsize=1000))
         q = progress_queues[session_id]
 
         # DIAGNOSTIC: Log SSE connection with timestamp
@@ -450,10 +448,8 @@ def analyze_document():
     if not openai_key:
         return jsonify({'success': False, 'error': 'API key not configured'}), 500
 
-    # Create progress queue for this session
-    if session_id not in progress_queues:
-        progress_queues[session_id] = queue.Queue(maxsize=1000)
-
+    # Create progress queue for this session (atomic to prevent race condition)
+    progress_queues.setdefault(session_id, queue.Queue(maxsize=1000))
     progress_q = progress_queues[session_id]
 
     # Define progress callback (SIMPLE - just queue it)
