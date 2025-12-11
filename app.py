@@ -5,13 +5,11 @@ HOTDOG AI Document Analysis with Real-Time SSE Progress
 Architecture: Threading-based (simple, proven, works)
 """
 # CRITICAL: Gevent monkey patching MUST be first (before any other imports)
-# Patch everything including threading to avoid concurrent.futures.ThreadPoolExecutor errors
-# This is required for httpx/openai libraries that use ThreadPoolExecutor internally
+# This makes socket/queue work with gevent workers
+# thread=False prevents conflicts with threading.Thread in analysis
 try:
     from gevent import monkey
-    # Patch all including threading - required for concurrent.futures compatibility
-    # subprocess=False to avoid issues with OpenAI library spawning processes
-    monkey.patch_all(subprocess=False)
+    monkey.patch_all(thread=False, select=False)
     GEVENT_PATCHED = True
 except ImportError:
     # Gevent not installed (development mode) - continue without patching
@@ -55,7 +53,7 @@ logger.info(f"🐍 Python {sys.version.split()[0]} at {sys.executable}")
 if GEVENT_PATCHED:
     try:
         import gevent
-        logger.info(f"✅ gevent {gevent.__version__} installed and monkey-patched (all except subprocess)")
+        logger.info(f"✅ gevent {gevent.__version__} installed and patched (thread=False)")
     except:
         logger.warning(f"⚠️ Gevent patch attempted but module import failed")
 else:
@@ -756,32 +754,18 @@ def export_excel_dashboard(session_id):
 @app.route('/api/stop/<session_id>', methods=['POST'])
 def stop_analysis(session_id):
     """Stop ongoing analysis"""
-    logger.info(f"Stop requested for: {session_id}")
 
-    # Check if analysis is active (use active_analyses, not analysis_threads)
-    if session_id in active_analyses:
-        # Set stop flag on orchestrator
-        orchestrator = active_analyses[session_id]['orchestrator']
-        orchestrator.stop_requested = True
-        logger.info(f"Stop flag set on orchestrator: {session_id}")
+    if session_id in analysis_threads:
+        # Note: Python threads can't be directly killed
+        # We can only mark them and wait for orchestrator to check
+        logger.info(f"Stop requested for: {session_id}")
 
-        # Send error event to close SSE gracefully
+        # Send error event to close SSE
         if session_id in progress_queues:
-            try:
-                progress_queues[session_id].put_nowait(('error', 'Analysis stopped by user'))
-                logger.info(f"Stop event queued for SSE: {session_id}")
-            except:
-                pass  # Queue might be full, SSE will close anyway
+            progress_queues[session_id].put(('error', 'Analysis stopped by user'))
 
         return jsonify({'success': True, 'message': 'Stop signal sent'})
 
-    # Check completed analyses
-    if session_id in analysis_results:
-        logger.info(f"Analysis already complete: {session_id}")
-        return jsonify({'success': True, 'message': 'Analysis already complete'})
-
-    logger.warning(f"Session not found: {session_id}")
-    logger.info(f"Active sessions: {list(active_analyses.keys())}")
     return jsonify({'success': False, 'error': 'Session not found'}), 404
 
 

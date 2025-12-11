@@ -131,9 +131,6 @@ class HotdogOrchestrator:
         self.cached_experts = {}
         self.cached_config = None
 
-        # Stop flag for graceful shutdown
-        self.stop_requested = False
-
         logger.info("🔥 HOTDOG AI Orchestrator initialized")
         logger.info(f"   Model: {self.model}")
         logger.info(f"   Prompt Budget: {model_limits.recommended_prompt_tokens:,} tokens (18.75x improvement!)")
@@ -260,11 +257,6 @@ class HotdogOrchestrator:
             self._emit_progress('processing_start', {'total_windows': len(windows)})
 
             for window_idx, window in enumerate(windows, 1):
-                # Check for stop request
-                if self.stop_requested:
-                    logger.warning(f"⏹️  Analysis stopped by user at window {window_idx}/{len(windows)}")
-                    raise Exception("Analysis stopped by user")
-
                 logger.info(f"\n{'='*64}")
                 logger.info(f"Window {window_idx}/{len(windows)}: Pages {window.page_range_str}")
                 logger.info(f"{'='*64}")
