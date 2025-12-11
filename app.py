@@ -4,6 +4,15 @@ HOTDOG AI Document Analysis with Real-Time SSE Progress
 
 Architecture: Threading-based (simple, proven, works)
 """
+# CRITICAL: Gevent monkey patching MUST be first (before any other imports)
+# This makes threading, queue, and socket work with gevent workers
+try:
+    from gevent import monkey
+    monkey.patch_all()
+except ImportError:
+    # Gevent not installed (development mode) - continue without patching
+    pass
+
 import os
 import sys
 import logging
@@ -359,6 +368,7 @@ def progress_stream(session_id):
         q = progress_queues[session_id]
 
         # Send connection event
+        logger.info(f"🔵 SSE connection opened: {session_id}")
         yield f"data: {json.dumps({'event': 'connected', 'session_id': session_id})}\n\n"
 
         # Stream events
@@ -366,13 +376,16 @@ def progress_stream(session_id):
             try:
                 # Get next event (15 second timeout for keepalive)
                 event_type, data = q.get(timeout=15)
+                logger.debug(f"📡 SSE sending: {event_type}")  # Debug logging
 
                 # Check for done/error signals
                 if event_type == 'done':
+                    logger.info(f"✅ SSE sending 'done' event: {session_id}")
                     yield f"data: {json.dumps({'event': 'done'})}\n\n"
                     break
 
                 if event_type == 'error':
+                    logger.info(f"❌ SSE sending 'error' event: {session_id}")
                     yield f"data: {json.dumps({'event': 'error', 'error': data})}\n\n"
                     break
 
@@ -381,6 +394,7 @@ def progress_stream(session_id):
 
             except queue.Empty:
                 # Send keepalive
+                logger.debug(f"💓 SSE keepalive: {session_id}")
                 yield ": keepalive\n\n"
 
         # Cleanup
@@ -434,6 +448,7 @@ def analyze_document():
     def progress_callback(event_type: str, event_data: dict):
         try:
             progress_q.put_nowait((event_type, event_data))
+            logger.debug(f"📤 Event queued: {event_type}")  # Debug logging
         except queue.Full:
             logger.warning(f"Progress queue full, dropping event: {event_type}")
 
