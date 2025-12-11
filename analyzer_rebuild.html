@@ -425,7 +425,9 @@
 let currentFile = null;
 let currentSessionId = null;
 let currentAnalysisResult = null;
-let activeEventSource = null;
+let activeEventSource = null;  // LEGACY: Kept for backward compatibility
+let pollingInterval = null;  // NEW: Polling interval
+let lastEventIndex = 0;  // NEW: Track which events we've already processed
 let questionConfig = { sections: [], totalQuestions: 0 };
 let liveAnswers = {}; // Store answers as they come in: { question_id: { question, answer, pages } }
 
@@ -470,6 +472,177 @@ class ProgressTracker {
     static update(percentage, text) {
         document.getElementById('progressFill').style.width = `${percentage}%`;
         document.getElementById('progressText').textContent = text;
+    }
+}
+
+// ============================================================================
+// POLLING - Event Streaming (Replaces SSE)
+// ============================================================================
+
+function startPolling(sessionId) {
+    Logger.info(`📡 Starting event polling for session: ${sessionId}`);
+    lastEventIndex = 0;  // Reset event counter
+
+    // Poll immediately, then every 1 second
+    pollForEvents();
+    pollingInterval = setInterval(pollForEvents, 1000);
+}
+
+function stopPolling() {
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+        Logger.info('📡 Stopped event polling');
+    }
+}
+
+async function pollForEvents() {
+    if (!currentSessionId) return;
+
+    try {
+        const resp = await fetch(`/api/events/${currentSessionId}?last_index=${lastEventIndex}`);
+        const data = await resp.json();
+
+        if (!data.success) {
+            Logger.error('Polling failed: ' + (data.error || 'Unknown error'));
+            return;
+        }
+
+        // Process new events
+        if (data.events && data.events.length > 0) {
+            console.log(`[POLLING] Received ${data.events.length} new events (total: ${data.total_events})`);
+            data.events.forEach(event => handleEvent(event));
+        }
+
+        // Update last index
+        lastEventIndex = data.last_index;
+
+    } catch (error) {
+        console.error('[POLLING] Error:', error);
+        // Don't spam the log - polling will retry in 1 second
+    }
+}
+
+function handleEvent(data) {
+    // This function processes a single event (same logic as SSE onmessage)
+    try {
+        console.log('[EVENT] Processing:', data.event, data);
+
+        // Route events to Logger with DETAILED logging
+        if (data.event === 'connected') {
+            Logger.success('✅ Progress stream connected');
+            ProgressTracker.update(5, 'Connected to server');
+        }
+        else if (data.event === 'diagnostic_test') {
+            Logger.info(`🔬 DIAGNOSTIC: Received test event`);
+        }
+        else if (data.event === 'analysis_started') {
+            Logger.info(`🔥 HOTDOG AI analysis started for: ${data.document || 'document'}`);
+            ProgressTracker.update(10, 'Analysis starting...');
+        }
+        else if (data.event === 'layer_0_start') {
+            Logger.info(`📊 Layer 0: ${data.layer} - Starting PDF extraction...`);
+            ProgressTracker.update(12, 'Reading PDF...');
+        }
+        else if (data.event === 'document_ingested') {
+            Logger.success(`📄 Document ingested: ${data.total_pages} pages extracted`);
+            Logger.info(`   ↳ Created ${data.window_count} windows (${data.window_size} pages each)`);
+            ProgressTracker.update(20, `Extracted ${data.total_pages} pages`);
+        }
+        else if (data.event === 'layer_1_start') {
+            Logger.info(`📊 Layer 1: ${data.layer} - Loading question configuration...`);
+            ProgressTracker.update(22, 'Loading questions...');
+        }
+        else if (data.event === 'config_loaded') {
+            Logger.success(`⚙️ Configuration loaded: ${data.total_questions} questions in ${data.section_count} sections`);
+            if (data.sections) {
+                Logger.info(`   ↳ Sections: ${data.sections.join(', ')}`);
+            }
+            ProgressTracker.update(25, `Loaded ${data.total_questions} questions`);
+        }
+        else if (data.event === 'layer_2_start') {
+            Logger.info(`📊 Layer 2: ${data.layer} - Generating AI expert personas...`);
+            ProgressTracker.update(27, 'Creating AI experts...');
+        }
+        else if (data.event === 'expert_generated') {
+            Logger.info(`🤖 AI Expert created: ${data.expert_name}`);
+            if (data.section) {
+                Logger.info(`   ↳ Specialization: ${data.section}`);
+            }
+            ProgressTracker.update(30, `Generating experts...`);
+        }
+        else if (data.event === 'processing_start') {
+            Logger.success(`🚀 Multi-expert processing started: ${data.total_windows} windows to analyze`);
+            ProgressTracker.update(35, 'Starting window processing...');
+        }
+        else if (data.event === 'window_processing') {
+            Logger.info(`🔍 Window ${data.window_num}/${data.total_windows}: Analyzing pages ${data.pages}`);
+            const progress = 40 + ((data.window_num / data.total_windows) * 45);
+            ProgressTracker.update(progress, `Window ${data.window_num}/${data.total_windows}`);
+        }
+        else if (data.event === 'experts_dispatched') {
+            Logger.info(`   ↳ Dispatched ${data.expert_count} experts for ${data.question_count} questions`);
+        }
+        else if (data.event === 'experts_complete') {
+            Logger.success(`   ↳ Experts returned ${data.answers_returned} answers`);
+            Logger.info(`   ↳ Tokens used: ${data.tokens_used} | Cost: $${data.cost || '0.00'}`);
+        }
+        else if (data.event === 'window_complete') {
+            Logger.success(`✅ Window ${data.window_num} complete: ${data.answers_found} answers found in ${data.processing_time.toFixed(1)}s`);
+            if (data.unitary_log) {
+                Logger.info(`   ↳ ${data.unitary_log}`);
+            }
+
+            // NEW: Update unitary table with new answers
+            if (data.new_answers && data.new_answers.length > 0) {
+                updateUnitaryTableWithNewAnswers(data.new_answers);
+            }
+        }
+        else if (data.event === 'progress_milestone') {
+            Logger.info(`📊 Milestone: ${data.progress_summary}`);
+        }
+        else if (data.event === 'layer_6_start') {
+            Logger.info(`📊 Layer 6: ${data.layer} - Compiling final output...`);
+            ProgressTracker.update(90, 'Compiling results...');
+        }
+        else if (data.event === 'layer_6_complete') {
+            Logger.success(`✅ Output compiled: ${data.questions_answered} questions answered`);
+            ProgressTracker.update(95, 'Results ready...');
+        }
+        else if (data.event === 'analysis_complete' || data.event === 'done') {
+            Logger.success(`🎉 HOTDOG AI analysis complete!`);
+            if (data.statistics) {
+                Logger.info(`   ↳ Questions answered: ${data.statistics.questions_answered}`);
+                Logger.info(`   ↳ Processing time: ${data.statistics.processing_time}s`);
+                Logger.info(`   ↳ Total cost: ${data.statistics.estimated_cost || 'N/A'}`);
+            }
+            ProgressTracker.update(100, 'Fetching results...');
+            stopPolling();
+            fetchResults();
+        }
+        else if (data.event === 'analysis_failed' || data.event === 'error') {
+            const errorMsg = data.error || data.error_type || 'Unknown error';
+
+            if (errorMsg === 'Analysis stopped by user') {
+                Logger.warning(`⏹️ Analysis stopped by user`);
+                Logger.info('📊 Fetching partial results...');
+                stopPolling();
+                fetchResults();
+            } else {
+                Logger.error(`❌ Analysis failed: ${errorMsg}`);
+                stopPolling();
+                throw new Error(errorMsg);
+            }
+        }
+        else {
+            // Log unknown events for debugging
+            Logger.warning(`⚠️ Unknown event: ${data.event}`);
+            console.log('Unknown event data:', data);
+        }
+
+    } catch (err) {
+        Logger.error('Failed to process event: ' + err.message);
+        console.error('Event processing error:', err, data);
     }
 }
 
@@ -614,159 +787,8 @@ async function startAnalysis() {
         // Generate session ID
         currentSessionId = `session_${Date.now()}`;
 
-        // STEP 2: Connect to SSE BEFORE starting analysis
-        const progressUrl = `/api/progress/${currentSessionId}`;
-        Logger.info(`📡 Connecting to SSE: ${progressUrl}`);
-
-        activeEventSource = new EventSource(progressUrl);
-
-        activeEventSource.onopen = () => {
-            Logger.success('📡 SSE connection opened (ready state: ' + activeEventSource.readyState + ')');
-        };
-
-        activeEventSource.onmessage = (e) => {
-            try {
-                console.log('[SSE] Raw message received:', e.data);
-                const data = JSON.parse(e.data);
-                console.log('[SSE] Parsed data:', data);
-
-                // Route events to Logger with DETAILED logging
-                if (data.event === 'connected') {
-                    Logger.success('✅ SSE Progress stream connected');
-                    ProgressTracker.update(5, 'Connected to server');
-                }
-                else if (data.event === 'diagnostic_test') {
-                    // DIAGNOSTIC: Immediate yield test to detect buffering
-                    const receivedTime = Date.now();
-                    Logger.info(`🔬 DIAGNOSTIC: Received test event (timestamp: ${data.timestamp}, received at: ${receivedTime})`);
-                    console.log('[DIAGNOSTIC] Test event received:', data);
-                }
-                else if (data.event === 'analysis_started') {
-                    Logger.info(`🔥 HOTDOG AI analysis started for: ${data.document || 'document'}`);
-                    ProgressTracker.update(10, 'Analysis starting...');
-                }
-                else if (data.event === 'layer_0_start') {
-                    Logger.info(`📊 Layer 0: ${data.layer} - Starting PDF extraction...`);
-                    ProgressTracker.update(12, 'Reading PDF...');
-                }
-                else if (data.event === 'document_ingested') {
-                    Logger.success(`📄 Document ingested: ${data.total_pages} pages extracted`);
-                    Logger.info(`   ↳ Created ${data.window_count} windows (${data.window_size} pages each)`);
-                    ProgressTracker.update(20, `Extracted ${data.total_pages} pages`);
-                }
-                else if (data.event === 'layer_1_start') {
-                    Logger.info(`📊 Layer 1: ${data.layer} - Loading question configuration...`);
-                    ProgressTracker.update(22, 'Loading questions...');
-                }
-                else if (data.event === 'config_loaded') {
-                    Logger.success(`⚙️ Configuration loaded: ${data.total_questions} questions in ${data.section_count} sections`);
-                    if (data.sections) {
-                        Logger.info(`   ↳ Sections: ${data.sections.join(', ')}`);
-                    }
-                    ProgressTracker.update(25, `Loaded ${data.total_questions} questions`);
-                }
-                else if (data.event === 'layer_2_start') {
-                    Logger.info(`📊 Layer 2: ${data.layer} - Generating AI expert personas...`);
-                    ProgressTracker.update(27, 'Creating AI experts...');
-                }
-                else if (data.event === 'expert_generated') {
-                    Logger.info(`🤖 AI Expert created: ${data.expert_name}`);
-                    if (data.section) {
-                        Logger.info(`   ↳ Specialization: ${data.section}`);
-                    }
-                    ProgressTracker.update(30, `Generating experts...`);
-                }
-                else if (data.event === 'processing_start') {
-                    Logger.success(`🚀 Multi-expert processing started: ${data.total_windows} windows to analyze`);
-                    ProgressTracker.update(35, 'Starting window processing...');
-                }
-                else if (data.event === 'window_processing') {
-                    Logger.info(`🔍 Window ${data.window_num}/${data.total_windows}: Analyzing pages ${data.pages}`);
-                    const progress = 40 + ((data.window_num / data.total_windows) * 45);
-                    ProgressTracker.update(progress, `Window ${data.window_num}/${data.total_windows}`);
-                }
-                else if (data.event === 'experts_dispatched') {
-                    Logger.info(`   ↳ Dispatched ${data.expert_count} experts for ${data.question_count} questions`);
-                }
-                else if (data.event === 'experts_complete') {
-                    Logger.success(`   ↳ Experts returned ${data.answers_returned} answers`);
-                    Logger.info(`   ↳ Tokens used: ${data.tokens_used} | Cost: $${data.cost || '0.00'}`);
-                }
-                else if (data.event === 'window_complete') {
-                    Logger.success(`✅ Window ${data.window_num} complete: ${data.answers_found} answers found in ${data.processing_time.toFixed(1)}s`);
-                    if (data.unitary_log) {
-                        Logger.info(`   ↳ ${data.unitary_log}`);
-                    }
-
-                    // NEW: Update unitary table with new answers
-                    if (data.new_answers && data.new_answers.length > 0) {
-                        updateUnitaryTableWithNewAnswers(data.new_answers);
-                    }
-
-                    // Unitary table updates in real-time via new_answers above
-                    // No need for fetchPartialResults() - it's redundant
-                }
-                else if (data.event === 'progress_milestone') {
-                    Logger.info(`📊 Milestone: ${data.progress_summary}`);
-                }
-                else if (data.event === 'layer_6_start') {
-                    Logger.info(`📊 Layer 6: ${data.layer} - Compiling final output...`);
-                    ProgressTracker.update(90, 'Compiling results...');
-                }
-                else if (data.event === 'layer_6_complete') {
-                    Logger.success(`✅ Output compiled: ${data.questions_answered} questions answered`);
-                    ProgressTracker.update(95, 'Results ready...');
-                }
-                else if (data.event === 'analysis_complete' || data.event === 'done') {
-                    Logger.success(`🎉 HOTDOG AI analysis complete!`);
-                    if (data.statistics) {
-                        Logger.info(`   ↳ Questions answered: ${data.statistics.questions_answered}`);
-                        Logger.info(`   ↳ Processing time: ${data.statistics.processing_time}s`);
-                        Logger.info(`   ↳ Total cost: ${data.statistics.estimated_cost || 'N/A'}`);
-                    }
-                    ProgressTracker.update(100, 'Fetching results...');
-                    activeEventSource.close();
-                    fetchResults();
-                }
-                else if (data.event === 'analysis_failed' || data.event === 'error') {
-                    const errorMsg = data.error || data.error_type || 'Unknown error';
-
-                    if (errorMsg === 'Analysis stopped by user') {
-                        Logger.warning(`⏹️ Analysis stopped by user`);
-                        Logger.info('📊 Fetching partial results...');
-                        activeEventSource.close();
-                        // Fetch partial results
-                        fetchResults();
-                    } else {
-                        Logger.error(`❌ Analysis failed: ${errorMsg}`);
-                        activeEventSource.close();
-                        throw new Error(errorMsg);
-                    }
-                }
-                else {
-                    // Log unknown events for debugging
-                    Logger.warning(`⚠️ Unknown event: ${data.event}`);
-                    console.log('Unknown SSE event data:', data);
-                }
-
-            } catch (err) {
-                Logger.error('Failed to parse SSE message: ' + err.message);
-            }
-        };
-
-        activeEventSource.onerror = (err) => {
-            console.error('[SSE] Connection error:', err);
-            console.log('[SSE] Ready state:', activeEventSource.readyState);
-            console.log('[SSE] URL:', activeEventSource.url);
-
-            if (activeEventSource.readyState === EventSource.CONNECTING) {
-                Logger.warning('📡 SSE reconnecting...');
-            } else if (activeEventSource.readyState === EventSource.CLOSED) {
-                Logger.error('📡 SSE connection closed');
-            } else {
-                Logger.error('📡 SSE connection error (state: ' + activeEventSource.readyState + ')');
-            }
-        };
+        // STEP 2: Start polling for progress events (replaces SSE)
+        startPolling(currentSessionId);
 
         // STEP 3: Get enabled section IDs
         const enabledSectionIds = questionConfig.sections
@@ -804,9 +826,7 @@ async function startAnalysis() {
         ProgressTracker.hide();
         document.getElementById('analyzeBtn').disabled = false;
         document.getElementById('stopBtn').disabled = true;
-        if (activeEventSource) {
-            activeEventSource.close();
-        }
+        stopPolling();  // NEW: Stop polling on error
     }
 }
 
@@ -1039,9 +1059,7 @@ async function stopAnalysis() {
 
         if (data.success) {
             Logger.warning('⏹️ Analysis stopped by user');
-            if (activeEventSource) {
-                activeEventSource.close();
-            }
+            stopPolling();  // NEW: Stop polling instead of closing SSE
             document.getElementById('stopBtn').disabled = true;
             document.getElementById('analyzeBtn').disabled = false;
 

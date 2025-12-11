@@ -71,7 +71,8 @@ app.config.from_object(Config)
 CORS(app)
 
 # Global state
-progress_queues = {}  # session_id -> Queue for SSE progress
+progress_queues = {}  # session_id -> Queue for SSE progress (legacy)
+session_events = {}  # session_id -> [events] for polling (NEW)
 analysis_threads = {}  # session_id -> Thread for cancellation
 analysis_results = {}  # session_id -> result data (completed analyses)
 active_analyses = {}  # session_id -> {'orchestrator': HotdogOrchestrator, 'config_path': str} (in-progress analyses)
@@ -138,6 +139,7 @@ def cleanup_expired_sessions():
 
         for sid in expired:
             progress_queues.pop(sid, None)
+            session_events.pop(sid, None)  # NEW: Clean up polling events
             analysis_threads.pop(sid, None)
             analysis_results.pop(sid, None)
             active_analyses.pop(sid, None)
@@ -469,6 +471,31 @@ def progress_stream(session_id):
 
 
 # ============================================================================
+# POLLING ENDPOINT (NEW - Primary Progress Method)
+# ============================================================================
+
+@app.route('/api/events/<session_id>')
+def get_events(session_id):
+    """Get new events since last poll (replaces SSE streaming)"""
+    last_index = int(request.args.get('last_index', 0))
+
+    # Get events for this session
+    events = session_events.get(session_id, [])
+
+    # Return only new events since last_index
+    new_events = events[last_index:]
+
+    logger.info(f"📡 Polling: session={session_id}, last_index={last_index}, new_events={len(new_events)}, total={len(events)}")
+
+    return jsonify({
+        'success': True,
+        'events': new_events,
+        'last_index': len(events),  # Next index to request
+        'total_events': len(events)
+    })
+
+
+# ============================================================================
 # HOTDOG ANALYSIS (NON-BLOCKING with Threading)
 # ============================================================================
 
@@ -499,13 +526,21 @@ def analyze_document():
     progress_queues.setdefault(session_id, queue.Queue(maxsize=1000))
     progress_q = progress_queues[session_id]
 
-    # Define progress callback (SIMPLE - just queue it)
+    # Create event list for polling (NEW)
+    session_events.setdefault(session_id, [])
+
+    # Define progress callback - stores events for BOTH SSE (legacy) and polling (NEW)
     def progress_callback(event_type: str, event_data: dict):
+        # Store in list for polling (NEW - primary method)
+        event_obj = {'event': event_type, **event_data, 'timestamp': datetime.now().isoformat()}
+        session_events[session_id].append(event_obj)
+        logger.info(f"📥 Event stored: {event_type} (total: {len(session_events[session_id])})")
+
+        # Also queue for SSE (legacy compatibility)
         try:
             progress_q.put_nowait((event_type, event_data))
-            logger.info(f"📥 Event queued: {event_type} (queue size: {progress_q.qsize()}) at {datetime.now().isoformat()}")  # Changed to INFO
         except queue.Full:
-            logger.warning(f"Progress queue full, dropping event: {event_type}")
+            logger.warning(f"Progress queue full, dropping SSE event: {event_type}")
 
     # Define analysis function to run in thread
     def run_analysis():
