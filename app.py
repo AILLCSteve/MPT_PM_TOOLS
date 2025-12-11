@@ -5,13 +5,15 @@ HOTDOG AI Document Analysis with Real-Time SSE Progress
 Architecture: Threading-based (simple, proven, works)
 """
 # CRITICAL: Gevent monkey patching MUST be first (before any other imports)
-# This makes threading, queue, and socket work with gevent workers
+# This makes socket/queue work with gevent workers
+# thread=False prevents conflicts with threading.Thread in analysis
 try:
     from gevent import monkey
-    monkey.patch_all()
+    monkey.patch_all(thread=False, select=False)
+    GEVENT_PATCHED = True
 except ImportError:
     # Gevent not installed (development mode) - continue without patching
-    pass
+    GEVENT_PATCHED = False
 
 import os
 import sys
@@ -45,6 +47,17 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Diagnostic: Log Python and gevent environment
+logger.info(f"🐍 Python {sys.version.split()[0]} at {sys.executable}")
+if GEVENT_PATCHED:
+    try:
+        import gevent
+        logger.info(f"✅ gevent {gevent.__version__} installed and patched (thread=False)")
+    except:
+        logger.warning(f"⚠️ Gevent patch attempted but module import failed")
+else:
+    logger.warning(f"⚠️ gevent NOT installed - SSE will not work with sync workers!")
 
 # Configuration
 class Config:
@@ -318,6 +331,40 @@ def get_api_key():
         'success': True,
         'key': api_key,
         'masked': api_key[:10] + '...' + api_key[-4:]
+    })
+
+
+@app.route('/api/health/sse', methods=['GET'])
+def sse_health():
+    """Diagnostic endpoint for SSE environment status"""
+    import platform
+
+    # Check gevent installation and version
+    try:
+        import gevent
+        gevent_version = gevent.__version__
+        gevent_installed = True
+    except ImportError:
+        gevent_version = None
+        gevent_installed = False
+
+    # Check gunicorn worker availability
+    try:
+        from gunicorn.workers.ggevent import GeventWorker
+        gevent_worker_available = True
+    except ImportError:
+        gevent_worker_available = False
+
+    return jsonify({
+        'python_version': platform.python_version(),
+        'python_executable': sys.executable,
+        'gevent_installed': gevent_installed,
+        'gevent_version': gevent_version,
+        'gevent_patched': GEVENT_PATCHED,
+        'gevent_worker_available': gevent_worker_available,
+        'server_software': os.environ.get('SERVER_SOFTWARE', 'unknown'),
+        'active_sessions': len(progress_queues),
+        'active_analyses': len(active_analyses)
     })
 
 
