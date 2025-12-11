@@ -974,6 +974,13 @@
             const submitBtn = document.getElementById('authSubmitBtn');
             const errorDiv = document.getElementById('authError');
 
+            // TEMPORARY DEBUG: Show character codes on mobile
+            if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                const chars = Array.from(password).map(c => c.charCodeAt(0));
+                console.log('Password char codes:', chars);
+                console.log('Password length:', password.length);
+            }
+
             // Disable submit button during authentication
             submitBtn.disabled = true;
             submitBtn.textContent = 'Authenticating...';
