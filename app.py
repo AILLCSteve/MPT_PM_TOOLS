@@ -380,7 +380,7 @@ def progress_stream(session_id):
         # DIAGNOSTIC: Immediate test yield (should appear instantly in browser if no buffering)
         time.sleep(0.5)
         test_timestamp = time.time()
-        yield f"data: {json.dumps({{'event': 'diagnostic_test', 'message': 'Immediate yield test', 'timestamp': test_timestamp}})}\n\n"
+        yield f"data: {json.dumps({'event': 'diagnostic_test', 'message': 'Immediate yield test', 'timestamp': test_timestamp})}\n\n"
         logger.info(f"📤 Sent diagnostic test event: {session_id} (delta: {test_timestamp - start_time:.2f}s)")
 
         # Stream events
