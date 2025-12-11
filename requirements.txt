@@ -6,8 +6,9 @@ flask-cors>=4.0.0,<7.0.0
 Werkzeug>=3.0.0,<3.1.0
 
 # WSGI Server for Production
-# Install gunicorn with gevent extra to ensure compatible versions
-gunicorn[gevent]>=22.0.0,<23.0.0
+# CRITICAL: gevent must be installed BEFORE gunicorn for SSE to work
+gevent>=24.2.1
+gunicorn>=22.0.0,<23.0.0
 
 # Document Processing (CIPP Analyzer)
 # PDF extraction - PyMuPDF (fitz) is primary, others are fallbacks
