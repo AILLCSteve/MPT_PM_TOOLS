@@ -88,6 +88,13 @@ def load_authorized_users():
 AUTHORIZED_USERS = load_authorized_users()
 active_sessions = {}
 
+# Log loaded users on startup
+logger.info("="*60)
+logger.info("AUTHORIZED USERS LOADED:")
+for email, data in AUTHORIZED_USERS.items():
+    logger.info(f"  User: {email} | Name: {data.get('name', 'N/A')}")
+logger.info("="*60)
+
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -196,8 +203,11 @@ def authenticate():
 
     # Simple debug logging
     user_agent = request.headers.get('User-Agent', 'Unknown')
-    logger.info(f"Auth attempt: {username} from {user_agent[:50]}")
-    logger.info(f"Password received length: {len(password)}")
+    logger.info(f"Auth attempt - Username (raw): '{data.get('username', '')}' length={len(data.get('username', ''))}")
+    logger.info(f"Auth attempt - Username (normalized): '{username}' length={len(username)}")
+    logger.info(f"Auth attempt - Password length: {len(password)}")
+    logger.info(f"Auth attempt - User agent: {user_agent[:50]}")
+    logger.info(f"Loaded users in dict: {list(AUTHORIZED_USERS.keys())}")
 
     if username not in AUTHORIZED_USERS:
         logger.warning(f"User not found: {username}")
