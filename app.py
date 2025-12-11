@@ -760,9 +760,10 @@ def stop_analysis(session_id):
     found = False
 
     if session_id in active_analyses:
-        # Found in active analyses - send 'done' event to enable exports
-        # The /api/results endpoint already handles partial results from active_analyses
-        logger.info(f"Stopping analysis: {session_id}")
+        # Set stop flag on orchestrator
+        orchestrator = active_analyses[session_id]['orchestrator']
+        orchestrator.stop_requested = True
+        logger.info(f"Stop flag set on orchestrator: {session_id}")
         found = True
 
     if session_id in analysis_threads:
@@ -770,16 +771,15 @@ def stop_analysis(session_id):
         found = True
 
     if found:
-        # Send 'done' event to trigger export button and fetchResults()
-        # This will fetch partial results from active_analyses (lines 634-670)
+        # Send error event to close SSE gracefully
         if session_id in progress_queues:
             try:
-                progress_queues[session_id].put_nowait(('done', {}))
-                logger.info(f"✅ Stop signal sent - 'done' event queued for SSE: {session_id}")
+                progress_queues[session_id].put_nowait(('error', 'Analysis stopped by user'))
+                logger.info(f"Stop event queued for SSE: {session_id}")
             except:
                 pass  # Queue might be full
 
-        return jsonify({'success': True, 'message': 'Analysis stopped - partial results available'})
+        return jsonify({'success': True, 'message': 'Stop signal sent'})
 
     # Check completed analyses
     if session_id in analysis_results:

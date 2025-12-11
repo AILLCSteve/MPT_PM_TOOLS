@@ -698,9 +698,9 @@ async function startAnalysis() {
                         Logger.info(`   ↳ ${data.unitary_log}`);
                     }
 
-                    // NEW: Update unitary table with new answers and progress counter
+                    // NEW: Update unitary table with new answers
                     if (data.new_answers && data.new_answers.length > 0) {
-                        updateUnitaryTableWithNewAnswers(data.new_answers, data.window_num, data.total_windows);
+                        updateUnitaryTableWithNewAnswers(data.new_answers);
                     }
 
                     // Unitary table updates in real-time via new_answers above
@@ -1291,7 +1291,7 @@ function initializeUnitaryTableState() {
     renderUnitaryTable();
 }
 
-function updateUnitaryTableWithNewAnswers(newAnswers, windowNum, totalWindows) {
+function updateUnitaryTableWithNewAnswers(newAnswers) {
     const updatedQuestionIds = [];
 
     newAnswers.forEach(answer => {
@@ -1316,20 +1316,7 @@ function updateUnitaryTableWithNewAnswers(newAnswers, windowNum, totalWindows) {
     // Update only the changed rows for efficiency
     updateUnitaryTableRows(updatedQuestionIds);
 
-    // Update progress counter with questions answered AND window progress
-    const questionsList = Object.values(allQuestions);
-    const answeredCount = questionsList.filter(q => q.status === 'found').length;
-    const totalCount = questionsList.length;
-    const percentage = Math.round((answeredCount / totalCount) * 100);
-
-    // Map question percentage to 40-85% range, then add window progress
-    const baseProgress = 40 + (percentage * 0.45);
-    ProgressTracker.update(
-        baseProgress,
-        `${answeredCount}/${totalCount} questions (${percentage}%) - Window ${windowNum}/${totalWindows}`
-    );
-
-    Logger.info(`📊 Updated ${updatedQuestionIds.length} questions in unitary table - ${answeredCount}/${totalCount} total answers`);
+    Logger.info(`📊 Updated ${updatedQuestionIds.length} questions in unitary table`);
 }
 
 function updateUnitaryTableAsFinal(result, isPartial) {
