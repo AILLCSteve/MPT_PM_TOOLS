@@ -74,8 +74,10 @@ CORS(app)
 progress_queues = {}  # session_id -> Queue for SSE progress (legacy)
 session_events = {}  # session_id -> [events] for polling (NEW)
 analysis_threads = {}  # session_id -> Thread for cancellation
-analysis_results = {}  # session_id -> result data (completed analyses)
-active_analyses = {}  # session_id -> {'orchestrator': HotdogOrchestrator, 'config_path': str} (in-progress analyses)
+analysis_results = {}  # session_id -> result data (legacy, kept for backward compatibility)
+active_analyses = {}  # session_id -> {'orchestrator': HotdogOrchestrator, 'config_path': str, 'pdf_path': str, 'status': 'running'} (in-progress)
+completed_analyses = {}  # session_id -> {'orchestrator': ..., 'result': ..., 'config_path': ..., 'completed_at': datetime, 'status': 'completed'}
+partial_analyses = {}  # session_id -> {'orchestrator': ..., 'config_path': ..., 'stopped_at': datetime, 'status': 'stopped'}
 session_timestamps = {}  # session_id -> last_access_time (for cleanup)
 
 # Authentication - Load from environment variables
@@ -139,10 +141,12 @@ def cleanup_expired_sessions():
 
         for sid in expired:
             progress_queues.pop(sid, None)
-            session_events.pop(sid, None)  # NEW: Clean up polling events
+            session_events.pop(sid, None)
             analysis_threads.pop(sid, None)
             analysis_results.pop(sid, None)
             active_analyses.pop(sid, None)
+            completed_analyses.pop(sid, None)  # NEW: Clean up completed
+            partial_analyses.pop(sid, None)  # NEW: Clean up partial
             session_timestamps.pop(sid, None)
             logger.info(f"✅ Cleaned up expired session: {sid}")
 
@@ -603,9 +607,18 @@ def analyze_document():
                     }
                 })
 
-                # Remove from active analyses
+                # Move from active to completed (preserve session data)
                 if session_id in active_analyses:
+                    completed_analyses[session_id] = {
+                        'result': result,
+                        'orchestrator': orchestrator,
+                        'config_path': config_path,
+                        'pdf_path': pdf_path,
+                        'completed_at': datetime.now(),
+                        'status': 'completed'
+                    }
                     del active_analyses[session_id]
+                    logger.info(f"✅ Session moved to completed_analyses: {session_id}")
 
                 # Signal done
                 progress_q.put(('done', {}))
@@ -620,15 +633,25 @@ def analyze_document():
             error_msg = str(e)
             progress_q.put(('error', error_msg))
 
-            # Don't delete session if user stopped (allow partial results fetch)
-            # Keep session in active_analyses so /api/results can return partial data
-            if 'stopped by user' not in error_msg.lower():
-                # Clean up active analysis on actual errors
+            # Handle stopped vs failed analyses differently
+            if 'stopped by user' in error_msg.lower():
+                # Move stopped analysis to partial_analyses (preserve partial data)
+                if session_id in active_analyses:
+                    partial_analyses[session_id] = {
+                        'orchestrator': active_analyses[session_id]['orchestrator'],
+                        'config_path': active_analyses[session_id]['config_path'],
+                        'pdf_path': active_analyses[session_id].get('pdf_path', ''),
+                        'stopped_at': datetime.now(),
+                        'status': 'stopped',
+                        'error': error_msg
+                    }
+                    del active_analyses[session_id]
+                    logger.info(f"✅ Session moved to partial_analyses: {session_id}")
+            else:
+                # Clean up failed analysis on actual errors
                 if session_id in active_analyses:
                     del active_analyses[session_id]
                     logger.info(f"Session cleaned up due to error: {session_id}")
-            else:
-                logger.info(f"Analysis stopped by user, preserving session for partial results: {session_id}")
 
     # Start analysis thread
     thread = threading.Thread(target=run_analysis, daemon=True)
@@ -651,10 +674,37 @@ def analyze_document():
 
 @app.route('/api/results/<session_id>', methods=['GET'])
 def get_results(session_id):
-    """Get analysis results (supports both completed and in-progress analyses)"""
+    """Get analysis results (supports completed, partial, and in-progress analyses)"""
 
-    # Check if analysis is complete
-    if session_id in analysis_results:
+    # Check completed_analyses first (NEW - primary storage)
+    if session_id in completed_analyses:
+        session_data = completed_analyses[session_id]
+        result = session_data['result']
+        orchestrator = session_data['orchestrator']
+
+        # Get browser-formatted output
+        from services.hotdog.layers import ConfigurationLoader
+        config_loader = ConfigurationLoader()
+        parsed_config = config_loader.load_from_json(session_data['config_path'])
+
+        browser_output = orchestrator.get_browser_output(result, parsed_config)
+        legacy_result = _transform_to_legacy_format(browser_output)
+
+        return jsonify({
+            'success': True,
+            'result': legacy_result,
+            'statistics': {
+                'processing_time': result.processing_time_seconds,
+                'total_tokens': result.total_tokens,
+                'estimated_cost': f"${result.estimated_cost:.4f}",
+                'questions_answered': result.questions_answered,
+                'total_questions': parsed_config.total_questions,
+                'average_confidence': f"{result.average_confidence:.0%}"
+            }
+        })
+
+    # Check legacy analysis_results (LEGACY - kept for backward compatibility)
+    elif session_id in analysis_results:
         session_data = analysis_results[session_id]
         result = session_data['result']
         orchestrator = session_data['orchestrator']
@@ -682,6 +732,44 @@ def get_results(session_id):
                 'questions_answered': result.questions_answered,
                 'total_questions': parsed_config.total_questions,
                 'average_confidence': f"{result.average_confidence:.0%}"
+            }
+        })
+
+    # Check partial_analyses (stopped by user)
+    elif session_id in partial_analyses:
+        logger.info(f"Fetching results for partial analysis: {session_id}")
+        session_data = partial_analyses[session_id]
+        orchestrator = session_data['orchestrator']
+        config_path = session_data['config_path']
+
+        # Get accumulated answers so far
+        accumulated_answers = orchestrator.layer4_accumulator.get_accumulated_answers()
+
+        # Load config
+        from services.hotdog.layers import ConfigurationLoader
+        config_loader = ConfigurationLoader()
+        parsed_config = config_loader.load_from_json(config_path)
+
+        # Build partial browser output
+        partial_browser_output = orchestrator._build_partial_browser_output(
+            accumulated_answers,
+            parsed_config
+        )
+
+        # Transform to legacy format
+        legacy_result = _transform_to_legacy_format(partial_browser_output)
+
+        return jsonify({
+            'success': True,
+            'result': legacy_result,
+            'partial': True,  # Flag indicating partial results
+            'statistics': {
+                'processing_time': 0,  # Not yet available
+                'total_tokens': orchestrator.layer5_token_manager.total_tokens_used,
+                'estimated_cost': 'Stopped',
+                'questions_answered': len([a for answers in accumulated_answers.values() for a in answers]),
+                'total_questions': parsed_config.total_questions,
+                'average_confidence': 'Partial'
             }
         })
 
@@ -739,9 +827,24 @@ def export_excel_dashboard(session_id):
     browser_output = None
     is_partial = False
 
-    # Check completed results first
-    if session_id in analysis_results:
+    # Check completed_analyses first (NEW - primary storage)
+    if session_id in completed_analyses:
         logger.info(f"Exporting completed analysis: {session_id}")
+        session_data = completed_analyses[session_id]
+        result = session_data['result']
+        orchestrator = session_data['orchestrator']
+        config_path = session_data['config_path']
+
+        # Get complete browser-formatted output
+        from services.hotdog.layers import ConfigurationLoader
+        config_loader = ConfigurationLoader()
+        parsed_config = config_loader.load_from_json(config_path)
+        browser_output = orchestrator.get_browser_output(result, parsed_config)
+        is_partial = False
+
+    # Check legacy analysis_results (LEGACY - backward compatibility)
+    elif session_id in analysis_results:
+        logger.info(f"Exporting completed analysis (legacy): {session_id}")
         session_data = analysis_results[session_id]
         result = session_data['result']
         orchestrator = session_data['orchestrator']
@@ -754,7 +857,29 @@ def export_excel_dashboard(session_id):
         browser_output = orchestrator.get_browser_output(result, parsed_config)
         is_partial = False
 
-    # Check active/stopped analyses
+    # Check partial_analyses (stopped by user)
+    elif session_id in partial_analyses:
+        logger.info(f"Exporting partial analysis: {session_id}")
+        session_data = partial_analyses[session_id]
+        orchestrator = session_data['orchestrator']
+        config_path = session_data['config_path']
+
+        # Get accumulated answers so far
+        accumulated_answers = orchestrator.layer4_accumulator.get_accumulated_answers()
+
+        # Load config
+        from services.hotdog.layers import ConfigurationLoader
+        config_loader = ConfigurationLoader()
+        parsed_config = config_loader.load_from_json(config_path)
+
+        # Build partial browser output
+        browser_output = orchestrator._build_partial_browser_output(
+            accumulated_answers,
+            parsed_config
+        )
+        is_partial = True
+
+    # Check active analyses (in-progress)
     elif session_id in active_analyses:
         logger.info(f"Exporting partial/stopped analysis: {session_id}")
         session_data = active_analyses[session_id]
@@ -836,10 +961,20 @@ def stop_analysis(session_id):
 
         return jsonify({'success': True, 'message': 'Stop signal sent'})
 
-    # Check completed analyses
-    if session_id in analysis_results:
+    # Check completed analyses (NEW - primary storage)
+    if session_id in completed_analyses:
         logger.info(f"Analysis already complete: {session_id}")
         return jsonify({'success': True, 'message': 'Analysis already complete'})
+
+    # Check legacy completed analyses
+    if session_id in analysis_results:
+        logger.info(f"Analysis already complete (legacy): {session_id}")
+        return jsonify({'success': True, 'message': 'Analysis already complete'})
+
+    # Check partial analyses
+    if session_id in partial_analyses:
+        logger.info(f"Analysis already stopped: {session_id}")
+        return jsonify({'success': True, 'message': 'Analysis already stopped'})
 
     logger.warning(f"Session not found: {session_id}")
     logger.info(f"Active analyses: {list(active_analyses.keys())}")
