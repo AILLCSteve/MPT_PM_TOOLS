@@ -583,6 +583,26 @@ def analyze_document():
                     'config_path': config_path
                 }
 
+                # Format result for browser and store in session_events for polling
+                from services.hotdog.layers import ConfigurationLoader
+                config_loader = ConfigurationLoader()
+                parsed_config = config_loader.load_from_json(config_path)
+                browser_output = orchestrator.get_browser_output(result, parsed_config)
+                legacy_result = _transform_to_legacy_format(browser_output)
+
+                # Store full result in session_events so frontend can access via polling
+                progress_callback('results_ready', {
+                    'result': legacy_result,
+                    'statistics': {
+                        'processing_time': result.processing_time_seconds,
+                        'total_tokens': result.total_tokens,
+                        'estimated_cost': f"${result.estimated_cost:.4f}",
+                        'questions_answered': result.questions_answered,
+                        'total_questions': parsed_config.total_questions,
+                        'average_confidence': f"{result.average_confidence:.0%}"
+                    }
+                })
+
                 # Remove from active analyses
                 if session_id in active_analyses:
                     del active_analyses[session_id]

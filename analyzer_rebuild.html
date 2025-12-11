@@ -634,6 +634,11 @@ function handleEvent(data) {
             Logger.success(`✅ Output compiled: ${data.questions_answered} questions answered`);
             ProgressTracker.update(95, 'Results ready...');
         }
+        else if (data.event === 'results_ready') {
+            // Store the complete result from polling (no need for separate fetch)
+            currentAnalysisResult = data;
+            Logger.info(`✅ Results received via polling (${data.result.sections?.length || 0} sections)`);
+        }
         else if (data.event === 'analysis_complete' || data.event === 'done') {
             Logger.success(`🎉 HOTDOG AI analysis complete!`);
             if (data.statistics) {
@@ -641,9 +646,16 @@ function handleEvent(data) {
                 Logger.info(`   ↳ Processing time: ${data.statistics.processing_time}s`);
                 Logger.info(`   ↳ Total cost: ${data.statistics.estimated_cost || 'N/A'}`);
             }
-            ProgressTracker.update(100, 'Fetching results...');
+            ProgressTracker.update(100, 'Displaying results...');
             stopPolling();
-            fetchResults();
+
+            // Use result from polling instead of fetching
+            if (currentAnalysisResult && currentAnalysisResult.result) {
+                displayResults(currentAnalysisResult);
+            } else {
+                // Fallback: fetch if results weren't in polling events
+                fetchResults();
+            }
         }
         else if (data.event === 'analysis_failed' || data.event === 'error') {
             const errorMsg = data.error || data.error_type || 'Unknown error';
