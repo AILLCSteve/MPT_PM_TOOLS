@@ -779,18 +779,12 @@
                             id="togglePassword"
                             onclick="togglePasswordVisibility()"
                             aria-label="Toggle password visibility"
-                            style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 0.5rem; color: #6B7280; font-size: 1.2rem; transition: color 0.3s ease; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; display: none;"
+                            style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 0.5rem; color: #6B7280; font-size: 1.2rem; transition: color 0.3s ease; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center;"
                             onmouseover="this.style.color='#1E3A8A'"
                             onmouseout="this.style.color='#6B7280'"
                         >
                             <span id="eyeIcon">👁️</span>
                         </button>
-                        <script>
-                            // Show password toggle only on non-mobile devices
-                            if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-                                document.getElementById('togglePassword').style.display = 'flex';
-                            }
-                        </script>
                     </div>
                 </div>
                 <div id="authError" style="display: none; padding: 0.75rem; background: #FEE2E2; border: 1px solid #EF4444; border-radius: 6px; color: #991B1B; margin-bottom: 1rem; font-size: 0.9rem;"></div>
@@ -960,6 +954,9 @@
 
             // CRITICAL FIX: Normalize Unicode variants (iPhone/mobile keyboards convert these)
             let password = document.getElementById('password').value;
+
+            // FIRST: Remove invisible characters that iOS might insert
+            password = password.replace(/[\u200B\u200C\u200D\uFEFF]/g, '');  // Zero-width chars, BOM
 
             // Normalize all dash/hyphen/minus variants to ASCII hyphen-minus (-)
             password = password.replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFE58\uFE63\uFF0D]/g, '-');
