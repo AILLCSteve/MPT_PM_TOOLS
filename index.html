@@ -951,7 +951,11 @@
 
             // Get and normalize input values (trim whitespace, handle mobile autocorrect)
             const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
+
+            // CRITICAL FIX: Normalize dashes in password (iPhone smart punctuation converts - to – or —)
+            let password = document.getElementById('password').value;
+            // Replace en dash (–), em dash (—), minus sign (−) with regular hyphen (-)
+            password = password.replace(/[\u2013\u2014\u2212]/g, '-');
             const submitBtn = document.getElementById('authSubmitBtn');
             const errorDiv = document.getElementById('authError');
 
@@ -960,39 +964,16 @@
             submitBtn.textContent = 'Authenticating...';
             errorDiv.style.display = 'none';
 
-            // COMPREHENSIVE DEBUG LOGGING for mobile troubleshooting
-            console.log('='.repeat(60));
-            console.log('[Auth] AUTHENTICATION ATTEMPT');
-            console.log('='.repeat(60));
-            console.log('[Auth] Username (raw):', JSON.stringify(document.getElementById('username').value));
-            console.log('[Auth] Username (trimmed):', JSON.stringify(username));
-            console.log('[Auth] Username length:', username.length);
-            console.log('[Auth] Username char codes:', Array.from(username).map(c => c.charCodeAt(0)));
-            console.log('[Auth] Password length:', password.length);
-            console.log('[Auth] Password first char:', password.charAt(0));
-            console.log('[Auth] Password last char:', password.charAt(password.length - 1));
-            console.log('[Auth] Password char codes (first 5):', Array.from(password.substring(0, 5)).map(c => c.charCodeAt(0)));
-            console.log('[Auth] Password char codes (last 5):', Array.from(password.substring(password.length - 5)).map(c => c.charCodeAt(0)));
-            console.log('[Auth] User agent:', navigator.userAgent);
-            console.log('[Auth] Platform:', navigator.platform);
-            console.log('[Auth] Request body:', JSON.stringify({ username, password }));
-            console.log('='.repeat(60));
-
             try {
-                const requestBody = JSON.stringify({ username, password });
-                console.log('[Auth] Request body byte length:', new Blob([requestBody]).size);
-
                 const response = await fetch('/api/authenticate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: requestBody,
+                    body: JSON.stringify({ username, password }),
                 });
 
                 const data = await response.json();
-                console.log('[Auth] Server response status:', response.status);
-                console.log('[Auth] Server response data:', data);
 
                 if (response.ok && data.success) {
                     // Store authentication token with fallback for mobile storage issues

@@ -191,39 +191,14 @@ def health():
 @app.route('/api/authenticate', methods=['POST'])
 def authenticate():
     data = request.get_json()
-    username_raw = data.get('username', '')
-    username = username_raw.strip().lower()
+    username = data.get('username', '').strip().lower()
     password = data.get('password', '')
 
-    # COMPREHENSIVE DEBUG LOGGING
-    logger.info("="*60)
-    logger.info("AUTHENTICATION ATTEMPT")
-    logger.info("="*60)
-    logger.info(f"Username (raw): {repr(username_raw)}")
-    logger.info(f"Username (normalized): {repr(username)}")
-    logger.info(f"Username length: {len(username)}")
-    logger.info(f"Password length: {len(password)}")
-    logger.info(f"Password first char: {repr(password[0] if password else '')}")
-    logger.info(f"Password last char: {repr(password[-1] if password else '')}")
-    logger.info(f"User agent: {request.headers.get('User-Agent', 'Unknown')}")
-    logger.info(f"Authorized users loaded: {list(AUTHORIZED_USERS.keys())}")
-    logger.info(f"User exists in dict: {username in AUTHORIZED_USERS}")
-
     if username not in AUTHORIZED_USERS:
-        logger.warning(f"Username not found: {username}")
-        logger.info("="*60)
         return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
 
     password_hash = hashlib.sha256(password.encode()).hexdigest()
-    expected_hash = AUTHORIZED_USERS[username]['password_hash']
-
-    logger.info(f"Password hash (received): {password_hash}")
-    logger.info(f"Password hash (expected): {expected_hash}")
-    logger.info(f"Hashes match: {password_hash == expected_hash}")
-
-    if password_hash != expected_hash:
-        logger.warning(f"Password hash mismatch for user: {username}")
-        logger.info("="*60)
+    if password_hash != AUTHORIZED_USERS[username]['password_hash']:
         return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
 
     token = secrets.token_urlsafe(32)
@@ -234,9 +209,6 @@ def authenticate():
         'name': AUTHORIZED_USERS[username]['name'],
         'expires_at': expires_at
     }
-
-    logger.info(f"Authentication successful for: {username}")
-    logger.info("="*60)
 
     return jsonify({
         'success': True,
