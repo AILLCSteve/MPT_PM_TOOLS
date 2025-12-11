@@ -397,11 +397,16 @@
             <div class="progress-text" id="progressText">Ready</div>
         </div>
 
-        <!-- Activity Log -->
-        <div class="section">
-            <h3>📋 Activity Log</h3>
-            <div class="log-container" id="logContainer" style="display: block;">
-                <div id="logContent"></div>
+        <!-- Debug Tools (Collapsed by Default) -->
+        <div class="section debug-section">
+            <h3 class="debug-toggle" onclick="toggleDebugTools()" style="cursor: pointer; user-select: none;">
+                🔧 Debug Tools <span id="debugToggleIcon" style="font-size: 0.8em; color: #94a3b8;">▶</span>
+            </h3>
+            <div id="debugToolsContent" style="display: none;">
+                <div class="log-container" id="logContainer" style="display: block;">
+                    <h4 style="color: #64748b; margin-bottom: 10px; font-size: 1em;">📋 Activity Log</h4>
+                    <div id="logContent"></div>
+                </div>
             </div>
         </div>
 
@@ -472,6 +477,23 @@ class ProgressTracker {
     static update(percentage, text) {
         document.getElementById('progressFill').style.width = `${percentage}%`;
         document.getElementById('progressText').textContent = text;
+    }
+}
+
+// ============================================================================
+// UI UTILITIES
+// ============================================================================
+
+function toggleDebugTools() {
+    const content = document.getElementById('debugToolsContent');
+    const icon = document.getElementById('debugToggleIcon');
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▶';
     }
 }
 
