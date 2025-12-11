@@ -480,6 +480,9 @@ class ProgressTracker {
 // ============================================================================
 
 function startPolling(sessionId) {
+    // Stop any existing polling first (prevents multiple intervals)
+    stopPolling();
+
     Logger.info(`📡 Starting event polling for session: ${sessionId}`);
     lastEventIndex = 0;  // Reset event counter
 
