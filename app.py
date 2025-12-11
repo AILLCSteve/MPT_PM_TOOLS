@@ -194,11 +194,22 @@ def authenticate():
     username = data.get('username', '').strip().lower()
     password = data.get('password', '')
 
+    # Simple debug logging
+    user_agent = request.headers.get('User-Agent', 'Unknown')
+    logger.info(f"Auth attempt: {username} from {user_agent[:50]}")
+    logger.info(f"Password received length: {len(password)}")
+
     if username not in AUTHORIZED_USERS:
+        logger.warning(f"User not found: {username}")
         return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
 
     password_hash = hashlib.sha256(password.encode()).hexdigest()
-    if password_hash != AUTHORIZED_USERS[username]['password_hash']:
+    expected_hash = AUTHORIZED_USERS[username]['password_hash']
+
+    if password_hash != expected_hash:
+        logger.warning(f"Password mismatch for {username}")
+        logger.warning(f"  Received hash: {password_hash[:20]}...")
+        logger.warning(f"  Expected hash: {expected_hash[:20]}...")
         return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
 
     token = secrets.token_urlsafe(32)
