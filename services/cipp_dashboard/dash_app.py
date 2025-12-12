@@ -1391,8 +1391,8 @@ def create_dash_app(flask_app):
 
         if filter_type == 'breakout-awaiting':
             segments = processor.get_segments_awaiting_prep()
-            title = f"Awaiting Prep Segments"
-            subtitle = f"{len(segments)} segments with map length but no prep crew verified diameter"
+            title = f"Prep Not Started"
+            subtitle = f"{len(segments)} segments with map length data but no prep crew verified diameter entered"
 
         elif filter_type == 'breakout-ready':
             segments = processor.get_segments_ready_to_line()

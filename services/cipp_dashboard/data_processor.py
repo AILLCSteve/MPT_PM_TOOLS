@@ -77,6 +77,9 @@ class CIPPDataProcessor:
                 "pipe_size": self._get_cell_value(row, headers.get("Pipe Size")),
                 "map_length": float(map_length),
                 "prep_complete": self._is_truthy(self._get_cell_value(row, headers.get("Prep Complete"))),
+                "prep_crew_verified_dia": self._get_cell_value(row, headers.get("Prep Crew Verified Dia")),
+                "prep_usmh_depth": self._get_cell_value(row, headers.get("Prep USMH Depth")),
+                "prep_dsmh_depth": self._get_cell_value(row, headers.get("Prep DSMH Depth")),
                 "ready_to_line": self._is_truthy(self._get_cell_value(row, headers.get("Ready to Line - Certified by Prep Crew Lead"))),
                 "wet_out_date": self._get_cell_value(row, headers.get("Wet Out Date")),
                 "lining_date": self._get_cell_value(row, headers.get("Lining Date")),
@@ -487,10 +490,10 @@ class CIPPDataProcessor:
         return [s for s in self.segments if not s["easement"] and not s["traffic_control"]]
 
     def get_segments_awaiting_prep(self) -> List[Dict[str, Any]]:
-        """Get segments with map length but no prep crew verified diameter (Awaiting Prep)."""
+        """Get segments with map length but no prep crew verified diameter (Prep not started)."""
         return [
             s for s in self.segments
-            if s["map_length"] and not s.get("prep_crew_verified_dia")
+            if s["map_length"] > 0 and (s.get("prep_crew_verified_dia") is None or s.get("prep_crew_verified_dia") == "")
         ]
 
     def format_segments_for_table(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
