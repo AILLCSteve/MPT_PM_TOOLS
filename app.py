@@ -983,6 +983,78 @@ def stop_analysis(session_id):
 
 
 # ============================================================================
+# ADMIN ENDPOINTS
+# ============================================================================
+
+@app.route('/api/admin/sessions', methods=['GET'])
+def get_all_sessions():
+    """Admin endpoint: Get all active, completed, and partial analyses"""
+    from datetime import datetime
+
+    def format_session_info(session_id, session_data, status):
+        """Helper to format session data for admin view"""
+        info = {
+            'session_id': session_id,
+            'status': status,
+            'pdf_path': session_data.get('pdf_path', 'N/A'),
+            'config_path': session_data.get('config_path', 'N/A'),
+        }
+
+        # Add timestamp if available
+        if 'completed_at' in session_data:
+            info['completed_at'] = session_data['completed_at'].isoformat()
+        if 'stopped_at' in session_data:
+            info['stopped_at'] = session_data['stopped_at'].isoformat()
+        if 'started_at' in session_data:
+            info['started_at'] = session_data['started_at'].isoformat()
+
+        # Add result statistics if available
+        if 'result' in session_data:
+            result = session_data['result']
+            info['questions_answered'] = result.questions_answered
+            info['total_pages'] = result.total_pages
+            info['total_tokens'] = result.total_tokens
+            info['processing_time'] = result.processing_time_seconds
+
+        return info
+
+    # Gather all sessions
+    sessions = {
+        'active': [
+            format_session_info(sid, data, 'active')
+            for sid, data in active_analyses.items()
+        ],
+        'completed': [
+            format_session_info(sid, data, 'completed')
+            for sid, data in completed_analyses.items()
+        ],
+        'partial': [
+            format_session_info(sid, data, 'partial')
+            for sid, data in partial_analyses.items()
+        ],
+        'legacy': [
+            format_session_info(sid, data, 'legacy_completed')
+            for sid, data in analysis_results.items()
+        ]
+    }
+
+    # Summary counts
+    summary = {
+        'total_sessions': sum(len(v) for v in sessions.values()),
+        'active_count': len(sessions['active']),
+        'completed_count': len(sessions['completed']),
+        'partial_count': len(sessions['partial']),
+        'legacy_count': len(sessions['legacy'])
+    }
+
+    return jsonify({
+        'success': True,
+        'summary': summary,
+        'sessions': sessions
+    })
+
+
+# ============================================================================
 # CIPP ANALYZER FRONTEND
 # ============================================================================
 
