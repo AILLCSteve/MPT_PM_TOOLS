@@ -76,100 +76,119 @@ def create_dash_app(flask_app):
 
         return processor_cache[filepath]
 
+    # Add custom CSS to Dash app
+    dash_app.index_string = '''
+    <!DOCTYPE html>
+    <html>
+        <head>
+            {%metas%}
+            <title>{%title%}</title>
+            {%favicon%}
+            {%css%}
+            <style>
+                body {
+                    margin: 0;
+                    padding: 0;
+                    position: relative;
+                    min-height: 100vh;
+                }
+
+                #react-entry-point::before {
+                    content: '';
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background-image: url('/shared/assets/images/vspbg.jpeg');
+                    background-size: cover;
+                    background-position: center center;
+                    background-repeat: no-repeat;
+                    background-attachment: fixed;
+                    filter: brightness(0.75);
+                    z-index: -2;
+                }
+
+                #react-entry-point::after {
+                    content: '';
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: linear-gradient(135deg, rgba(91, 127, 204, 0.4) 0%, rgba(30, 58, 138, 0.5) 100%);
+                    z-index: -1;
+                }
+
+                .mpt-navbar {
+                    background: linear-gradient(135deg, #1E3A8A, #5B7FCC);
+                    padding: 15px 30px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                    position: sticky;
+                    top: 0;
+                    z-index: 1000;
+                    margin-bottom: 0;
+                }
+
+                .mpt-navbar .logo-container {
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                }
+
+                .mpt-navbar img {
+                    height: 40px;
+                    width: auto;
+                }
+
+                .mpt-navbar .app-title {
+                    color: white;
+                    font-size: 1.2rem;
+                    font-weight: 600;
+                }
+
+                .mpt-navbar .home-link {
+                    color: white;
+                    text-decoration: none;
+                    padding: 8px 20px;
+                    border: 2px solid white;
+                    border-radius: 5px;
+                    transition: all 0.3s;
+                    font-weight: 500;
+                }
+
+                .mpt-navbar .home-link:hover {
+                    background-color: white;
+                    color: #1E3A8A;
+                }
+
+                .dashboard-container {
+                    background: rgba(255, 255, 255, 0.15);
+                    backdrop-filter: blur(2.5px);
+                    border-radius: 15px;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                    padding: 30px;
+                    margin: 20px auto;
+                    max-width: 1400px;
+                }
+            </style>
+        </head>
+        <body>
+            {%app_entry%}
+            <footer>
+                {%config%}
+                {%scripts%}
+                {%renderer%}
+            </footer>
+        </body>
+    </html>
+    '''
+
     # Layout
     dash_app.layout = html.Div([
-        # Custom CSS for background and styling
-        html.Style("""
-            body {
-                margin: 0;
-                padding: 0;
-                position: relative;
-                min-height: 100vh;
-            }
-
-            body::before {
-                content: '';
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-image: url('/shared/assets/images/vspbg.jpeg');
-                background-size: cover;
-                background-position: center center;
-                background-repeat: no-repeat;
-                background-attachment: fixed;
-                filter: brightness(0.75);
-                z-index: -2;
-            }
-
-            body::after {
-                content: '';
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: linear-gradient(135deg, rgba(91, 127, 204, 0.4) 0%, rgba(30, 58, 138, 0.5) 100%);
-                z-index: -1;
-            }
-
-            .mpt-navbar {
-                background: linear-gradient(135deg, #1E3A8A, #5B7FCC);
-                padding: 15px 30px;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                position: sticky;
-                top: 0;
-                z-index: 1000;
-                margin-bottom: 0;
-            }
-
-            .mpt-navbar .logo-container {
-                display: flex;
-                align-items: center;
-                gap: 15px;
-            }
-
-            .mpt-navbar img {
-                height: 40px;
-                width: auto;
-            }
-
-            .mpt-navbar .app-title {
-                color: white;
-                font-size: 1.2rem;
-                font-weight: 600;
-            }
-
-            .mpt-navbar .home-link {
-                color: white;
-                text-decoration: none;
-                padding: 8px 20px;
-                border: 2px solid white;
-                border-radius: 5px;
-                transition: all 0.3s;
-                font-weight: 500;
-            }
-
-            .mpt-navbar .home-link:hover {
-                background-color: white;
-                color: #1E3A8A;
-            }
-
-            .dashboard-container {
-                background: rgba(255, 255, 255, 0.15);
-                backdrop-filter: blur(2.5px);
-                border-radius: 15px;
-                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-                padding: 30px;
-                margin: 20px auto;
-                max-width: 1400px;
-            }
-        """),
-
         # MPT Navbar
         html.Nav(className="mpt-navbar", children=[
             html.Div(className="logo-container", children=[
