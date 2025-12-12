@@ -298,6 +298,35 @@ def create_dash_app(flask_app):
                 ], width=12)
             ], className='mb-4'),
 
+            # Breakout Tables - Interactive Filtered Segment Views
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader(html.H5([
+                            html.I(className="fas fa-filter me-2"),
+                            "Breakout Tables - Filtered Segment Views"
+                        ])),
+                        dbc.CardBody([
+                            html.P([
+                                "Click on any chart above to filter segments, or use the tabs below for instant breakouts. ",
+                                html.Strong("Cumulative lifecycle tracking:"),
+                                " segments shown include all that have achieved each milestone."
+                            ], className='text-muted mb-3'),
+                            dbc.Tabs([
+                                dbc.Tab(label="Ready to Line", tab_id="breakout-ready"),
+                                dbc.Tab(label="CCTV Posted", tab_id="breakout-cctv"),
+                                dbc.Tab(label="Flagged Issues", tab_id="breakout-flagged"),
+                                dbc.Tab(label="Easement", tab_id="breakout-easement"),
+                                dbc.Tab(label="Traffic Control", tab_id="breakout-traffic"),
+                                dbc.Tab(label="Current Stage", tab_id="breakout-current"),
+                                dbc.Tab(label="All Segments", tab_id="breakout-all"),
+                            ], id="breakout-tabs", active_tab="breakout-ready"),
+                            html.Div(id='breakout-table-content', className='mt-3')
+                        ])
+                    ], className='shadow-sm')
+                ], width=12)
+            ], className='mb-4'),
+
             # Original Excel File Embedded
             dbc.Row([
                 dbc.Col([
@@ -314,6 +343,9 @@ def create_dash_app(flask_app):
 
         # Store session data
         dcc.Store(id='session-data'),
+
+        # Store for chart click navigation to breakout tables
+        dcc.Store(id='breakout-nav-store'),
 
         # Hidden signal that fires ONLY when data is fully uploaded and ready
         html.Div(id='data-ready-signal', style={'display': 'none'}),
@@ -1316,5 +1348,268 @@ def create_dash_app(flask_app):
             )
             completion_pct = (completed_footage / processor.total_footage * 100) if processor.total_footage > 0 else 0
             return f"{completion_pct:.1f}%"
+
+    # ============================================================================
+    # BREAKOUT TABLES - Interactive Filtered Segment Views
+    # ============================================================================
+
+    @dash_app.callback(
+        Output('breakout-table-content', 'children'),
+        [Input('breakout-tabs', 'active_tab'),
+         Input('breakout-nav-store', 'data'),
+         Input('session-data', 'data')]
+    )
+    def update_breakout_table(active_tab, nav_data, session_data):
+        """
+        Display filtered breakout tables based on tab selection or chart clicks.
+
+        Uses CUMULATIVE lifecycle tracking: segments shown include ALL that have
+        achieved the selected milestone, not just those currently at that stage.
+        """
+        if not session_data:
+            return html.Div([
+                html.I(className="fas fa-info-circle fa-3x text-muted mb-3"),
+                html.P("Upload a file to see breakout tables", className='text-muted text-center')
+            ], className='text-center p-5')
+
+        processor = get_processor(session_data['filepath'])
+        if not processor:
+            return html.P("Error loading data", className='text-danger text-center p-5')
+
+        # Determine filter based on tab or navigation click
+        filter_type = active_tab
+        filter_value = None
+
+        if nav_data:
+            filter_type = nav_data.get('type', active_tab)
+            filter_value = nav_data.get('value')
+
+        # Get filtered segments based on filter type
+        segments = []
+        title = ""
+        subtitle = ""
+
+        if filter_type == 'breakout-ready':
+            segments = processor.get_segments_ready_to_line()
+            title = f"Ready to Line Segments"
+            subtitle = f"{len(segments)} segments have achieved 'Ready to Line' status (cumulative tracking)"
+
+        elif filter_type == 'breakout-cctv':
+            segments = processor.get_segments_cctv_posted()
+            title = f"CCTV Posted (Post TV Complete) Segments"
+            subtitle = f"{len(segments)} segments have completed final post-TV inspection"
+
+        elif filter_type == 'breakout-flagged':
+            segments = processor.get_segments_flagged_for_issues()
+            title = f"Flagged Issues"
+            subtitle = f"{len(segments)} segments with potential issues (easement, traffic, not started)"
+
+        elif filter_type == 'breakout-easement':
+            segments = processor.get_segments_by_easement(True)
+            title = f"Easement Segments"
+            subtitle = f"{len(segments)} segments require easement access"
+
+        elif filter_type == 'breakout-traffic':
+            segments = processor.get_segments_by_traffic_control(True)
+            title = f"Traffic Control Required"
+            subtitle = f"{len(segments)} segments require traffic control"
+
+        elif filter_type == 'breakout-current':
+            # Show breakdown by current stage
+            if filter_value:
+                segments = processor.get_segments_by_current_stage(filter_value)
+                title = f"Currently at '{filter_value}' Stage"
+                subtitle = f"{len(segments)} segments are currently at this stage (not yet advanced)"
+            else:
+                segments = []
+                title = "Current Stage Breakdown"
+                subtitle = "Click on a stage in the progress chart to filter"
+
+        elif filter_type == 'breakout-pipe':
+            if filter_value:
+                segments = processor.get_segments_by_pipe_size(filter_value)
+                title = f"{filter_value}\" Pipe Segments"
+                subtitle = f"{len(segments)} segments with {filter_value}\" diameter pipe"
+            else:
+                segments = []
+                title = "Pipe Size Filter"
+                subtitle = "Click on a pipe size in the charts to filter"
+
+        elif filter_type == 'breakout-length':
+            if filter_value and 'min' in filter_value:
+                segments = processor.get_segments_by_length_bin(
+                    filter_value['min'],
+                    filter_value.get('max')
+                )
+                bin_label = filter_value.get('label', 'Selected Range')
+                title = f"{bin_label} Length Segments"
+                subtitle = f"{len(segments)} segments in this length range"
+            else:
+                segments = []
+                title = "Length Range Filter"
+                subtitle = "Click on a length bin in the chart to filter"
+
+        else:  # breakout-all
+            segments = processor.segments
+            title = f"All Segments"
+            subtitle = f"{len(segments)} total segments in project"
+
+        # Handle empty results
+        if not segments:
+            return html.Div([
+                html.H6(title, className='mb-2'),
+                html.P(subtitle, className='text-muted mb-4'),
+                html.Div([
+                    html.I(className="fas fa-inbox fa-3x text-muted mb-3"),
+                    html.P("No segments match this filter", className='text-muted')
+                ], className='text-center p-5')
+            ])
+
+        # Format for table display
+        formatted = processor.format_segments_for_table(segments)
+        df = pd.DataFrame(formatted)
+
+        # Calculate statistics
+        total_footage = sum(s['map_length'] for s in segments)
+        avg_length = total_footage / len(segments) if segments else 0
+        pct_of_total = (total_footage / processor.total_footage * 100) if processor.total_footage > 0 else 0
+
+        # Create statistics footer
+        stats_footer = dbc.Row([
+            dbc.Col([
+                html.Div([
+                    html.I(className="fas fa-list text-primary me-2"),
+                    html.Strong("Segments: "),
+                    html.Span(f"{len(segments)}")
+                ])
+            ], width=3),
+            dbc.Col([
+                html.Div([
+                    html.I(className="fas fa-ruler text-success me-2"),
+                    html.Strong("Total Footage: "),
+                    html.Span(f"{total_footage:,.0f} ft ({pct_of_total:.1f}% of project)")
+                ])
+            ], width=4),
+            dbc.Col([
+                html.Div([
+                    html.I(className="fas fa-calculator text-info me-2"),
+                    html.Strong("Avg Length: "),
+                    html.Span(f"{avg_length:.1f} ft")
+                ])
+            ], width=3),
+            dbc.Col([
+                dbc.Button([
+                    html.I(className="fas fa-file-export me-2"),
+                    "Export to Excel"
+                ], color="primary", size="sm", outline=True)
+            ], width=2, className='text-end')
+        ], className='mt-4 p-3 bg-light rounded align-items-center')
+
+        return html.Div([
+            html.H5(title, className='mb-1'),
+            html.P(subtitle, className='text-muted mb-3'),
+            dash_table.DataTable(
+                data=df.to_dict('records'),
+                columns=[{"name": i, "id": i} for i in df.columns],
+                style_table={'overflowX': 'auto'},
+                style_cell={
+                    'textAlign': 'left',
+                    'padding': '10px',
+                    'minWidth': '100px',
+                    'fontSize': '14px'
+                },
+                style_header={
+                    'backgroundColor': '#1E3A8A',
+                    'color': 'white',
+                    'fontWeight': 'bold',
+                    'textAlign': 'left'
+                },
+                style_data_conditional=[
+                    {
+                        'if': {'row_index': 'odd'},
+                        'backgroundColor': 'rgb(248, 248, 248)'
+                    },
+                    {
+                        'if': {'column_id': 'Flagged Issues', 'filter_query': '{Flagged Issues} ne "-"'},
+                        'backgroundColor': 'rgba(239, 68, 68, 0.1)',
+                        'color': '#991b1b'
+                    }
+                ],
+                page_size=25,
+                page_action='native',
+                sort_action='native',
+                filter_action='native',
+                export_format='xlsx',
+                export_headers='display'
+            ),
+            stats_footer
+        ])
+
+    # ============================================================================
+    # CHART CLICK HANDLERS - Navigate to Breakout Tables
+    # ============================================================================
+
+    @dash_app.callback(
+        [Output('breakout-nav-store', 'data'),
+         Output('breakout-tabs', 'active_tab')],
+        [Input('progress-bar-chart', 'clickData'),
+         Input('pipe-progress-chart', 'clickData'),
+         Input('pipe-size-chart', 'clickData'),
+         Input('easement-traffic-chart', 'clickData'),
+         Input('length-distribution-chart', 'clickData')]
+    )
+    def handle_chart_clicks(progress_click, pipe_progress_click, pipe_size_click,
+                           easement_click, length_click):
+        """
+        Handle clicks on charts to navigate to appropriate breakout table.
+
+        When a user clicks on a chart element, this automatically switches
+        to the relevant breakout tab and filters the segments.
+        """
+        ctx = dash.callback_context
+
+        if not ctx.triggered:
+            raise PreventUpdate
+
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+        # Progress bar chart click - navigate to that stage
+        if trigger_id == 'progress-bar-chart' and progress_click:
+            stage = progress_click['points'][0].get('label', progress_click['points'][0].get('y', ''))
+
+            # Map stage to breakout tab
+            if 'Ready to Line' in stage:
+                return {'type': 'breakout-ready', 'value': stage}, 'breakout-ready'
+            elif 'Post TV' in stage or 'CCTV' in stage:
+                return {'type': 'breakout-cctv', 'value': stage}, 'breakout-cctv'
+            else:
+                return {'type': 'breakout-current', 'value': stage}, 'breakout-current'
+
+        # Pipe progress or size chart click - navigate to that pipe size
+        elif (trigger_id == 'pipe-progress-chart' or trigger_id == 'pipe-size-chart') and (pipe_progress_click or pipe_size_click):
+            click_data = pipe_progress_click if pipe_progress_click else pipe_size_click
+            pipe_size = click_data['points'][0].get('y', click_data['points'][0].get('x', ''))
+            return {'type': 'breakout-pipe', 'value': pipe_size}, 'breakout-current'
+
+        # Easement/traffic chart click
+        elif trigger_id == 'easement-traffic-chart' and easement_click:
+            label = easement_click['points'][0].get('x', '')
+
+            if 'Easement' in label and 'Yes' in label:
+                return {'type': 'breakout-easement', 'value': True}, 'breakout-easement'
+            elif 'Traffic' in label and 'Yes' in label:
+                return {'type': 'breakout-traffic', 'value': True}, 'breakout-traffic'
+            else:
+                return {}, 'breakout-all'
+
+        # Length distribution chart click
+        elif trigger_id == 'length-distribution-chart' and length_click:
+            bin_label = length_click['points'][0].get('x', '')
+
+            # Parse bin label to extract min/max
+            # This is a simplified version - you may need to enhance based on actual bin labels
+            return {'type': 'breakout-length', 'value': {'label': bin_label}}, 'breakout-current'
+
+        raise PreventUpdate
 
     return dash_app
