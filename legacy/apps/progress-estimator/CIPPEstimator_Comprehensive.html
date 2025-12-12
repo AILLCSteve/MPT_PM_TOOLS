@@ -577,7 +577,7 @@ tr:nth-child(even) {
                 <h3>📏 Pipe Diameter Selection</h3>
                 <div class="penalty-section">
                     <h5>⚠️ Select All Pipe Sizes Present in Project:</h5>
-                    <small style="color: #666; display: block; margin-bottom: 10px;">Note: 6" pipe has HIGHEST penalty due to equipment access difficulty</small>
+                    <small style="color: #666; display: block; margin-bottom: 10px;">Select all pipe sizes in the project. Penalty application scales with footage for footage-sensitive sizes (6", 15", 18", 21").</small>
                     <div class="pipe-grid" id="prepPipeGrid"></div>
                 </div>
 
@@ -588,51 +588,51 @@ tr:nth-child(even) {
                         <div class="penalty-item">
                             <label>
                                 <span>Heavy Cleaning Required:</span>
-                                <span class="penalty-value" id="prepHeavyPenaltyVal">0.40</span>
+                                <span class="penalty-value" id="prepHeavyPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepHeavyPenaltySlider" min="0" max="0.70" step="0.05" value="0.40" class="slider">
-                                <input type="number" id="prepHeavyPenalty" min="0" max="0.70" step="0.05" value="0.40" class="number-input">
+                                <input type="range" id="prepHeavyPenaltySlider" min="0" max="0.70" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepHeavyPenalty" min="0" max="0.70" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Easement/Off-Road Work:</span>
-                                <span class="penalty-value" id="prepEasementPenaltyVal">0.30</span>
+                                <span class="penalty-value" id="prepEasementPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepEasementPenaltySlider" min="0" max="0.60" step="0.05" value="0.30" class="slider">
-                                <input type="number" id="prepEasementPenalty" min="0" max="0.60" step="0.05" value="0.30" class="number-input">
+                                <input type="range" id="prepEasementPenaltySlider" min="0" max="0.60" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepEasementPenalty" min="0" max="0.60" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Root Intrusion Severity:</span>
-                                <span class="penalty-value" id="prepRootPenaltyVal">0.35</span>
+                                <span class="penalty-value" id="prepRootPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepRootPenaltySlider" min="0" max="0.50" step="0.05" value="0.35" class="slider">
-                                <input type="number" id="prepRootPenalty" min="0" max="0.50" step="0.05" value="0.35" class="number-input">
+                                <input type="range" id="prepRootPenaltySlider" min="0" max="0.50" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepRootPenalty" min="0" max="0.50" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Traffic Control Required:</span>
-                                <span class="penalty-value" id="prepTrafficPenaltyVal">0.25</span>
+                                <span class="penalty-value" id="prepTrafficPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepTrafficPenaltySlider" min="0" max="0.45" step="0.05" value="0.25" class="slider">
-                                <input type="number" id="prepTrafficPenalty" min="0" max="0.45" step="0.05" value="0.25" class="number-input">
+                                <input type="range" id="prepTrafficPenaltySlider" min="0" max="0.45" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepTrafficPenalty" min="0" max="0.45" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Heavy Grease/Sediment Buildup:</span>
-                                <span class="penalty-value" id="prepGreasePenaltyVal">0.30</span>
+                                <span class="penalty-value" id="prepGreasePenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepGreasePenaltySlider" min="0" max="0.50" step="0.05" value="0.30" class="slider">
-                                <input type="number" id="prepGreasePenalty" min="0" max="0.50" step="0.05" value="0.30" class="number-input">
+                                <input type="range" id="prepGreasePenaltySlider" min="0" max="0.50" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepGreasePenalty" min="0" max="0.50" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                     </div>
@@ -645,51 +645,51 @@ tr:nth-child(even) {
                         <div class="penalty-item">
                             <label>
                                 <span>Recycler Equipment Available:</span>
-                                <span class="penalty-value" id="prepRecyclerBoostVal">0.25</span>
+                                <span class="penalty-value" id="prepRecyclerBoostVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepRecyclerBoostSlider" min="0" max="0.40" step="0.05" value="0.25" class="slider">
-                                <input type="number" id="prepRecyclerBoost" min="0" max="0.40" step="0.05" value="0.25" class="number-input">
+                                <input type="range" id="prepRecyclerBoostSlider" min="0" max="0.40" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepRecyclerBoost" min="0" max="0.40" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Clustered/Contiguous Segments:</span>
-                                <span class="penalty-value" id="prepClusterBoostVal">0.15</span>
+                                <span class="penalty-value" id="prepClusterBoostVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepClusterBoostSlider" min="0" max="0.30" step="0.05" value="0.15" class="slider">
-                                <input type="number" id="prepClusterBoost" min="0" max="0.30" step="0.05" value="0.15" class="number-input">
+                                <input type="range" id="prepClusterBoostSlider" min="0" max="0.30" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepClusterBoost" min="0" max="0.30" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Pre-Inspection Completed:</span>
-                                <span class="penalty-value" id="prepPreInspBoostVal">0.10</span>
+                                <span class="penalty-value" id="prepPreInspBoostVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepPreInspBoostSlider" min="0" max="0.25" step="0.05" value="0.10" class="slider">
-                                <input type="number" id="prepPreInspBoost" min="0" max="0.25" step="0.05" value="0.10" class="number-input">
+                                <input type="range" id="prepPreInspBoostSlider" min="0" max="0.25" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepPreInspBoost" min="0" max="0.25" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
-                                <span>Modern Equipment Fleet:</span>
-                                <span class="penalty-value" id="prepModernEquipBoostVal">0.12</span>
+                                <span>Regular Cleaning/Maintenance Performed:</span>
+                                <span class="penalty-value" id="prepRegularMaintBoostVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepModernEquipBoostSlider" min="0" max="0.25" step="0.05" value="0.12" class="slider">
-                                <input type="number" id="prepModernEquipBoost" min="0" max="0.25" step="0.05" value="0.12" class="number-input">
+                                <input type="range" id="prepRegularMaintBoostSlider" min="0" max="0.25" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepRegularMaintBoost" min="0" max="0.25" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Experienced Operators (3+ yrs):</span>
-                                <span class="penalty-value" id="prepExpOpBoostVal">0.18</span>
+                                <span class="penalty-value" id="prepExpOpBoostVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepExpOpBoostSlider" min="0" max="0.35" step="0.05" value="0.18" class="slider">
-                                <input type="number" id="prepExpOpBoost" min="0" max="0.35" step="0.05" value="0.18" class="number-input">
+                                <input type="range" id="prepExpOpBoostSlider" min="0" max="0.35" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepExpOpBoost" min="0" max="0.35" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                     </div>
@@ -820,7 +820,7 @@ tr:nth-child(even) {
                 <h3>📏 Pipe Diameter Selection</h3>
                 <div class="penalty-section">
                     <h5>⚠️ Select All Pipe Sizes Present in Project:</h5>
-                    <small style="color: #666; display: block; margin-bottom: 10px;">Note: 6" pipe has HIGH penalty - difficult liner installation and reinstatement</small>
+                    <small style="color: #666; display: block; margin-bottom: 10px;">Select all pipe sizes in the project. Penalty application scales with footage for footage-sensitive sizes (6", 15", 18", 21").</small>
                     <div class="pipe-grid" id="liningPipeGrid"></div>
                 </div>
 
@@ -831,81 +831,81 @@ tr:nth-child(even) {
                         <div class="penalty-item">
                             <label>
                                 <span>Cold Weather (< 50°F):</span>
-                                <span class="penalty-value" id="liningColdPenaltyVal">0.30</span>
+                                <span class="penalty-value" id="liningColdPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningColdPenaltySlider" min="0" max="0.50" step="0.05" value="0.30" class="slider">
-                                <input type="number" id="liningColdPenalty" min="0" max="0.50" step="0.05" value="0.30" class="number-input">
+                                <input type="range" id="liningColdPenaltySlider" min="0" max="0.50" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningColdPenalty" min="0" max="0.50" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Hot Weather (> 85°F):</span>
-                                <span class="penalty-value" id="liningHotPenaltyVal">0.20</span>
+                                <span class="penalty-value" id="liningHotPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningHotPenaltySlider" min="0" max="0.35" step="0.05" value="0.20" class="slider">
-                                <input type="number" id="liningHotPenalty" min="0" max="0.35" step="0.05" value="0.20" class="number-input">
+                                <input type="range" id="liningHotPenaltySlider" min="0" max="0.35" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningHotPenalty" min="0" max="0.35" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Host Pipe Deterioration:</span>
-                                <span class="penalty-value" id="liningHostPipePenaltyVal">0.25</span>
+                                <span class="penalty-value" id="liningHostPipePenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningHostPipePenaltySlider" min="0" max="0.45" step="0.05" value="0.25" class="slider">
-                                <input type="number" id="liningHostPipePenalty" min="0" max="0.45" step="0.05" value="0.25" class="number-input">
+                                <input type="range" id="liningHostPipePenaltySlider" min="0" max="0.45" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningHostPipePenalty" min="0" max="0.45" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Complex Bypass Requirements:</span>
-                                <span class="penalty-value" id="liningBypassPenaltyVal">0.35</span>
+                                <span class="penalty-value" id="liningBypassPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningBypassPenaltySlider" min="0" max="0.55" step="0.05" value="0.35" class="slider">
-                                <input type="number" id="liningBypassPenalty" min="0" max="0.55" step="0.05" value="0.35" class="number-input">
+                                <input type="range" id="liningBypassPenaltySlider" min="0" max="0.55" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningBypassPenalty" min="0" max="0.55" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>High Lateral Count (> 10 per segment):</span>
-                                <span class="penalty-value" id="liningLateralPenaltyVal">0.30</span>
+                                <span class="penalty-value" id="liningLateralPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningLateralPenaltySlider" min="0" max="0.50" step="0.05" value="0.30" class="slider">
-                                <input type="number" id="liningLateralPenalty" min="0" max="0.50" step="0.05" value="0.30" class="number-input">
+                                <input type="range" id="liningLateralPenaltySlider" min="0" max="0.50" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningLateralPenalty" min="0" max="0.50" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Difficult Installation Access:</span>
-                                <span class="penalty-value" id="liningAccessPenaltyVal">0.25</span>
+                                <span class="penalty-value" id="liningAccessPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningAccessPenaltySlider" min="0" max="0.45" step="0.05" value="0.25" class="slider">
-                                <input type="number" id="liningAccessPenalty" min="0" max="0.45" step="0.05" value="0.25" class="number-input">
+                                <input type="range" id="liningAccessPenaltySlider" min="0" max="0.45" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningAccessPenalty" min="0" max="0.45" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Heavy Groundwater Infiltration:</span>
-                                <span class="penalty-value" id="liningGroundwaterPenaltyVal">0.28</span>
+                                <span class="penalty-value" id="liningGroundwaterPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningGroundwaterPenaltySlider" min="0" max="0.50" step="0.05" value="0.28" class="slider">
-                                <input type="number" id="liningGroundwaterPenalty" min="0" max="0.50" step="0.05" value="0.28" class="number-input">
+                                <input type="range" id="liningGroundwaterPenaltySlider" min="0" max="0.50" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningGroundwaterPenalty" min="0" max="0.50" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>New/Inexperienced Crew:</span>
-                                <span class="penalty-value" id="liningNewCrewPenaltyVal">0.30</span>
+                                <span class="penalty-value" id="liningNewCrewPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningNewCrewPenaltySlider" min="0" max="0.50" step="0.05" value="0.30" class="slider">
-                                <input type="number" id="liningNewCrewPenalty" min="0" max="0.50" step="0.05" value="0.30" class="number-input">
+                                <input type="range" id="liningNewCrewPenaltySlider" min="0" max="0.50" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningNewCrewPenalty" min="0" max="0.50" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                     </div>
@@ -918,71 +918,61 @@ tr:nth-child(even) {
                         <div class="penalty-item">
                             <label>
                                 <span>Steam Curing Method:</span>
-                                <span class="penalty-value" id="liningSteamBoostVal">0.15</span>
+                                <span class="penalty-value" id="liningSteamBoostVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningSteamBoostSlider" min="0" max="0.30" step="0.05" value="0.15" class="slider">
-                                <input type="number" id="liningSteamBoost" min="0" max="0.30" step="0.05" value="0.15" class="number-input">
-                            </div>
-                        </div>
-                        <div class="penalty-item">
-                            <label>
-                                <span>UV Light Curing Method:</span>
-                                <span class="penalty-value" id="liningUVBoostVal">0.40</span>
-                            </label>
-                            <div class="slider-container">
-                                <input type="range" id="liningUVBoostSlider" min="0" max="0.60" step="0.05" value="0.40" class="slider">
-                                <input type="number" id="liningUVBoost" min="0" max="0.60" step="0.05" value="0.40" class="number-input">
+                                <input type="range" id="liningSteamBoostSlider" min="0" max="0.30" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningSteamBoost" min="0" max="0.30" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Good Host Pipe Condition:</span>
-                                <span class="penalty-value" id="liningGoodPipeBoostVal">0.18</span>
+                                <span class="penalty-value" id="liningGoodPipeBoostVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningGoodPipeBoostSlider" min="0" max="0.35" step="0.05" value="0.18" class="slider">
-                                <input type="number" id="liningGoodPipeBoost" min="0" max="0.35" step="0.05" value="0.18" class="number-input">
+                                <input type="range" id="liningGoodPipeBoostSlider" min="0" max="0.35" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningGoodPipeBoost" min="0" max="0.35" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Minimal Laterals (< 5 per segment):</span>
-                                <span class="penalty-value" id="liningMinLateralBoostVal">0.15</span>
+                                <span class="penalty-value" id="liningMinLateralBoostVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningMinLateralBoostSlider" min="0" max="0.30" step="0.05" value="0.15" class="slider">
-                                <input type="number" id="liningMinLateralBoost" min="0" max="0.30" step="0.05" value="0.15" class="number-input">
+                                <input type="range" id="liningMinLateralBoostSlider" min="0" max="0.30" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningMinLateralBoost" min="0" max="0.30" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Efficient Bypass Available:</span>
-                                <span class="penalty-value" id="liningBypassBoostVal">0.20</span>
+                                <span class="penalty-value" id="liningBypassBoostVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningBypassBoostSlider" min="0" max="0.40" step="0.05" value="0.20" class="slider">
-                                <input type="number" id="liningBypassBoost" min="0" max="0.40" step="0.05" value="0.20" class="number-input">
+                                <input type="range" id="liningBypassBoostSlider" min="0" max="0.40" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningBypassBoost" min="0" max="0.40" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Experienced Lining Crew (3+ yrs):</span>
-                                <span class="penalty-value" id="liningExpCrewBoostVal">0.22</span>
+                                <span class="penalty-value" id="liningExpCrewBoostVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningExpCrewBoostSlider" min="0" max="0.40" step="0.05" value="0.22" class="slider">
-                                <input type="number" id="liningExpCrewBoost" min="0" max="0.40" step="0.05" value="0.22" class="number-input">
+                                <input type="range" id="liningExpCrewBoostSlider" min="0" max="0.40" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningExpCrewBoost" min="0" max="0.40" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
                             <label>
                                 <span>Optimal Weather Conditions:</span>
-                                <span class="penalty-value" id="liningOptimalWeatherBoostVal">0.12</span>
+                                <span class="penalty-value" id="liningOptimalWeatherBoostVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="liningOptimalWeatherBoostSlider" min="0" max="0.25" step="0.05" value="0.12" class="slider">
-                                <input type="number" id="liningOptimalWeatherBoost" min="0" max="0.25" step="0.05" value="0.12" class="number-input">
+                                <input type="range" id="liningOptimalWeatherBoostSlider" min="0" max="0.25" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="liningOptimalWeatherBoost" min="0" max="0.25" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                     </div>
@@ -1140,41 +1130,43 @@ let currentMode = 'unified';
 // Smooth extrapolation for larger diameters
 // ============================================================================
 
-// Pipe size definitions with NEW penalty system (less aggressive)
+// Pipe size definitions with FOOTAGE-SENSITIVE penalty system
+// Base penalty = maximum penalty if conditions encountered
+// Actual penalty = base × probability (footage-dependent)
 const PREP_PIPE_SIZES = [
-    { diameter: 6,  penalty: 0.25,  label: '6" (tight pipe - high difficulty)' },
+    { diameter: 6,  penalty: 0.35,  label: '6" (tight pipe - access difficulty)' },
     { diameter: 8,  penalty: 0.00,  label: '8" (no size penalty)' },
     { diameter: 10, penalty: 0.00,  label: '10" (no size penalty)' },
     { diameter: 12, penalty: 0.00,  label: '12" (baseline)' },
-    { diameter: 15, penalty: 0.08,  label: '15" (light - ≈1.25x difficulty)' },
-    { diameter: 18, penalty: 0.18,  label: '18" (moderate - ≈4x difficulty)' },
-    { diameter: 21, penalty: 0.18,  label: '21" (moderate - ≈4x difficulty)' },
-    { diameter: 24, penalty: 0.197, label: '24" (elevated)' },
-    { diameter: 27, penalty: 0.214, label: '27" (elevated)' },
-    { diameter: 30, penalty: 0.231, label: '30" (elevated)' },
-    { diameter: 36, penalty: 0.265, label: '36" (significant)' },
-    { diameter: 42, penalty: 0.298, label: '42" (high)' },
-    { diameter: 48, penalty: 0.332, label: '48" (very high)' },
-    { diameter: 54, penalty: 0.366, label: '54" (very high)' },
-    { diameter: 60, penalty: 0.400, label: '60"+ (highest)' }
+    { diameter: 15, penalty: 0.08,  label: '15" (footage-sensitive)' },
+    { diameter: 18, penalty: 0.18,  label: '18" (footage-sensitive)' },
+    { diameter: 21, penalty: 0.18,  label: '21" (footage-sensitive)' },
+    { diameter: 24, penalty: 0.25,  label: '24" (large pipe)' },
+    { diameter: 27, penalty: 0.28,  label: '27" (large pipe)' },
+    { diameter: 30, penalty: 0.31,  label: '30" (large pipe)' },
+    { diameter: 36, penalty: 0.35,  label: '36" (very large)' },
+    { diameter: 42, penalty: 0.38,  label: '42" (very large)' },
+    { diameter: 48, penalty: 0.42,  label: '48" (extreme size)' },
+    { diameter: 54, penalty: 0.45,  label: '54" (extreme size)' },
+    { diameter: 60, penalty: 0.48,  label: '60"+ (extreme size)' }
 ];
 
 const LINING_PIPE_SIZES = [
-    { diameter: 6,  penalty: 0.25,  label: '6" (tight pipe - liner difficulty)' },
+    { diameter: 6,  penalty: 0.35,  label: '6" (tight pipe - liner difficulty)' },
     { diameter: 8,  penalty: 0.00,  label: '8" (no size penalty)' },
     { diameter: 10, penalty: 0.00,  label: '10" (no size penalty)' },
     { diameter: 12, penalty: 0.00,  label: '12" (baseline)' },
-    { diameter: 15, penalty: 0.08,  label: '15" (light - ≈1.25x difficulty)' },
-    { diameter: 18, penalty: 0.18,  label: '18" (moderate - ≈4x difficulty)' },
-    { diameter: 21, penalty: 0.18,  label: '21" (moderate - ≈4x difficulty)' },
-    { diameter: 24, penalty: 0.197, label: '24" (elevated)' },
-    { diameter: 27, penalty: 0.214, label: '27" (elevated)' },
-    { diameter: 30, penalty: 0.231, label: '30" (elevated)' },
-    { diameter: 36, penalty: 0.265, label: '36" (significant)' },
-    { diameter: 42, penalty: 0.298, label: '42" (high)' },
-    { diameter: 48, penalty: 0.332, label: '48" (very high)' },
-    { diameter: 54, penalty: 0.366, label: '54" (very high)' },
-    { diameter: 60, penalty: 0.400, label: '60"+ (highest)' }
+    { diameter: 15, penalty: 0.08,  label: '15" (footage-sensitive)' },
+    { diameter: 18, penalty: 0.18,  label: '18" (footage-sensitive)' },
+    { diameter: 21, penalty: 0.18,  label: '21" (footage-sensitive)' },
+    { diameter: 24, penalty: 0.25,  label: '24" (large pipe)' },
+    { diameter: 27, penalty: 0.28,  label: '27" (large pipe)' },
+    { diameter: 30, penalty: 0.31,  label: '30" (large pipe)' },
+    { diameter: 36, penalty: 0.35,  label: '36" (very large)' },
+    { diameter: 42, penalty: 0.38,  label: '42" (very large)' },
+    { diameter: 48, penalty: 0.42,  label: '48" (extreme size)' },
+    { diameter: 54, penalty: 0.45,  label: '54" (extreme size)' },
+    { diameter: 60, penalty: 0.48,  label: '60"+ (extreme size)' }
 ];
 
 // Advanced mode toggle (default: use new probability-based math)
@@ -1237,7 +1229,7 @@ function syncAllSliders() {
         ['prepRecyclerBoostSlider', 'prepRecyclerBoost'],
         ['prepClusterBoostSlider', 'prepClusterBoost'],
         ['prepPreInspBoostSlider', 'prepPreInspBoost'],
-        ['prepModernEquipBoostSlider', 'prepModernEquipBoost'],
+        ['prepRegularMaintBoostSlider', 'prepRegularMaintBoost'],
         ['prepExpOpBoostSlider', 'prepExpOpBoost'],
         ['prepLaborOverageSlider', 'prepLaborOverage'],
         ['liningBaseRateSlider', 'liningBaseRate'],
@@ -1250,7 +1242,6 @@ function syncAllSliders() {
         ['liningGroundwaterPenaltySlider', 'liningGroundwaterPenalty'],
         ['liningNewCrewPenaltySlider', 'liningNewCrewPenalty'],
         ['liningSteamBoostSlider', 'liningSteamBoost'],
-        ['liningUVBoostSlider', 'liningUVBoost'],
         ['liningGoodPipeBoostSlider', 'liningGoodPipeBoost'],
         ['liningMinLateralBoostSlider', 'liningMinLateralBoost'],
         ['liningBypassBoostSlider', 'liningBypassBoost'],
@@ -1331,39 +1322,40 @@ function combinedProbability(pFt, pDays) {
     return 1 - (1 - pf) * (1 - pd);
 }
 
-// Pipe size penalty probability (less aggressive than original spec)
+// NUANCED pipe size penalty probability with AGGRESSIVE footage scaling
+// Key insight: More footage = higher mathematical likelihood of encountering penalty conditions
 function pipeProbability(diameter, footageFt, calendarDays) {
     const L = Math.max(0, footageFt || 0);
     const d = Math.max(0, calendarDays || 0);
     let pFt;
 
-    // Small pipe: 6"–10" (tight, length-sensitive but LESS aggressive)
-    if (diameter <= 10) {
-        // 300 ft ≈ 0.08, 3000 ft ≈ 0.35 (reduced from 0.95)
-        pFt = Math.min(0.50, 0.02 + 0.00015 * L);
+    // 6" TIGHT PIPE: VERY footage-sensitive (equipment access issues scale with length)
+    if (diameter === 6) {
+        // 100 ft → 0.15, 500 ft → 0.35, 1000 ft → 0.55, 3000 ft → 0.85, 5000+ ft → 0.95
+        pFt = Math.min(0.95, 0.10 + 0.00025 * L);
     }
-    // Medium pipe: 12"–24" (moderate growth)
-    else if (diameter <= 24) {
-        // 500 ft ≈ 0.13, 2500 ft ≈ 0.35, 5000 ft ≈ 0.60
-        pFt = Math.min(0.65, 0.08 + 0.0001 * L);
+    // 8"-12" STANDARD: No penalty (baseline operations)
+    else if (diameter <= 12) {
+        pFt = 0.00; // No footage-based penalty
     }
-    // Large pipe: 27"–54" (higher base, slower growth)
-    else if (diameter < 60) {
-        // 300 ft ≈ 0.23, 3000 ft ≈ 0.40
-        pFt = Math.min(0.70, 0.20 + 0.00006 * L);
+    // 15", 18", 21" FOOTAGE-SENSITIVE MEDIUM: Penalty scales significantly with footage
+    else if (diameter === 15 || diameter === 18 || diameter === 21) {
+        // 500 ft → 0.20, 2000 ft → 0.50, 5000 ft → 0.80, 10000 ft → 0.95
+        pFt = Math.min(0.95, 0.05 + 0.00018 * L);
     }
-    // Very large pipe: 60"+ (user spec: 0.63 at 300 ft, +0.05/300 ft but CAPPED)
+    // 24"-60" LARGE PIPE: High penalty REGARDLESS of footage (always challenging)
+    else if (diameter > 21) {
+        // Base high probability, slight footage influence
+        // 300 ft → 0.75, 3000 ft → 0.85, 10000 ft → 0.92
+        pFt = Math.min(0.95, 0.70 + 0.000025 * L);
+    }
+    // Fallback
     else {
-        if (L <= 300) {
-            pFt = 0.45; // Reduced from 0.63
-        } else {
-            const extraSegments = (L - 300) / 300;
-            pFt = Math.min(0.75, 0.45 + 0.035 * extraSegments); // Reduced growth
-        }
+        pFt = 0.10;
     }
 
-    // Day-based component: more days, more chances (REDUCED)
-    const pDays = Math.min(0.35, 0.012 * d); // 10 days ≈ 0.12, 20 days ≈ 0.24
+    // Day-based component: longer projects = more exposure to penalty conditions
+    const pDays = Math.min(0.40, 0.015 * d); // 10 days → 0.15, 30 days → 0.40
 
     return combinedProbability(pFt, pDays);
 }
@@ -1458,9 +1450,9 @@ function calculatePrep() {
     const recyclerBoost = parseFloat(document.getElementById('prepRecyclerBoost').value) || 0;
     const clusterBoost = parseFloat(document.getElementById('prepClusterBoost').value) || 0;
     const preInspBoost = parseFloat(document.getElementById('prepPreInspBoost').value) || 0;
-    const modernEquipBoost = parseFloat(document.getElementById('prepModernEquipBoost').value) || 0;
+    const regularMaintBoost = parseFloat(document.getElementById('prepRegularMaintBoost').value) || 0;
     const expOpBoost = parseFloat(document.getElementById('prepExpOpBoost').value) || 0;
-    const totalBoost = recyclerBoost + clusterBoost + preInspBoost + modernEquipBoost + expOpBoost;
+    const totalBoost = recyclerBoost + clusterBoost + preInspBoost + regularMaintBoost + expOpBoost;
 
     // Approximate calendar days (for probability calculations)
     let approxRate = baseRate * (1 + totalBoost) * crews;
@@ -1564,13 +1556,12 @@ function calculateLining() {
 
     // Get all boosts
     const steamBoost = parseFloat(document.getElementById('liningSteamBoost').value) || 0;
-    const uvBoost = parseFloat(document.getElementById('liningUVBoost').value) || 0;
     const goodPipeBoost = parseFloat(document.getElementById('liningGoodPipeBoost').value) || 0;
     const minLateralBoost = parseFloat(document.getElementById('liningMinLateralBoost').value) || 0;
     const bypassBoost = parseFloat(document.getElementById('liningBypassBoost').value) || 0;
     const expCrewBoost = parseFloat(document.getElementById('liningExpCrewBoost').value) || 0;
     const optimalWeatherBoost = parseFloat(document.getElementById('liningOptimalWeatherBoost').value) || 0;
-    const totalBoost = steamBoost + uvBoost + goodPipeBoost + minLateralBoost + bypassBoost + expCrewBoost + optimalWeatherBoost;
+    const totalBoost = steamBoost + goodPipeBoost + minLateralBoost + bypassBoost + expCrewBoost + optimalWeatherBoost;
 
     // Approximate calendar days (for probability calculations)
     let approxRate = baseRatePerWeek * (1 + totalBoost) * crews;
@@ -1742,7 +1733,7 @@ function generateLiningRecommendations(weeks, days, laborHours, crews, hoursPerD
         const ratio = days / targetDays;
         const neededCrews = Math.ceil(crews * ratio);
 
-        recommendations.push(`Lining phase exceeds target by ${overrun} days. Recommend deploying ${neededCrews - crews} additional crew(s) (total: ${neededCrews}), utilizing UV curing (+40% boost), or improving host pipe prep. Consider enabling efficiency boosts like minimal laterals or experienced crew factors.`);
+        recommendations.push(`Lining phase exceeds target by ${overrun} days. Recommend deploying ${neededCrews - crews} additional crew(s) (total: ${neededCrews}), improving host pipe prep, or enabling efficiency boosts like minimal laterals or experienced crew factors.`);
     }
 
     if (laborBudget && laborHours > maxLaborAllowed) {
@@ -1751,7 +1742,7 @@ function generateLiningRecommendations(weeks, days, laborHours, crews, hoursPerD
     }
 
     if (!targetDays && !laborBudget) {
-        recommendations.push(`Lining estimated at ${weeks} weeks (${days} days) with ${crews} crew(s). Maximize efficiency with UV curing (+40%), experienced crews (+22%), and optimal weather conditions (+12%). Minimize delays by ensuring good bypass availability (+20%) and reducing lateral reinstatement count.`);
+        recommendations.push(`Lining estimated at ${weeks} weeks (${days} days) with ${crews} crew(s). Maximize efficiency with steam curing, experienced crews, and optimal weather conditions. Minimize delays by ensuring good bypass availability and reducing lateral reinstatement count.`);
     }
 
     const recBox = document.getElementById('liningRecommendation');
@@ -1780,7 +1771,7 @@ function generateUnifiedRecommendations(prepDays, liningDays, totalDays, totalLa
 
     if (combinedTarget && totalDays > combinedTarget) {
         const overrun = totalDays - combinedTarget;
-        recommendations.push(`Unified project runs ${overrun} days over combined target (${combinedTarget} days). Prep phase: ${prepDays} days, Lining phase: ${liningDays} days. Critical path optimization: accelerate prep completion to enable earlier lining start. Deploy additional crews to both phases or extend work schedules. Consider UV curing in lining phase for significant time savings.`);
+        recommendations.push(`Unified project runs ${overrun} days over combined target (${combinedTarget} days). Prep phase: ${prepDays} days, Lining phase: ${liningDays} days. Critical path optimization: accelerate prep completion to enable earlier lining start. Deploy additional crews to both phases or extend work schedules.`);
     } else {
         recommendations.push(`Comprehensive rehabilitation timeline: ${totalDays} days total (${Math.ceil(totalDays / 7)} weeks). Sequential workflow ensures quality: complete prep phase (${prepDays} days) before lining installation (${liningDays} days). Total labor investment: ${totalLabor.toLocaleString()} hours. Optimize both phases independently using penalty/boost adjustments for most accurate project forecasting.`);
     }
@@ -1815,7 +1806,7 @@ You are provided with:
 - Available Prep Crews: 2 total (typically 1 per job, can deploy 2)
 - Available Lining Crews: 1-2 (user can scale)
 - Equipment: Recycler units, modern cleaning fleet, CCTV systems
-- Curing Methods: Steam curing, UV curing capability
+- Curing Methods: Steam curing
 - Work Schedule Flexibility: Can extend to 6-7 day weeks, up to 16 hrs/day if needed
 
 **Current Project Constraints:**
