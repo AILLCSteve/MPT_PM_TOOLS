@@ -367,7 +367,6 @@ def create_dash_app(flask_app):
          Output('dashboard-section', 'style'),
          Output('session-data', 'data'),
          Output('kpi-segments', 'children'),
-         Output('kpi-ready-to-line', 'children'),
          Output('kpi-footage', 'children'),
          Output('kpi-avg-length', 'children'),
          Output('data-ready-signal', 'children')],  # Signal sent LAST
@@ -394,10 +393,6 @@ def create_dash_app(flask_app):
             processor = CIPPDataProcessor(str(filepath))
             processor.load_data()
 
-            # Get Ready to Line count for KPI (ready_to_line=true AND no lining_date)
-            ready_to_line_segments = processor.get_segments_ready_to_line()
-            ready_to_line_count = len(ready_to_line_segments)
-
             # Create session data payload with filepath (stateless - works across workers)
             session_id = timestamp
             session_payload = {
@@ -419,7 +414,6 @@ def create_dash_app(flask_app):
                 {'display': 'block'},
                 session_payload,
                 f"{len(processor.segments)}",
-                f"{ready_to_line_count}",
                 f"{processor.total_footage:,.0f} ft",
                 f"{processor.total_footage / len(processor.segments):.1f} ft",
                 f"ready-{session_id}"  # Signal: data is ready for this session
@@ -430,7 +424,7 @@ def create_dash_app(flask_app):
                 html.I(className="fas fa-exclamation-triangle me-2"),
                 f"Error: {str(e)}"
             ], color='danger')
-            return error, {'display': 'none'}, {}, '', '', '', '', ''
+            return error, {'display': 'none'}, {}, '', '', '', ''
 
 
     # Callback for overall progress bar (project lifecycle filling up + lining completion)
