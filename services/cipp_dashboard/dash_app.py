@@ -247,7 +247,7 @@ def create_dash_app(flask_app):
                             dbc.CardBody([
                                 html.I(className="fas fa-clipboard-check fa-2x text-info mb-2"),
                                 html.H3(id='kpi-ready-to-line', className='fw-bold'),
-                                html.P('Ready to Line', className='text-muted mb-0')
+                                html.P('Awaiting CIPP Install', className='text-muted mb-0')
                             ], className='text-center')
                         ], className='shadow-sm h-100')
                     ], id='kpi-ready-to-line-card', style={'cursor': 'pointer', 'height': '100%'})
@@ -287,7 +287,7 @@ def create_dash_app(flask_app):
                             dbc.CardBody([
                                 html.I(className="fas fa-tasks fa-2x text-danger mb-2"),
                                 html.H3(id='kpi-cipp-installation', className='fw-bold'),
-                                html.P('CIPP Installation', className='text-muted mb-0')
+                                html.P('CIPP Complete', className='text-muted mb-0')
                             ], className='text-center')
                         ], className='shadow-sm h-100')
                     ], id='kpi-cipp-installation-card', style={'cursor': 'pointer', 'height': '100%'})
@@ -1421,7 +1421,8 @@ def create_dash_app(flask_app):
         total_segments = len(processor.segments)
 
         if toggle_state.get('show_fraction', False):
-            return f"{ready_count}/{total_segments}"
+            # Show only the count (numerator), not the full fraction
+            return f"{ready_count}"
         else:
             ready_pct = (ready_count / total_segments * 100) if total_segments > 0 else 0
             return f"{ready_pct:.1f}%"
