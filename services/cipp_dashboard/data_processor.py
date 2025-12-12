@@ -478,11 +478,12 @@ class CIPPDataProcessor:
         return [s for s in self.segments if s["final_post_tv_date"] is not None]
 
     def get_segments_pending(self) -> List[Dict[str, Any]]:
-        """Get segments with prep data but not ready to line (Pending status)."""
+        """Get segments with prep data but not ready to line and not yet lined (Pending status)."""
         return [
             s for s in self.segments
             if (s.get("prep_usmh_depth") or s.get("prep_dsmh_depth") or s.get("prep_crew_verified_dia"))
             and not s["ready_to_line"]
+            and s.get("lining_date") is None
         ]
 
     def get_segments_row_only(self) -> List[Dict[str, Any]]:
