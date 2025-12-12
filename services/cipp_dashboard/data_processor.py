@@ -84,8 +84,12 @@ class CIPPDataProcessor:
                 "traffic_control": self._is_truthy(self._get_cell_value(row, headers.get("Traffic Control"))),
             }
 
-            # Compute stage
+            # Compute current stage (for display/sorting)
             segment["stage"] = self._compute_stage(segment)
+
+            # Compute ALL achieved stages (CUMULATIVE LIFECYCLE)
+            segment["achieved_stages"] = self._compute_achieved_stages(segment)
+
             segments.append(segment)
 
         self.segments = segments
@@ -123,7 +127,7 @@ class CIPPDataProcessor:
         return bool(value)
 
     def _compute_stage(self, segment: Dict[str, Any]) -> str:
-        """Compute stage based on priority logic."""
+        """Compute current stage based on priority logic (for display)."""
         if segment["final_post_tv_date"] is not None:
             return "Post TV Complete"
         elif segment["lining_date"] is not None:
@@ -135,14 +139,59 @@ class CIPPDataProcessor:
         else:
             return "Not Started"
 
+    def _compute_achieved_stages(self, segment: Dict[str, Any]) -> List[str]:
+        """
+        Compute ALL stages this segment has achieved (CUMULATIVE LIFECYCLE).
+
+        This is the transformative change: segments don't leave previous stages
+        when they advance. A "Lined" segment HAS ALSO achieved "Prep Complete"
+        and "Ready to Line". This gives accurate progress tracking.
+
+        Returns list of all achieved stage names.
+        """
+        achieved = []
+
+        # Check each milestone in order
+        if segment["prep_complete"] or segment["ready_to_line"] or segment["lining_date"] or segment["final_post_tv_date"]:
+            achieved.append("Prep Complete")
+
+        if segment["ready_to_line"] or segment["lining_date"] or segment["final_post_tv_date"]:
+            achieved.append("Ready to Line")
+
+        if segment["lining_date"] or segment["final_post_tv_date"]:
+            achieved.append("Lined")
+
+        if segment["final_post_tv_date"]:
+            achieved.append("Post TV Complete")
+
+        # If nothing achieved, it's not started
+        if not achieved:
+            achieved.append("Not Started")
+
+        return achieved
+
     def get_stage_footage_summary(self) -> List[Dict[str, Any]]:
-        """Table 1: Stage_Footage_Summary (overall progress)."""
+        """
+        Table 1: Stage_Footage_Summary (CUMULATIVE LIFECYCLE tracking).
+
+        IMPORTANT: This uses cumulative counting where segments are counted
+        for EVERY stage they've achieved, not just their current stage.
+
+        A segment that's "Lined" is counted in:
+        - Prep Complete (it achieved that)
+        - Ready to Line (it achieved that)
+        - Lined (it achieved that)
+
+        This gives accurate progress metrics showing how much has passed
+        through each lifecycle gate.
+        """
         stage_data = defaultdict(lambda: {"count": 0, "footage": 0})
 
         for segment in self.segments:
-            stage = segment["stage"]
-            stage_data[stage]["count"] += 1
-            stage_data[stage]["footage"] += segment["map_length"]
+            # Count this segment for EVERY stage it has achieved
+            for achieved_stage in segment["achieved_stages"]:
+                stage_data[achieved_stage]["count"] += 1
+                stage_data[achieved_stage]["footage"] += segment["map_length"]
 
         result = []
         for stage in self.STAGES:
@@ -157,25 +206,34 @@ class CIPPDataProcessor:
         return result
 
     def get_stage_by_pipe_size(self) -> List[Dict[str, Any]]:
-        """Table 2: Stage_by_PipeSize (progress by diameter)."""
+        """
+        Table 2: Stage_by_PipeSize (CUMULATIVE progress by diameter).
+
+        Uses cumulative counting: a segment is counted for every stage
+        it has achieved, not just its current stage.
+        """
         # Collect unique pipe sizes
         pipe_sizes = sorted(set(s["pipe_size"] for s in self.segments if s["pipe_size"] is not None))
 
         result = []
         for pipe_size in pipe_sizes:
             row = {"Pipe Size": pipe_size}
-            total = 0
 
+            # For each stage, count all segments that have ACHIEVED it
             for stage in self.STAGES:
                 footage = sum(
                     s["map_length"]
                     for s in self.segments
-                    if s["pipe_size"] == pipe_size and s["stage"] == stage
+                    if s["pipe_size"] == pipe_size and stage in s["achieved_stages"]
                 )
                 row[stage] = round(footage, 2)
-                total += footage
 
-            row["Total_Feet"] = round(total, 2)
+            # Total is just the total footage of this pipe size (not cumulative)
+            row["Total_Feet"] = round(sum(
+                s["map_length"]
+                for s in self.segments
+                if s["pipe_size"] == pipe_size
+            ), 2)
             result.append(row)
 
         return result
@@ -288,3 +346,109 @@ class CIPPDataProcessor:
             "length_bins": self.get_length_bins(),
             "easement_traffic_summary": self.get_easement_traffic_summary()
         }
+
+    # ========================================================================
+    # BREAKOUT TABLE FILTERING FUNCTIONS
+    # ========================================================================
+
+    def get_segments_by_achieved_stage(self, stage: str) -> List[Dict[str, Any]]:
+        """
+        Get all segments that have ACHIEVED a specific stage.
+
+        This is the power of cumulative tracking: you can see ALL segments
+        that have passed through a specific lifecycle gate.
+
+        Args:
+            stage: Stage name (e.g., "Ready to Line", "Prep Complete")
+
+        Returns:
+            List of segment dictionaries that have achieved this stage
+        """
+        return [s for s in self.segments if stage in s["achieved_stages"]]
+
+    def get_segments_by_current_stage(self, stage: str) -> List[Dict[str, Any]]:
+        """
+        Get all segments currently AT a specific stage (not yet advanced further).
+
+        Args:
+            stage: Stage name
+
+        Returns:
+            List of segment dictionaries currently at this stage
+        """
+        return [s for s in self.segments if s["stage"] == stage]
+
+    def get_segments_by_pipe_size(self, pipe_size: float) -> List[Dict[str, Any]]:
+        """Filter segments by pipe size."""
+        return [s for s in self.segments if s["pipe_size"] == pipe_size]
+
+    def get_segments_by_length_bin(self, min_length: float, max_length: Optional[float] = None) -> List[Dict[str, Any]]:
+        """Filter segments by length range."""
+        if max_length is None:
+            return [s for s in self.segments if s["map_length"] >= min_length]
+        return [s for s in self.segments if min_length <= s["map_length"] <= max_length]
+
+    def get_segments_by_easement(self, is_easement: bool = True) -> List[Dict[str, Any]]:
+        """Filter segments by easement status."""
+        return [s for s in self.segments if s["easement"] == is_easement]
+
+    def get_segments_by_traffic_control(self, requires_traffic: bool = True) -> List[Dict[str, Any]]:
+        """Filter segments by traffic control requirement."""
+        return [s for s in self.segments if s["traffic_control"] == requires_traffic]
+
+    def get_segments_flagged_for_issues(self) -> List[Dict[str, Any]]:
+        """
+        Get segments flagged for potential issues.
+
+        Currently flags segments that:
+        - Are in easements
+        - Require traffic control
+        - Are not started but should be (heuristic: project > 30 days old)
+
+        Can be extended with more heuristics.
+        """
+        flagged = []
+        for s in self.segments:
+            issues = []
+            if s["easement"]:
+                issues.append("Easement Access")
+            if s["traffic_control"]:
+                issues.append("Traffic Control")
+            if s["stage"] == "Not Started":
+                issues.append("Not Yet Started")
+
+            if issues:
+                segment_copy = s.copy()
+                segment_copy["flagged_issues"] = issues
+                flagged.append(segment_copy)
+
+        return flagged
+
+    def get_segments_ready_to_line(self) -> List[Dict[str, Any]]:
+        """Get all segments that have achieved 'Ready to Line' status."""
+        return self.get_segments_by_achieved_stage("Ready to Line")
+
+    def get_segments_cctv_posted(self) -> List[Dict[str, Any]]:
+        """Get all segments with final post TV completed."""
+        return self.get_segments_by_achieved_stage("Post TV Complete")
+
+    def format_segments_for_table(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Format segments for display in breakout tables.
+
+        Returns list of dicts with display-friendly keys and formatting.
+        """
+        formatted = []
+        for s in segments:
+            formatted.append({
+                "Video ID": s["video_id"],
+                "Line Segment": s["line_segment"] or "-",
+                "Pipe Size": s["pipe_size"] or "-",
+                "Map Length (ft)": round(s["map_length"], 1),
+                "Current Stage": s["stage"],
+                "Achieved Stages": ", ".join(s["achieved_stages"]),
+                "Easement": "Yes" if s["easement"] else "No",
+                "Traffic Control": "Yes" if s["traffic_control"] else "No",
+                "Flagged Issues": ", ".join(s.get("flagged_issues", [])) if "flagged_issues" in s else "-"
+            })
+        return formatted
