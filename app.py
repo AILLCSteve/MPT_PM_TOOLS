@@ -1063,6 +1063,11 @@ def cipp_analyzer():
     """Serve CIPP Analyzer application (REBUILT for HOTDOG AI)"""
     return send_from_directory(Config.BASE_DIR, 'analyzer_rebuild.html')
 
+@app.route('/admin/sessions')
+def admin_sessions():
+    """Serve admin session monitoring page"""
+    return send_from_directory(Config.BASE_DIR, 'admin_sessions.html')
+
 @app.route('/api/config/questions', methods=['GET'])
 def get_question_config():
     """Load question configuration from JSON file"""

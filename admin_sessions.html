@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Admin Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 10px;
+            opacity: 0.9;
+        }
+
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .status-completed {
+            background: #22c55e;
+            color: white;
+        }
+
+        .status-partial {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .status-legacy {
+            background: #6b7280;
+            color: white;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th {
+            background: #f3f4f6;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+            color: #6b7280;
+        }
+
+        tr:hover {
+            background: #f9fafb;
+        }
+
+        .session-id {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #667eea;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .refresh-btn:active {
+            transform: translateY(0);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #9ca3af;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .path-cell {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Session Admin Panel</h1>
+            <p style="color: #6b7280; margin-top: 10px;">Monitor all analysis sessions across your system</p>
+
+            <div class="summary" id="summary">
+                <div class="stat-card">
+                    <h3>Total Sessions</h3>
+                    <div class="number" id="total">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Active</h3>
+                    <div class="number" id="active-count">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Completed</h3>
+                    <div class="number" id="completed-count">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Partial</h3>
+                    <div class="number" id="partial-count">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Legacy</h3>
+                    <div class="number" id="legacy-count">0</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button class="refresh-btn" onclick="loadSessions()">🔄 Refresh</button>
+                <span id="last-updated" style="margin-left: 15px; color: #6b7280; font-size: 14px;"></span>
+            </div>
+        </div>
+
+        <div id="error-container"></div>
+
+        <div class="section" id="active-section" style="display: none;">
+            <h2>🔵 Active Analyses</h2>
+            <div id="active-content"></div>
+        </div>
+
+        <div class="section" id="completed-section" style="display: none;">
+            <h2>✅ Completed Analyses</h2>
+            <div id="completed-content"></div>
+        </div>
+
+        <div class="section" id="partial-section" style="display: none;">
+            <h2>⚠️ Partial/Stopped Analyses</h2>
+            <div id="partial-content"></div>
+        </div>
+
+        <div class="section" id="legacy-section" style="display: none;">
+            <h2>📦 Legacy Analyses</h2>
+            <div id="legacy-content"></div>
+        </div>
+    </div>
+
+    <script>
+        function formatDateTime(isoString) {
+            if (!isoString) return 'N/A';
+            const date = new Date(isoString);
+            return date.toLocaleString();
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return 'N/A';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}m ${secs}s`;
+        }
+
+        function createSessionTable(sessions, statusClass) {
+            if (sessions.length === 0) {
+                return '<div class="empty-state">No sessions in this category</div>';
+            }
+
+            let html = '<table><thead><tr>';
+            html += '<th>Session ID</th>';
+            html += '<th>Status</th>';
+            html += '<th>PDF Path</th>';
+            html += '<th>Questions</th>';
+            html += '<th>Pages</th>';
+            html += '<th>Tokens</th>';
+            html += '<th>Time</th>';
+            html += '<th>Timestamp</th>';
+            html += '</tr></thead><tbody>';
+
+            sessions.forEach(session => {
+                html += '<tr>';
+                html += `<td class="session-id">${session.session_id}</td>`;
+                html += `<td><span class="status-badge status-${statusClass}">${session.status}</span></td>`;
+                html += `<td class="path-cell" title="${session.pdf_path}">${session.pdf_path}</td>`;
+                html += `<td>${session.questions_answered || 'N/A'}</td>`;
+                html += `<td>${session.total_pages || 'N/A'}</td>`;
+                html += `<td>${session.total_tokens ? session.total_tokens.toLocaleString() : 'N/A'}</td>`;
+                html += `<td>${formatDuration(session.processing_time)}</td>`;
+                html += `<td>${formatDateTime(session.completed_at || session.stopped_at || session.started_at)}</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            return html;
+        }
+
+        async function loadSessions() {
+            try {
+                const response = await fetch('/api/admin/sessions');
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load sessions');
+                }
+
+                // Update summary
+                document.getElementById('total').textContent = data.summary.total_sessions;
+                document.getElementById('active-count').textContent = data.summary.active_count;
+                document.getElementById('completed-count').textContent = data.summary.completed_count;
+                document.getElementById('partial-count').textContent = data.summary.partial_count;
+                document.getElementById('legacy-count').textContent = data.summary.legacy_count;
+
+                // Update active sessions
+                const activeSection = document.getElementById('active-section');
+                const activeContent = document.getElementById('active-content');
+                if (data.sessions.active.length > 0) {
+                    activeSection.style.display = 'block';
+                    activeContent.innerHTML = createSessionTable(data.sessions.active, 'active');
+                } else {
+                    activeSection.style.display = 'none';
+                }
+
+                // Update completed sessions
+                const completedSection = document.getElementById('completed-section');
+                const completedContent = document.getElementById('completed-content');
+                if (data.sessions.completed.length > 0) {
+                    completedSection.style.display = 'block';
+                    completedContent.innerHTML = createSessionTable(data.sessions.completed, 'completed');
+                } else {
+                    completedSection.style.display = 'none';
+                }
+
+                // Update partial sessions
+                const partialSection = document.getElementById('partial-section');
+                const partialContent = document.getElementById('partial-content');
+                if (data.sessions.partial.length > 0) {
+                    partialSection.style.display = 'block';
+                    partialContent.innerHTML = createSessionTable(data.sessions.partial, 'partial');
+                } else {
+                    partialSection.style.display = 'none';
+                }
+
+                // Update legacy sessions
+                const legacySection = document.getElementById('legacy-section');
+                const legacyContent = document.getElementById('legacy-content');
+                if (data.sessions.legacy.length > 0) {
+                    legacySection.style.display = 'block';
+                    legacyContent.innerHTML = createSessionTable(data.sessions.legacy, 'legacy');
+                } else {
+                    legacySection.style.display = 'none';
+                }
+
+                // Update timestamp
+                document.getElementById('last-updated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+
+                // Clear errors
+                document.getElementById('error-container').innerHTML = '';
+
+            } catch (error) {
+                console.error('Failed to load sessions:', error);
+                document.getElementById('error-container').innerHTML =
+                    `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        // Load on page load
+        loadSessions();
+
+        // Auto-refresh every 10 seconds
+        setInterval(loadSessions, 10000);
+    </script>
+</body>
+</html>
