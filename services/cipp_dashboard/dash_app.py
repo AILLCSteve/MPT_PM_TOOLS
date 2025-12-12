@@ -24,14 +24,15 @@ from services.cipp_dashboard.excel_generator_v2 import ExcelDashboardGeneratorV2
 # Color scheme - vibrant, distinct colors for lifecycle stages
 COLORS = {
     'Not Started': '#E0E0E0',  # Grey (not yet in pipeline)
-    'Prep Complete': '#FF6B35',  # Vibrant orange
+    'Awaiting Prep': '#FF6B35',  # Vibrant orange
     'Ready to Line': '#F7B801',  # Vibrant yellow/gold
+    'Wet Out': '#3498DB',  # Bright blue
     'Lined': '#004E89',  # Deep blue
     'Post TV Complete': '#6A0572'  # Deep purple
 }
 
-STAGE_ORDER = ['Not Started', 'Prep Complete', 'Ready to Line', 'Lined', 'Post TV Complete']
-LIFECYCLE_STAGES = ['Prep Complete', 'Ready to Line', 'Lined', 'Post TV Complete']  # Exclude Not Started
+STAGE_ORDER = ['Not Started', 'Awaiting Prep', 'Ready to Line', 'Wet Out', 'Lined', 'Post TV Complete']
+LIFECYCLE_STAGES = ['Awaiting Prep', 'Ready to Line', 'Wet Out', 'Lined', 'Post TV Complete']  # Exclude Not Started
 
 
 def create_dash_app(flask_app):
@@ -217,6 +218,35 @@ def create_dash_app(flask_app):
                 ], width=12)
             ], className='mb-4'),
 
+            # Breakout Tables - Interactive Filtered Segment Views
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader(html.H5([
+                            html.I(className="fas fa-filter me-2"),
+                            "Breakout Tables - Filtered Segment Views"
+                        ])),
+                        dbc.CardBody([
+                            html.P([
+                                "Click on any chart above to filter segments, or use the tabs below for instant breakouts. ",
+                                "Tables show segments matching specific criteria."
+                            ], className='text-muted mb-3'),
+                            dbc.Tabs([
+                                dbc.Tab(label="Awaiting Prep", tab_id="breakout-awaiting"),
+                                dbc.Tab(label="Ready to Line", tab_id="breakout-ready"),
+                                dbc.Tab(label="CCTV Posted", tab_id="breakout-cctv"),
+                                dbc.Tab(label="Pending", tab_id="breakout-pending"),
+                                dbc.Tab(label="Easement", tab_id="breakout-easement"),
+                                dbc.Tab(label="Traffic Control", tab_id="breakout-traffic"),
+                                dbc.Tab(label="ROW Only", tab_id="breakout-row"),
+                                dbc.Tab(label="All Segments", tab_id="breakout-all"),
+                            ], id="breakout-tabs", active_tab="breakout-awaiting"),
+                            html.Div(id='breakout-table-content', className='mt-3')
+                        ])
+                    ], className='shadow-sm')
+                ], width=12)
+            ], className='mb-4'),
+
             # Stage Progress
             dbc.Row([
                 dbc.Col([
@@ -293,35 +323,6 @@ def create_dash_app(flask_app):
                                 dbc.Tab(label="Easement/Traffic", tab_id="tab-5"),
                             ], id="table-tabs", active_tab="tab-1"),
                             html.Div(id='table-content', className='mt-3')
-                        ])
-                    ], className='shadow-sm')
-                ], width=12)
-            ], className='mb-4'),
-
-            # Breakout Tables - Interactive Filtered Segment Views
-            dbc.Row([
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardHeader(html.H5([
-                            html.I(className="fas fa-filter me-2"),
-                            "Breakout Tables - Filtered Segment Views"
-                        ])),
-                        dbc.CardBody([
-                            html.P([
-                                "Click on any chart above to filter segments, or use the tabs below for instant breakouts. ",
-                                html.Strong("Cumulative lifecycle tracking:"),
-                                " segments shown include all that have achieved each milestone."
-                            ], className='text-muted mb-3'),
-                            dbc.Tabs([
-                                dbc.Tab(label="Ready to Line", tab_id="breakout-ready"),
-                                dbc.Tab(label="CCTV Posted", tab_id="breakout-cctv"),
-                                dbc.Tab(label="Flagged Issues", tab_id="breakout-flagged"),
-                                dbc.Tab(label="Easement", tab_id="breakout-easement"),
-                                dbc.Tab(label="Traffic Control", tab_id="breakout-traffic"),
-                                dbc.Tab(label="Current Stage", tab_id="breakout-current"),
-                                dbc.Tab(label="All Segments", tab_id="breakout-all"),
-                            ], id="breakout-tabs", active_tab="breakout-ready"),
-                            html.Div(id='breakout-table-content', className='mt-3')
                         ])
                     ], className='shadow-sm')
                 ], width=12)
@@ -453,8 +454,8 @@ def create_dash_app(flask_app):
             # Data not yet available, return empty figure
             return go.Figure()
 
-        tables = processor.get_all_tables()
-        stage_summary = tables['stage_footage_summary']
+        # Use MUTUALLY EXCLUSIVE stage summary for overall progress bar (no overlapping)
+        stage_summary = processor.get_overall_progress_summary()
         total_footage = processor.total_footage
         total_segments = len(processor.segments)
 
@@ -1363,8 +1364,7 @@ def create_dash_app(flask_app):
         """
         Display filtered breakout tables based on tab selection or chart clicks.
 
-        Uses CUMULATIVE lifecycle tracking: segments shown include ALL that have
-        achieved the selected milestone, not just those currently at that stage.
+        Tables show segments matching specific business criteria.
         """
         if not session_data:
             return html.Div([
@@ -1389,41 +1389,40 @@ def create_dash_app(flask_app):
         title = ""
         subtitle = ""
 
-        if filter_type == 'breakout-ready':
+        if filter_type == 'breakout-awaiting':
+            segments = processor.get_segments_awaiting_prep()
+            title = f"Awaiting Prep Segments"
+            subtitle = f"{len(segments)} segments with map length but no prep crew verified diameter"
+
+        elif filter_type == 'breakout-ready':
             segments = processor.get_segments_ready_to_line()
             title = f"Ready to Line Segments"
-            subtitle = f"{len(segments)} segments have achieved 'Ready to Line' status (cumulative tracking)"
+            subtitle = f"{len(segments)} segments certified ready but not yet lined"
 
         elif filter_type == 'breakout-cctv':
             segments = processor.get_segments_cctv_posted()
             title = f"CCTV Posted (Post TV Complete) Segments"
-            subtitle = f"{len(segments)} segments have completed final post-TV inspection"
+            subtitle = f"{len(segments)} segments with final post-TV inspection complete"
 
-        elif filter_type == 'breakout-flagged':
-            segments = processor.get_segments_flagged_for_issues()
-            title = f"Flagged Issues"
-            subtitle = f"{len(segments)} segments with potential issues (easement, traffic, not started)"
+        elif filter_type == 'breakout-pending':
+            segments = processor.get_segments_pending()
+            title = f"Pending Segments"
+            subtitle = f"{len(segments)} segments with prep data but not yet certified ready"
 
         elif filter_type == 'breakout-easement':
             segments = processor.get_segments_by_easement(True)
             title = f"Easement Segments"
-            subtitle = f"{len(segments)} segments require easement access"
+            subtitle = f"{len(segments)} segments requiring easement access"
 
         elif filter_type == 'breakout-traffic':
             segments = processor.get_segments_by_traffic_control(True)
             title = f"Traffic Control Required"
-            subtitle = f"{len(segments)} segments require traffic control"
+            subtitle = f"{len(segments)} segments requiring traffic control"
 
-        elif filter_type == 'breakout-current':
-            # Show breakdown by current stage
-            if filter_value:
-                segments = processor.get_segments_by_current_stage(filter_value)
-                title = f"Currently at '{filter_value}' Stage"
-                subtitle = f"{len(segments)} segments are currently at this stage (not yet advanced)"
-            else:
-                segments = []
-                title = "Current Stage Breakdown"
-                subtitle = "Click on a stage in the progress chart to filter"
+        elif filter_type == 'breakout-row':
+            segments = processor.get_segments_row_only()
+            title = f"ROW Only Segments"
+            subtitle = f"{len(segments)} segments with no easement or traffic control requirements"
 
         elif filter_type == 'breakout-pipe':
             if filter_value:

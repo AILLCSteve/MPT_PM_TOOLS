@@ -13,8 +13,9 @@ class CIPPDataProcessor:
 
     STAGES = [
         "Not Started",
-        "Prep Complete",
+        "Awaiting Prep",
         "Ready to Line",
+        "Wet Out",
         "Lined",
         "Post TV Complete"
     ]
@@ -77,6 +78,7 @@ class CIPPDataProcessor:
                 "map_length": float(map_length),
                 "prep_complete": self._is_truthy(self._get_cell_value(row, headers.get("Prep Complete"))),
                 "ready_to_line": self._is_truthy(self._get_cell_value(row, headers.get("Ready to Line - Certified by Prep Crew Lead"))),
+                "wet_out_date": self._get_cell_value(row, headers.get("Wet Out Date")),
                 "lining_date": self._get_cell_value(row, headers.get("Lining Date")),
                 "final_post_tv_date": self._get_cell_value(row, headers.get("Final Post TV Date")),
                 "grout_state_date": self._get_cell_value(row, headers.get("Grout State Date")),
@@ -127,15 +129,22 @@ class CIPPDataProcessor:
         return bool(value)
 
     def _compute_stage(self, segment: Dict[str, Any]) -> str:
-        """Compute current stage based on priority logic (for display)."""
+        """
+        Compute current stage based on priority logic (for display).
+
+        This is MUTUALLY EXCLUSIVE - each segment is in ONE stage at a time.
+        Used for the overall progress bar to avoid overlapping areas.
+        """
         if segment["final_post_tv_date"] is not None:
             return "Post TV Complete"
         elif segment["lining_date"] is not None:
             return "Lined"
+        elif segment["wet_out_date"] is not None:
+            return "Wet Out"
         elif segment["ready_to_line"]:
             return "Ready to Line"
         elif segment["prep_complete"]:
-            return "Prep Complete"
+            return "Awaiting Prep"
         else:
             return "Not Started"
 
@@ -144,19 +153,22 @@ class CIPPDataProcessor:
         Compute ALL stages this segment has achieved (CUMULATIVE LIFECYCLE).
 
         This is the transformative change: segments don't leave previous stages
-        when they advance. A "Lined" segment HAS ALSO achieved "Prep Complete"
-        and "Ready to Line". This gives accurate progress tracking.
+        when they advance. A "Lined" segment HAS ALSO achieved "Awaiting Prep",
+        "Ready to Line", and "Wet Out". This gives accurate progress tracking.
 
         Returns list of all achieved stage names.
         """
         achieved = []
 
-        # Check each milestone in order
-        if segment["prep_complete"] or segment["ready_to_line"] or segment["lining_date"] or segment["final_post_tv_date"]:
-            achieved.append("Prep Complete")
+        # Check each milestone in order (cumulative progression)
+        if segment["prep_complete"] or segment["ready_to_line"] or segment["wet_out_date"] or segment["lining_date"] or segment["final_post_tv_date"]:
+            achieved.append("Awaiting Prep")
 
-        if segment["ready_to_line"] or segment["lining_date"] or segment["final_post_tv_date"]:
+        if segment["ready_to_line"] or segment["wet_out_date"] or segment["lining_date"] or segment["final_post_tv_date"]:
             achieved.append("Ready to Line")
+
+        if segment["wet_out_date"] or segment["lining_date"] or segment["final_post_tv_date"]:
+            achieved.append("Wet Out")
 
         if segment["lining_date"] or segment["final_post_tv_date"]:
             achieved.append("Lined")
@@ -170,6 +182,35 @@ class CIPPDataProcessor:
 
         return achieved
 
+    def get_overall_progress_summary(self) -> List[Dict[str, Any]]:
+        """
+        Overall Progress Summary (MUTUALLY EXCLUSIVE for progress bar).
+
+        This uses the OLD counting method where each segment is in ONE stage.
+        Used specifically for the overall progress bar to avoid overlapping areas.
+
+        Returns stage summary with mutually exclusive counts.
+        """
+        stage_data = defaultdict(lambda: {"count": 0, "footage": 0})
+
+        for segment in self.segments:
+            # Count this segment ONLY in its current stage (mutually exclusive)
+            stage = segment["stage"]
+            stage_data[stage]["count"] += 1
+            stage_data[stage]["footage"] += segment["map_length"]
+
+        result = []
+        for stage in self.STAGES:
+            data = stage_data[stage]
+            result.append({
+                "Stage": stage,
+                "Segment_Count": data["count"],
+                "Total_Feet": round(data["footage"], 2),
+                "Pct_of_Total_Feet": round(data["footage"] / self.total_footage, 4) if self.total_footage > 0 else 0
+            })
+
+        return result
+
     def get_stage_footage_summary(self) -> List[Dict[str, Any]]:
         """
         Table 1: Stage_Footage_Summary (CUMULATIVE LIFECYCLE tracking).
@@ -178,8 +219,9 @@ class CIPPDataProcessor:
         for EVERY stage they've achieved, not just their current stage.
 
         A segment that's "Lined" is counted in:
-        - Prep Complete (it achieved that)
+        - Awaiting Prep (it achieved that)
         - Ready to Line (it achieved that)
+        - Wet Out (it achieved that)
         - Lined (it achieved that)
 
         This gives accurate progress metrics showing how much has passed
@@ -425,12 +467,31 @@ class CIPPDataProcessor:
         return flagged
 
     def get_segments_ready_to_line(self) -> List[Dict[str, Any]]:
-        """Get all segments that have achieved 'Ready to Line' status."""
-        return self.get_segments_by_achieved_stage("Ready to Line")
+        """Get segments with ready_to_line=true but not yet lined (no lining date)."""
+        return [s for s in self.segments if s["ready_to_line"] and not s["lining_date"]]
 
     def get_segments_cctv_posted(self) -> List[Dict[str, Any]]:
-        """Get all segments with final post TV completed."""
-        return self.get_segments_by_achieved_stage("Post TV Complete")
+        """Get segments with Post TV complete (final_post_tv_date is not null)."""
+        return [s for s in self.segments if s["final_post_tv_date"] is not None]
+
+    def get_segments_pending(self) -> List[Dict[str, Any]]:
+        """Get segments with prep data but not ready to line (Pending status)."""
+        return [
+            s for s in self.segments
+            if (s.get("prep_usmh_depth") or s.get("prep_dsmh_depth") or s.get("prep_crew_verified_dia"))
+            and not s["ready_to_line"]
+        ]
+
+    def get_segments_row_only(self) -> List[Dict[str, Any]]:
+        """Get segments where both easement and traffic control are false (ROW only)."""
+        return [s for s in self.segments if not s["easement"] and not s["traffic_control"]]
+
+    def get_segments_awaiting_prep(self) -> List[Dict[str, Any]]:
+        """Get segments with map length but no prep crew verified diameter (Awaiting Prep)."""
+        return [
+            s for s in self.segments
+            if s["map_length"] and not s.get("prep_crew_verified_dia")
+        ]
 
     def format_segments_for_table(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
