@@ -570,7 +570,7 @@ tr:nth-child(even) {
 
                 <div class="input-group">
                     <label for="prepCrews">Number of Prep Crews:</label>
-                    <input type="number" id="prepCrews" min="1" max="10" value="2">
+                    <input type="number" id="prepCrews" min="1" max="10" value="1">
                     <span class="unit">crews</span>
                 </div>
 
@@ -613,16 +613,6 @@ tr:nth-child(even) {
                             <div class="slider-container">
                                 <input type="range" id="prepRootPenaltySlider" min="0" max="0.50" step="0.05" value="0.35" class="slider">
                                 <input type="number" id="prepRootPenalty" min="0" max="0.50" step="0.05" value="0.35" class="number-input">
-                            </div>
-                        </div>
-                        <div class="penalty-item">
-                            <label>
-                                <span>Deep Pipe Burial (> 12 ft):</span>
-                                <span class="penalty-value" id="prepDepthPenaltyVal">0.20</span>
-                            </label>
-                            <div class="slider-container">
-                                <input type="range" id="prepDepthPenaltySlider" min="0" max="0.40" step="0.05" value="0.20" class="slider">
-                                <input type="number" id="prepDepthPenalty" min="0" max="0.40" step="0.05" value="0.20" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
@@ -792,6 +782,11 @@ tr:nth-child(even) {
 
                 <div id="prepRecommendation"></div>
                 <div id="prepWarning"></div>
+
+                <button onclick="getAIInsights('prep')" style="margin-top: 20px; padding: 15px 30px; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.3s;">
+                    🤖 Get AI Project Management Insights
+                </button>
+                <div id="prepAIInsights" style="margin-top: 15px;"></div>
             </div>
         </div>
 
@@ -818,7 +813,7 @@ tr:nth-child(even) {
 
                 <div class="input-group">
                     <label for="liningCrews">Number of Lining Crews:</label>
-                    <input type="number" id="liningCrews" min="1" max="10" value="3">
+                    <input type="number" id="liningCrews" min="1" max="10" value="1">
                     <span class="unit">crews</span>
                 </div>
 
@@ -1080,6 +1075,11 @@ tr:nth-child(even) {
 
                 <div id="liningRecommendation"></div>
                 <div id="liningWarning"></div>
+
+                <button onclick="getAIInsights('lining')" style="margin-top: 20px; padding: 15px 30px; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.3s;">
+                    🤖 Get AI Project Management Insights
+                </button>
+                <div id="liningAIInsights" style="margin-top: 15px;"></div>
             </div>
         </div>
 
@@ -1119,6 +1119,11 @@ tr:nth-child(even) {
 
             <div id="unifiedRecommendation"></div>
             <div id="unifiedWarning"></div>
+
+            <button onclick="getAIInsights('unified')" style="margin-top: 20px; padding: 15px 30px; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.3s;">
+                🤖 Get AI Project Management Insights
+            </button>
+            <div id="unifiedAIInsights" style="margin-top: 15px;"></div>
         </div>
     </div>
 
@@ -1129,36 +1134,52 @@ tr:nth-child(even) {
 
 let currentMode = 'unified';
 
-// Pipe size definitions (COMPREHENSIVE)
+// ============================================================================
+// ADVANCED PIPE SIZE PENALTY SYSTEM
+// Based on converted-footage spreadsheet multipliers (15-21" data)
+// Smooth extrapolation for larger diameters
+// ============================================================================
+
+// Pipe size definitions with NEW penalty system (less aggressive)
 const PREP_PIPE_SIZES = [
-    { diameter: 6, penalty: 0.45, label: '6" (HIGHEST penalty - difficult access)' },
-    { diameter: 8, penalty: 0.10, label: '8" (minor penalty)' },
-    { diameter: 10, penalty: 0.05, label: '10" (minimal penalty)' },
-    { diameter: 12, penalty: 0.00, label: '12" (baseline)' },
-    { diameter: 15, penalty: 0.15, label: '15" (moderate penalty)' },
-    { diameter: 18, penalty: 0.20, label: '18" (moderate penalty)' },
-    { diameter: 21, penalty: 0.30, label: '21" (high penalty)' },
-    { diameter: 24, penalty: 0.35, label: '24" (high penalty)' },
-    { diameter: 27, penalty: 0.38, label: '27" (very high penalty)' },
-    { diameter: 30, penalty: 0.40, label: '30" (very high penalty)' },
-    { diameter: 36, penalty: 0.45, label: '36" (extreme penalty)' },
-    { diameter: 42, penalty: 0.50, label: '42"+ (extreme penalty)' }
+    { diameter: 6,  penalty: 0.25,  label: '6" (tight pipe - high difficulty)' },
+    { diameter: 8,  penalty: 0.00,  label: '8" (no size penalty)' },
+    { diameter: 10, penalty: 0.00,  label: '10" (no size penalty)' },
+    { diameter: 12, penalty: 0.00,  label: '12" (baseline)' },
+    { diameter: 15, penalty: 0.08,  label: '15" (light - ≈1.25x difficulty)' },
+    { diameter: 18, penalty: 0.18,  label: '18" (moderate - ≈4x difficulty)' },
+    { diameter: 21, penalty: 0.18,  label: '21" (moderate - ≈4x difficulty)' },
+    { diameter: 24, penalty: 0.197, label: '24" (elevated)' },
+    { diameter: 27, penalty: 0.214, label: '27" (elevated)' },
+    { diameter: 30, penalty: 0.231, label: '30" (elevated)' },
+    { diameter: 36, penalty: 0.265, label: '36" (significant)' },
+    { diameter: 42, penalty: 0.298, label: '42" (high)' },
+    { diameter: 48, penalty: 0.332, label: '48" (very high)' },
+    { diameter: 54, penalty: 0.366, label: '54" (very high)' },
+    { diameter: 60, penalty: 0.400, label: '60"+ (highest)' }
 ];
 
 const LINING_PIPE_SIZES = [
-    { diameter: 6, penalty: 0.40, label: '6" (HIGH penalty - liner installation difficult)' },
-    { diameter: 8, penalty: 0.08, label: '8" (minor penalty)' },
-    { diameter: 10, penalty: 0.05, label: '10" (minimal penalty)' },
-    { diameter: 12, penalty: 0.00, label: '12" (baseline)' },
-    { diameter: 15, penalty: 0.20, label: '15" (moderate penalty)' },
-    { diameter: 18, penalty: 0.25, label: '18" (moderate penalty)' },
-    { diameter: 21, penalty: 0.40, label: '21" (high penalty)' },
-    { diameter: 24, penalty: 0.45, label: '24" (high penalty)' },
-    { diameter: 27, penalty: 0.48, label: '27" (very high penalty)' },
-    { diameter: 30, penalty: 0.50, label: '30" (very high penalty)' },
-    { diameter: 36, penalty: 0.55, label: '36" (extreme penalty)' },
-    { diameter: 42, penalty: 0.60, label: '42"+ (extreme penalty)' }
+    { diameter: 6,  penalty: 0.25,  label: '6" (tight pipe - liner difficulty)' },
+    { diameter: 8,  penalty: 0.00,  label: '8" (no size penalty)' },
+    { diameter: 10, penalty: 0.00,  label: '10" (no size penalty)' },
+    { diameter: 12, penalty: 0.00,  label: '12" (baseline)' },
+    { diameter: 15, penalty: 0.08,  label: '15" (light - ≈1.25x difficulty)' },
+    { diameter: 18, penalty: 0.18,  label: '18" (moderate - ≈4x difficulty)' },
+    { diameter: 21, penalty: 0.18,  label: '21" (moderate - ≈4x difficulty)' },
+    { diameter: 24, penalty: 0.197, label: '24" (elevated)' },
+    { diameter: 27, penalty: 0.214, label: '27" (elevated)' },
+    { diameter: 30, penalty: 0.231, label: '30" (elevated)' },
+    { diameter: 36, penalty: 0.265, label: '36" (significant)' },
+    { diameter: 42, penalty: 0.298, label: '42" (high)' },
+    { diameter: 48, penalty: 0.332, label: '48" (very high)' },
+    { diameter: 54, penalty: 0.366, label: '54" (very high)' },
+    { diameter: 60, penalty: 0.400, label: '60"+ (highest)' }
 ];
+
+// Advanced mode toggle (default: use new probability-based math)
+let useAdvancedPipeModel = true;
+let useAdvancedTrafficEasementModel = true;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -1174,18 +1195,32 @@ function initializePipeGrids() {
 
     PREP_PIPE_SIZES.forEach(pipe => {
         prepGrid.innerHTML += `
-            <div class="pipe-checkbox">
-                <input type="checkbox" id="prep_pipe_${pipe.diameter}" data-diameter="${pipe.diameter}" data-penalty="${pipe.penalty}">
-                <label for="prep_pipe_${pipe.diameter}">${pipe.label}</label>
+            <div class="pipe-checkbox" style="flex-direction: column; align-items: flex-start;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="prep_pipe_${pipe.diameter}" data-diameter="${pipe.diameter}" data-penalty="${pipe.penalty}">
+                    <span>${pipe.label}</span>
+                </label>
+                <div style="margin-top: 5px; display: flex; align-items: center; gap: 5px; width: 100%;">
+                    <input type="number" id="prep_pipe_len_${pipe.diameter}" min="0" step="100"
+                           placeholder="auto" class="number-input" style="width: 80px; font-size: 12px; padding: 4px;">
+                    <span style="font-size: 11px; color: #666;">ft</span>
+                </div>
             </div>
         `;
     });
 
     LINING_PIPE_SIZES.forEach(pipe => {
         liningGrid.innerHTML += `
-            <div class="pipe-checkbox">
-                <input type="checkbox" id="lining_pipe_${pipe.diameter}" data-diameter="${pipe.diameter}" data-penalty="${pipe.penalty}">
-                <label for="lining_pipe_${pipe.diameter}">${pipe.label}</label>
+            <div class="pipe-checkbox" style="flex-direction: column; align-items: flex-start;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="lining_pipe_${pipe.diameter}" data-diameter="${pipe.diameter}" data-penalty="${pipe.penalty}">
+                    <span>${pipe.label}</span>
+                </label>
+                <div style="margin-top: 5px; display: flex; align-items: center; gap: 5px; width: 100%;">
+                    <input type="number" id="lining_pipe_len_${pipe.diameter}" min="0" step="100"
+                           placeholder="auto" class="number-input" style="width: 80px; font-size: 12px; padding: 4px;">
+                    <span style="font-size: 11px; color: #666;">ft</span>
+                </div>
             </div>
         `;
     });
@@ -1197,7 +1232,6 @@ function syncAllSliders() {
         ['prepHeavyPenaltySlider', 'prepHeavyPenalty'],
         ['prepEasementPenaltySlider', 'prepEasementPenalty'],
         ['prepRootPenaltySlider', 'prepRootPenalty'],
-        ['prepDepthPenaltySlider', 'prepDepthPenalty'],
         ['prepTrafficPenaltySlider', 'prepTrafficPenalty'],
         ['prepGreasePenaltySlider', 'prepGreasePenalty'],
         ['prepRecyclerBoostSlider', 'prepRecyclerBoost'],
@@ -1286,6 +1320,112 @@ function setMode(mode) {
     calculate();
 }
 
+// ============================================================================
+// PROBABILITY FUNCTIONS - Advanced Penalty Modeling
+// ============================================================================
+
+// Combine two independent probabilities (at least one occurs)
+function combinedProbability(pFt, pDays) {
+    const pf = Math.min(1, Math.max(0, pFt || 0));
+    const pd = Math.min(1, Math.max(0, pDays || 0));
+    return 1 - (1 - pf) * (1 - pd);
+}
+
+// Pipe size penalty probability (less aggressive than original spec)
+function pipeProbability(diameter, footageFt, calendarDays) {
+    const L = Math.max(0, footageFt || 0);
+    const d = Math.max(0, calendarDays || 0);
+    let pFt;
+
+    // Small pipe: 6"–10" (tight, length-sensitive but LESS aggressive)
+    if (diameter <= 10) {
+        // 300 ft ≈ 0.08, 3000 ft ≈ 0.35 (reduced from 0.95)
+        pFt = Math.min(0.50, 0.02 + 0.00015 * L);
+    }
+    // Medium pipe: 12"–24" (moderate growth)
+    else if (diameter <= 24) {
+        // 500 ft ≈ 0.13, 2500 ft ≈ 0.35, 5000 ft ≈ 0.60
+        pFt = Math.min(0.65, 0.08 + 0.0001 * L);
+    }
+    // Large pipe: 27"–54" (higher base, slower growth)
+    else if (diameter < 60) {
+        // 300 ft ≈ 0.23, 3000 ft ≈ 0.40
+        pFt = Math.min(0.70, 0.20 + 0.00006 * L);
+    }
+    // Very large pipe: 60"+ (user spec: 0.63 at 300 ft, +0.05/300 ft but CAPPED)
+    else {
+        if (L <= 300) {
+            pFt = 0.45; // Reduced from 0.63
+        } else {
+            const extraSegments = (L - 300) / 300;
+            pFt = Math.min(0.75, 0.45 + 0.035 * extraSegments); // Reduced growth
+        }
+    }
+
+    // Day-based component: more days, more chances (REDUCED)
+    const pDays = Math.min(0.35, 0.012 * d); // 10 days ≈ 0.12, 20 days ≈ 0.24
+
+    return combinedProbability(pFt, pDays);
+}
+
+// Traffic penalty probability (length + duration based, LESS aggressive)
+function trafficProbability(footageFt, calendarDays) {
+    const L = Math.max(0, footageFt || 0);
+    const d = Math.max(0, calendarDays || 0);
+
+    // Footage-based: 300 ft≈0.08, 3000 ft≈0.35, 6000 ft≈0.60
+    const pFt = Math.min(0.60, 0.05 + 0.00009 * L);
+
+    // Day-based: 3d≈0.16, 10d≈0.25, 20d≈0.40
+    const pDays = Math.min(0.65, 0.13 + 0.012 * d);
+
+    return combinedProbability(pFt, pDays);
+}
+
+// Easement penalty probability (length + duration based, LESS aggressive)
+function easementProbability(footageFt, calendarDays) {
+    const L = Math.max(0, footageFt || 0);
+    const d = Math.max(0, calendarDays || 0);
+
+    // Footage-based: 300 ft≈0.12, 3000 ft≈0.45
+    const pFt = Math.min(0.70, 0.09 + 0.00012 * L);
+
+    // Day-based: 3d≈0.24, 10d≈0.33, 20d≈0.45
+    const pDays = Math.min(0.70, 0.21 + 0.009 * d);
+
+    return combinedProbability(pFt, pDays);
+}
+
+// Advanced pipe penalty computation (weighted average, not max)
+function computeAdvancedPipePenalty(totalFootage, calendarDays, pipeSelections) {
+    if (!pipeSelections.length || totalFootage <= 0) return 0;
+
+    // Distribute footage if not specified
+    const anySpecific = pipeSelections.some(ps => !isNaN(ps.footage) && ps.footage > 0);
+    if (!anySpecific) {
+        const equalFt = totalFootage / pipeSelections.length;
+        pipeSelections.forEach(ps => { ps.footage = equalFt; });
+    } else {
+        pipeSelections.forEach(ps => {
+            if (isNaN(ps.footage) || ps.footage < 0) ps.footage = 0;
+        });
+    }
+
+    // Weighted average penalty (not max - this is key correction!)
+    let totalWeightedPenalty = 0;
+    let totalFootageUsed = 0;
+
+    pipeSelections.forEach(ps => {
+        const p = pipeProbability(ps.diameter, ps.footage, calendarDays);
+        const effectivePenalty = ps.penalty * p;
+        const weight = ps.footage || 0;
+        totalWeightedPenalty += effectivePenalty * weight;
+        totalFootageUsed += weight;
+    });
+
+    return totalFootageUsed > 0 ? totalWeightedPenalty / totalFootageUsed : 0;
+}
+
 function calculate() {
     if (currentMode === 'prep' || currentMode === 'unified') calculatePrep();
     if (currentMode === 'lining' || currentMode === 'unified') calculateLining();
@@ -1305,13 +1445,12 @@ function calculatePrep() {
     }
 
     const baseRate = parseFloat(document.getElementById('prepBaseRate').value) || 3100;
-    const crews = parseFloat(document.getElementById('prepCrews').value) || 2;
+    const crews = parseFloat(document.getElementById('prepCrews').value) || 1;
 
     // Get penalties
     const heavyPenalty = parseFloat(document.getElementById('prepHeavyPenalty').value) || 0;
     const easementPenalty = parseFloat(document.getElementById('prepEasementPenalty').value) || 0;
     const rootPenalty = parseFloat(document.getElementById('prepRootPenalty').value) || 0;
-    const depthPenalty = parseFloat(document.getElementById('prepDepthPenalty').value) || 0;
     const trafficPenalty = parseFloat(document.getElementById('prepTrafficPenalty').value) || 0;
     const greasePenalty = parseFloat(document.getElementById('prepGreasePenalty').value) || 0;
 
@@ -1321,34 +1460,69 @@ function calculatePrep() {
     const preInspBoost = parseFloat(document.getElementById('prepPreInspBoost').value) || 0;
     const modernEquipBoost = parseFloat(document.getElementById('prepModernEquipBoost').value) || 0;
     const expOpBoost = parseFloat(document.getElementById('prepExpOpBoost').value) || 0;
+    const totalBoost = recyclerBoost + clusterBoost + preInspBoost + modernEquipBoost + expOpBoost;
 
-    // Get pipe penalties
+    // Approximate calendar days (for probability calculations)
+    let approxRate = baseRate * (1 + totalBoost) * crews;
+    const daysPerWeek = parseFloat(document.getElementById('prepDaysPerWeek').value) || 5;
+    const approxWorkDays = Math.max(1, Math.ceil(footage / approxRate));
+    const approxCalendarDays = Math.ceil(approxWorkDays * 7 / daysPerWeek);
+
+    // ADVANCED PIPE PENALTY (weighted average with probabilities)
     let pipePenalty = 0;
+    const prepPipeSelections = [];
+
     document.querySelectorAll('[id^="prep_pipe_"]:checked').forEach(checkbox => {
-        pipePenalty = Math.max(pipePenalty, parseFloat(checkbox.dataset.penalty));
+        const diameter = parseFloat(checkbox.dataset.diameter);
+        const penalty = parseFloat(checkbox.dataset.penalty);
+        const lenInput = document.getElementById(`prep_pipe_len_${diameter}`);
+        const footageForThisSize = lenInput ? parseFloat(lenInput.value) : NaN;
+
+        prepPipeSelections.push({
+            diameter,
+            penalty,
+            footage: footageForThisSize
+        });
     });
+
+    if (useAdvancedPipeModel && prepPipeSelections.length > 0) {
+        pipePenalty = computeAdvancedPipePenalty(footage, approxCalendarDays, prepPipeSelections);
+    } else if (prepPipeSelections.length > 0) {
+        // Legacy: take max penalty
+        prepPipeSelections.forEach(ps => {
+            pipePenalty = Math.max(pipePenalty, ps.penalty);
+        });
+    }
+
+    // ADVANCED TRAFFIC & EASEMENT PENALTIES (probability-based)
+    let effEasementPenalty = easementPenalty;
+    let effTrafficPenalty = trafficPenalty;
+
+    if (useAdvancedTrafficEasementModel && approxCalendarDays > 0) {
+        const pTraffic = trafficProbability(footage, approxCalendarDays);
+        const pEasement = easementProbability(footage, approxCalendarDays);
+        effTrafficPenalty = trafficPenalty * pTraffic;
+        effEasementPenalty = easementPenalty * pEasement;
+    }
 
     // Calculate effective rate
     let rate = baseRate;
 
     // Apply penalties (multiplicative)
     rate *= (1 - heavyPenalty);
-    rate *= (1 - easementPenalty);
+    rate *= (1 - effEasementPenalty);
     rate *= (1 - rootPenalty);
-    rate *= (1 - depthPenalty);
-    rate *= (1 - trafficPenalty);
+    rate *= (1 - effTrafficPenalty);
     rate *= (1 - greasePenalty);
     rate *= (1 - pipePenalty);
 
     // Apply boosts (additive)
-    const totalBoost = recyclerBoost + clusterBoost + preInspBoost + modernEquipBoost + expOpBoost;
     rate *= (1 + totalBoost);
 
     // Apply crew multiplier
     rate *= crews;
 
     const workDays = Math.ceil(footage / rate);
-    const daysPerWeek = parseFloat(document.getElementById('prepDaysPerWeek').value) || 5;
     const calendarDays = Math.ceil(workDays * 7 / daysPerWeek);
     const hoursPerDay = parseFloat(document.getElementById('prepHoursPerDay').value) || 8;
     const laborHours = workDays * hoursPerDay * crews;
@@ -1360,7 +1534,7 @@ function calculatePrep() {
     document.getElementById('prepLaborHours').textContent = `${Math.round(laborHours).toLocaleString()} hours`;
 
     // Generate recommendations
-    generatePrepRecommendations(workDays, calendarDays, laborHours, crews, hoursPerDay, daysPerWeek);
+    generatePrepRecommendations(workDays, calendarDays, laborHours, crews, hoursPerDay, daysPerWeek, footage, baseRate, totalBoost);
 }
 
 function calculateLining() {
@@ -1376,7 +1550,7 @@ function calculateLining() {
     }
 
     const baseRatePerWeek = parseFloat(document.getElementById('liningBaseRate').value) || 2500;
-    const crews = parseFloat(document.getElementById('liningCrews').value) || 3;
+    const crews = parseFloat(document.getElementById('liningCrews').value) || 1;
 
     // Get all penalties
     const coldPenalty = parseFloat(document.getElementById('liningColdPenalty').value) || 0;
@@ -1396,12 +1570,48 @@ function calculateLining() {
     const bypassBoost = parseFloat(document.getElementById('liningBypassBoost').value) || 0;
     const expCrewBoost = parseFloat(document.getElementById('liningExpCrewBoost').value) || 0;
     const optimalWeatherBoost = parseFloat(document.getElementById('liningOptimalWeatherBoost').value) || 0;
+    const totalBoost = steamBoost + uvBoost + goodPipeBoost + minLateralBoost + bypassBoost + expCrewBoost + optimalWeatherBoost;
 
-    // Get pipe penalties
+    // Approximate calendar days (for probability calculations)
+    let approxRate = baseRatePerWeek * (1 + totalBoost) * crews;
+    const approxWeeks = Math.max(1, Math.ceil(footage / approxRate));
+    const approxCalendarDays = approxWeeks * 7;
+
+    // ADVANCED PIPE PENALTY (weighted average with probabilities)
     let pipePenalty = 0;
+    const liningPipeSelections = [];
+
     document.querySelectorAll('[id^="lining_pipe_"]:checked').forEach(checkbox => {
-        pipePenalty = Math.max(pipePenalty, parseFloat(checkbox.dataset.penalty));
+        const diameter = parseFloat(checkbox.dataset.diameter);
+        const penalty = parseFloat(checkbox.dataset.penalty);
+        const lenInput = document.getElementById(`lining_pipe_len_${diameter}`);
+        const footageForThisSize = lenInput ? parseFloat(lenInput.value) : NaN;
+
+        liningPipeSelections.push({
+            diameter,
+            penalty,
+            footage: footageForThisSize
+        });
     });
+
+    if (useAdvancedPipeModel && liningPipeSelections.length > 0) {
+        pipePenalty = computeAdvancedPipePenalty(footage, approxCalendarDays, liningPipeSelections);
+    } else if (liningPipeSelections.length > 0) {
+        // Legacy: take max penalty
+        liningPipeSelections.forEach(ps => {
+            pipePenalty = Math.max(pipePenalty, ps.penalty);
+        });
+    }
+
+    // ADVANCED ACCESS & BYPASS PENALTIES (probability-based like traffic)
+    let effAccessPenalty = accessPenalty;
+    let effBypassPenalty = bypassPenalty;
+
+    if (useAdvancedTrafficEasementModel && approxCalendarDays > 0) {
+        const pTrafficAnalog = trafficProbability(footage, approxCalendarDays);
+        effAccessPenalty = accessPenalty * pTrafficAnalog;
+        effBypassPenalty = bypassPenalty * pTrafficAnalog;
+    }
 
     // Calculate effective rate
     let rate = baseRatePerWeek;
@@ -1410,15 +1620,14 @@ function calculateLining() {
     rate *= (1 - coldPenalty);
     rate *= (1 - hotPenalty);
     rate *= (1 - hostPipePenalty);
-    rate *= (1 - bypassPenalty);
+    rate *= (1 - effBypassPenalty);
     rate *= (1 - lateralPenalty);
-    rate *= (1 - accessPenalty);
+    rate *= (1 - effAccessPenalty);
     rate *= (1 - groundwaterPenalty);
     rate *= (1 - newCrewPenalty);
     rate *= (1 - pipePenalty);
 
     // Apply boosts (additive)
-    const totalBoost = steamBoost + uvBoost + goodPipeBoost + minLateralBoost + bypassBoost + expCrewBoost + optimalWeatherBoost;
     rate *= (1 + totalBoost);
 
     // Apply crew multiplier
@@ -1438,7 +1647,7 @@ function calculateLining() {
     document.getElementById('liningLaborHours').textContent = `${Math.round(laborHours).toLocaleString()} hours`;
 
     // Generate recommendations
-    generateLiningRecommendations(weeks, days, laborHours, crews, hoursPerDay, daysPerWeek);
+    generateLiningRecommendations(weeks, days, laborHours, crews, hoursPerDay, daysPerWeek, footage, baseRatePerWeek, totalBoost);
 }
 
 function calculateUnified() {
@@ -1470,7 +1679,7 @@ function calculateUnified() {
     generateUnifiedRecommendations(prepDays, liningDays, totalDays, totalLabor);
 }
 
-function generatePrepRecommendations(workDays, calendarDays, laborHours, crews, hoursPerDay, daysPerWeek) {
+function generatePrepRecommendations(workDays, calendarDays, laborHours, crews, hoursPerDay, daysPerWeek, footage, baseRate, totalBoost) {
     const targetDays = parseFloat(document.getElementById('prepTargetDays').value) || 0;
     const laborBudget = parseFloat(document.getElementById('prepLaborBudget').value) || 0;
     const laborOverage = parseFloat(document.getElementById('prepLaborOverage').value) || 10;
@@ -1478,15 +1687,20 @@ function generatePrepRecommendations(workDays, calendarDays, laborHours, crews, 
 
     let recommendations = [];
     let warnings = [];
+    let configurations = [];
 
     if (targetDays && calendarDays > targetDays) {
         const overrun = calendarDays - targetDays;
         const ratio = calendarDays / targetDays;
-        const neededCrews = Math.ceil(crews * ratio);
-        const neededHours = Math.min(16, Math.ceil(hoursPerDay * ratio));
-        const neededDaysPerWeek = Math.min(7, Math.ceil(daysPerWeek * ratio));
 
-        recommendations.push(`Schedule overrun: ${overrun} days beyond ${targetDays}-day target. Recommend adding ${neededCrews - crews} crew(s) (total: ${neededCrews}), increasing to ${neededHours} hrs/day, or working ${neededDaysPerWeek} days/week to meet deadline. Adjust penalty sliders if conditions improve or enable available boosts.`);
+        // Generate multiple configuration options
+        configurations.push(`<strong>Option A - Add Crews:</strong> Deploy ${Math.ceil(crews * ratio)} total crews (add ${Math.ceil(crews * ratio) - crews}) → ${targetDays} days`);
+        configurations.push(`<strong>Option B - Extended Hours:</strong> Increase to ${Math.min(16, Math.ceil(hoursPerDay * ratio))} hrs/day (${crews} crews) → ~${Math.ceil(calendarDays / ratio)} days`);
+        configurations.push(`<strong>Option C - 6-Day Week:</strong> Work ${Math.min(7, daysPerWeek + 1)} days/week → ~${Math.ceil(calendarDays * daysPerWeek / Math.min(7, daysPerWeek + 1))} days`);
+        configurations.push(`<strong>Option D - Hybrid:</strong> Add 1 crew + ${Math.min(12, hoursPerDay + 2)} hrs/day → ~${Math.ceil(calendarDays / 1.5)} days`);
+        configurations.push(`<strong>Option E - Optimize Boosts:</strong> Enable all efficiency boosts (+${((0.80 - totalBoost) * 100).toFixed(0)}% potential) → ~${Math.ceil(calendarDays / (1 + (0.80 - totalBoost)))} days`);
+
+        recommendations.push(`<strong>Schedule Overrun: ${overrun} days beyond ${targetDays}-day target.</strong><br>Multiple pathways to meet deadline:<br>` + configurations.join('<br>'));
     }
 
     if (laborBudget && laborHours > maxLaborAllowed) {
@@ -1578,6 +1792,157 @@ function generateUnifiedRecommendations(prepDays, liningDays, totalDays, totalLa
         const warnBox = document.getElementById('unifiedWarning');
         warnBox.innerHTML = `<div class="warning-box"><h4>⚠️ Project Warnings</h4><p>${warnings.join(' ')}</p></div>`;
     }
+}
+
+// ============================================================================
+// OPENAI API INTEGRATION - Dynamic Job-Specific PM Insights
+// ============================================================================
+
+async function getAIInsights(phase) {
+    const insightsDiv = document.getElementById(`${phase}AIInsights`);
+    insightsDiv.innerHTML = '<div style="padding: 20px; background: rgba(59, 130, 246, 0.1); border: 2px solid #3b82f6; border-radius: 8px; color: #1e40af;"><strong>🔄 Analyzing project parameters and generating insights...</strong></div>';
+
+    try {
+        // Gather comprehensive project data
+        const projectData = gatherProjectData(phase);
+
+        // Build dynamic prompt with actual job-specific values
+        const prompt = `Act as a master of project management specializing in CIPP lining preparation and installation.
+
+You are provided with:
+
+**Fleet / Company Resources:**
+- Available Prep Crews: 2 total (typically 1 per job, can deploy 2)
+- Available Lining Crews: 1-2 (user can scale)
+- Equipment: Recycler units, modern cleaning fleet, CCTV systems
+- Curing Methods: Steam curing, UV curing capability
+- Work Schedule Flexibility: Can extend to 6-7 day weeks, up to 16 hrs/day if needed
+
+**Current Project Constraints:**
+${projectData.constraints}
+
+**Calculated Approach Options from Front-End:**
+${projectData.configurations}
+
+**Current Estimated Timeline:**
+${projectData.timeline}
+
+Using all of this information, produce a **200–400 word briefing** that:
+1. Identifies **additional viable methods** to accomplish the project **not explicitly listed** in the provided configurations
+2. Deepens and elaborates on the approaches already presented, clarifying their operational implications, trade-offs, and execution steps
+3. Maintains a solution-oriented mindset, focusing on **actionable, field-ready planning** rather than obstacles
+
+Assume your audience is a project manager who prefers **detailed, practical, implementation-focused guidance**.`;
+
+        // Call OpenAI API
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + (window.OPENAI_API_KEY || 'YOUR_API_KEY_HERE')
+            },
+            body: JSON.stringify({
+                model: 'gpt-4',
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are an expert CIPP project management consultant with 20+ years of field experience.'
+                    },
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                temperature: 0.7,
+                max_tokens: 600
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API Error: ${response.status} - ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const insights = data.choices[0].message.content;
+
+        insightsDiv.innerHTML = `
+            <div class="recommendation-box" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.1)); border-color: #3b82f6; border-left-color: #3b82f6;">
+                <h4 style="color: #1e40af;">🤖 AI Project Management Insights</h4>
+                <p style="white-space: pre-wrap; line-height: 1.8;">${insights}</p>
+                <small style="display: block; margin-top: 15px; opacity: 0.7; font-size: 0.85em;">Generated via OpenAI GPT-4 based on your specific project parameters</small>
+            </div>
+        `;
+
+    } catch (error) {
+        console.error('AI Insights Error:', error);
+        insightsDiv.innerHTML = `
+            <div class="warning-box">
+                <h4>⚠️ Unable to Generate AI Insights</h4>
+                <p><strong>Error:</strong> ${error.message}</p>
+                <p><strong>Note:</strong> Ensure your OpenAI API key is configured. Set <code>window.OPENAI_API_KEY</code> in your environment or update the code with your key.</p>
+                <p><strong>To configure:</strong> Add this before the closing &lt;/body&gt; tag:<br>
+                <code>&lt;script&gt;window.OPENAI_API_KEY = 'your-api-key-here';&lt;/script&gt;</code></p>
+            </div>
+        `;
+    }
+}
+
+function gatherProjectData(phase) {
+    let constraints = '';
+    let configurations = '';
+    let timeline = '';
+
+    if (phase === 'prep' || phase === 'unified') {
+        const footage = parseFloat(document.getElementById('prepFootage').value) || 0;
+        const crews = parseFloat(document.getElementById('prepCrews').value) || 1;
+        const targetDays = parseFloat(document.getElementById('prepTargetDays').value) || 0;
+        const laborBudget = parseFloat(document.getElementById('prepLaborBudget').value) || 0;
+        const calendarDays = parseInt(document.getElementById('prepCalendarDays').textContent) || 0;
+        const laborHours = parseInt(document.getElementById('prepLaborHours').textContent.replace(/,/g, '')) || 0;
+
+        constraints += `\nPREP PHASE:\n`;
+        constraints += `- Total Footage: ${footage.toLocaleString()} ft\n`;
+        constraints += `- Current Crews: ${crews}\n`;
+        if (targetDays) constraints += `- Target Completion: ${targetDays} days\n`;
+        if (laborBudget) constraints += `- Labor Budget: ${laborBudget.toLocaleString()} hours\n`;
+
+        timeline += `\nPREP PHASE: ${calendarDays} calendar days, ${laborHours.toLocaleString()} labor hours\n`;
+
+        // Get selected pipe sizes
+        const pipeSizes = [];
+        document.querySelectorAll('[id^="prep_pipe_"]:checked').forEach(cb => {
+            pipeSizes.push(cb.dataset.diameter + '"');
+        });
+        if (pipeSizes.length) constraints += `- Pipe Sizes: ${pipeSizes.join(', ')}\n`;
+    }
+
+    if (phase === 'lining' || phase === 'unified') {
+        const footage = parseFloat(document.getElementById('liningFootage').value) || 0;
+        const crews = parseFloat(document.getElementById('liningCrews').value) || 1;
+        const targetDays = parseFloat(document.getElementById('liningTargetDays').value) || 0;
+        const laborBudget = parseFloat(document.getElementById('liningLaborBudget').value) || 0;
+        const days = parseInt(document.getElementById('liningDays').textContent) || 0;
+        const laborHours = parseInt(document.getElementById('liningLaborHours').textContent.replace(/,/g, '')) || 0;
+
+        constraints += `\nLINING PHASE:\n`;
+        constraints += `- Total Footage: ${footage.toLocaleString()} ft\n`;
+        constraints += `- Current Crews: ${crews}\n`;
+        if (targetDays) constraints += `- Target Completion: ${targetDays} days\n`;
+        if (laborBudget) constraints += `- Labor Budget: ${laborBudget.toLocaleString()} hours\n`;
+
+        timeline += `\nLINING PHASE: ${days} calendar days, ${laborHours.toLocaleString()} labor hours\n`;
+
+        // Get selected pipe sizes
+        const pipeSizes = [];
+        document.querySelectorAll('[id^="lining_pipe_"]:checked').forEach(cb => {
+            pipeSizes.push(cb.dataset.diameter + '"');
+        });
+        if (pipeSizes.length) constraints += `- Pipe Sizes: ${pipeSizes.join(', ')}\n`;
+    }
+
+    configurations = `See in-app recommendations (multiple crew/hour/schedule configurations available)`;
+
+    return { constraints, configurations, timeline };
 }
     </script>
 </body>
