@@ -591,8 +591,8 @@ tr:nth-child(even) {
                                 <span class="penalty-value" id="prepHeavyPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepHeavyPenaltySlider" min="0" max="0.70" step="0.05" value="0.00" class="slider">
-                                <input type="number" id="prepHeavyPenalty" min="0" max="0.70" step="0.05" value="0.00" class="number-input">
+                                <input type="range" id="prepHeavyPenaltySlider" min="0" max="0.35" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepHeavyPenalty" min="0" max="0.35" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
@@ -601,18 +601,8 @@ tr:nth-child(even) {
                                 <span class="penalty-value" id="prepEasementPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepEasementPenaltySlider" min="0" max="0.60" step="0.05" value="0.00" class="slider">
-                                <input type="number" id="prepEasementPenalty" min="0" max="0.60" step="0.05" value="0.00" class="number-input">
-                            </div>
-                        </div>
-                        <div class="penalty-item">
-                            <label>
-                                <span>Root Intrusion Severity:</span>
-                                <span class="penalty-value" id="prepRootPenaltyVal">0.00</span>
-                            </label>
-                            <div class="slider-container">
-                                <input type="range" id="prepRootPenaltySlider" min="0" max="0.50" step="0.05" value="0.00" class="slider">
-                                <input type="number" id="prepRootPenalty" min="0" max="0.50" step="0.05" value="0.00" class="number-input">
+                                <input type="range" id="prepEasementPenaltySlider" min="0" max="0.30" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepEasementPenalty" min="0" max="0.30" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
                         <div class="penalty-item">
@@ -621,19 +611,23 @@ tr:nth-child(even) {
                                 <span class="penalty-value" id="prepTrafficPenaltyVal">0.00</span>
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepTrafficPenaltySlider" min="0" max="0.45" step="0.05" value="0.00" class="slider">
-                                <input type="number" id="prepTrafficPenalty" min="0" max="0.45" step="0.05" value="0.00" class="number-input">
+                                <input type="range" id="prepTrafficPenaltySlider" min="0" max="0.25" step="0.05" value="0.00" class="slider">
+                                <input type="number" id="prepTrafficPenalty" min="0" max="0.25" step="0.05" value="0.00" class="number-input">
                             </div>
                         </div>
-                        <div class="penalty-item">
+                        <div class="penalty-item" style="grid-column: 1 / -1;">
                             <label>
-                                <span>Heavy Grease/Sediment Buildup:</span>
-                                <span class="penalty-value" id="prepGreasePenaltyVal">0.00</span>
+                                <span>Footage Requiring Dig/Other Work Prior (Obstacle):</span>
+                                <span class="penalty-value" id="prepDigWorkFtVal">0</span> ft
                             </label>
                             <div class="slider-container">
-                                <input type="range" id="prepGreasePenaltySlider" min="0" max="0.50" step="0.05" value="0.00" class="slider">
-                                <input type="number" id="prepGreasePenalty" min="0" max="0.50" step="0.05" value="0.00" class="number-input">
+                                <input type="range" id="prepDigWorkFtSlider" min="0" max="10000" step="10" value="0" class="slider">
+                                <input type="number" id="prepDigWorkFt" min="0" max="10000" step="10" value="0" class="number-input">
+                                <span class="unit">ft</span>
                             </div>
+                            <small style="color: #666; margin-top: 8px; display: block;">
+                                * This footage will be deducted from completion calculations. Represents pipe that cannot be prepped/lined until other work is completed. Reduce slider as work progresses.
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -1223,9 +1217,8 @@ function syncAllSliders() {
         ['prepBaseRateSlider', 'prepBaseRate'],
         ['prepHeavyPenaltySlider', 'prepHeavyPenalty'],
         ['prepEasementPenaltySlider', 'prepEasementPenalty'],
-        ['prepRootPenaltySlider', 'prepRootPenalty'],
         ['prepTrafficPenaltySlider', 'prepTrafficPenalty'],
-        ['prepGreasePenaltySlider', 'prepGreasePenalty'],
+        ['prepDigWorkFtSlider', 'prepDigWorkFt'],
         ['prepRecyclerBoostSlider', 'prepRecyclerBoost'],
         ['prepClusterBoostSlider', 'prepClusterBoost'],
         ['prepPreInspBoostSlider', 'prepPreInspBoost'],
@@ -1435,14 +1428,36 @@ function easementProbability(footageFt, calendarDays) {
 function computeAdvancedPipePenalty(totalFootage, calendarDays, pipeSelections) {
     if (!pipeSelections.length || totalFootage <= 0) return 0;
 
-    // Distribute footage if not specified
+    // Auto footage distribution logic
     const anySpecific = pipeSelections.some(ps => !isNaN(ps.footage) && ps.footage > 0);
+
     if (!anySpecific) {
+        // No specific footage entered - split evenly among all selected pipes
         const equalFt = totalFootage / pipeSelections.length;
         pipeSelections.forEach(ps => { ps.footage = equalFt; });
     } else {
+        // Some pipes have specific footage - distribute remaining among "auto" pipes
+        let totalSpecifiedFootage = 0;
+        let autoCount = 0;
+
+        // Calculate total specified footage and count auto pipes
         pipeSelections.forEach(ps => {
-            if (isNaN(ps.footage) || ps.footage < 0) ps.footage = 0;
+            if (!isNaN(ps.footage) && ps.footage > 0) {
+                totalSpecifiedFootage += ps.footage;
+            } else {
+                autoCount++;
+            }
+        });
+
+        // Calculate remaining footage to distribute among auto pipes
+        const remainingFootage = Math.max(0, totalFootage - totalSpecifiedFootage);
+        const autoFootage = autoCount > 0 ? remainingFootage / autoCount : 0;
+
+        // Assign footage to auto pipes
+        pipeSelections.forEach(ps => {
+            if (isNaN(ps.footage) || ps.footage <= 0) {
+                ps.footage = autoFootage;
+            }
         });
     }
 
@@ -1479,15 +1494,26 @@ function calculatePrep() {
         return;
     }
 
+    // Update dig work slider max to match total footage
+    const digWorkSlider = document.getElementById('prepDigWorkFtSlider');
+    const digWorkInput = document.getElementById('prepDigWorkFt');
+    digWorkSlider.max = footage;
+    digWorkInput.max = footage;
+
+    // Get dig work footage and calculate available footage
+    const digWorkFt = Math.min(parseFloat(document.getElementById('prepDigWorkFt').value) || 0, footage);
+    const availableFootage = footage - digWorkFt;
+
+    // Update dig work display
+    document.getElementById('prepDigWorkFtVal').textContent = Math.round(digWorkFt);
+
     const baseRate = parseFloat(document.getElementById('prepBaseRate').value) || 3100;
     const crews = parseFloat(document.getElementById('prepCrews').value) || 1;
 
     // Get penalties
     const heavyPenalty = parseFloat(document.getElementById('prepHeavyPenalty').value) || 0;
     const easementPenalty = parseFloat(document.getElementById('prepEasementPenalty').value) || 0;
-    const rootPenalty = parseFloat(document.getElementById('prepRootPenalty').value) || 0;
     const trafficPenalty = parseFloat(document.getElementById('prepTrafficPenalty').value) || 0;
-    const greasePenalty = parseFloat(document.getElementById('prepGreasePenalty').value) || 0;
 
     // Get boosts
     const recyclerBoost = parseFloat(document.getElementById('prepRecyclerBoost').value) || 0;
@@ -1546,9 +1572,7 @@ function calculatePrep() {
     // Apply penalties (multiplicative)
     rate *= (1 - heavyPenalty);
     rate *= (1 - effEasementPenalty);
-    rate *= (1 - rootPenalty);
     rate *= (1 - effTrafficPenalty);
-    rate *= (1 - greasePenalty);
     rate *= (1 - pipePenalty);
 
     // Apply boosts (additive)
@@ -1557,19 +1581,21 @@ function calculatePrep() {
     // Apply crew multiplier
     rate *= crews;
 
-    const workDays = Math.ceil(footage / rate);
+    // Use available footage (total - dig work) for completion calculations
+    const workDays = Math.ceil(availableFootage / rate);
     const calendarDays = Math.ceil(workDays * 7 / daysPerWeek);
     const hoursPerDay = parseFloat(document.getElementById('prepHoursPerDay').value) || 8;
     const laborHours = workDays * hoursPerDay * crews;
 
-    // Display results
+    // Display results with asterisk if dig work footage exists
+    const digWorkNote = digWorkFt > 0 ? ' *' : '';
     document.getElementById('prepProdRate').textContent = `${Math.round(rate).toLocaleString()} ft/day`;
-    document.getElementById('prepWorkDays').textContent = `${workDays} work days`;
-    document.getElementById('prepCalendarDays').textContent = `${calendarDays} calendar days`;
-    document.getElementById('prepLaborHours').textContent = `${Math.round(laborHours).toLocaleString()} hours`;
+    document.getElementById('prepWorkDays').textContent = `${workDays} work days${digWorkNote}`;
+    document.getElementById('prepCalendarDays').textContent = `${calendarDays} calendar days${digWorkNote}`;
+    document.getElementById('prepLaborHours').textContent = `${Math.round(laborHours).toLocaleString()} hours${digWorkNote}`;
 
     // Generate recommendations
-    generatePrepRecommendations(workDays, calendarDays, laborHours, crews, hoursPerDay, daysPerWeek, footage, baseRate, totalBoost);
+    generatePrepRecommendations(workDays, calendarDays, laborHours, crews, hoursPerDay, daysPerWeek, footage, baseRate, totalBoost, digWorkFt);
 }
 
 function calculateLining() {
@@ -1713,7 +1739,7 @@ function calculateUnified() {
     generateUnifiedRecommendations(prepDays, liningDays, totalDays, totalLabor);
 }
 
-function generatePrepRecommendations(workDays, calendarDays, laborHours, crews, hoursPerDay, daysPerWeek, footage, baseRate, totalBoost) {
+function generatePrepRecommendations(workDays, calendarDays, laborHours, crews, hoursPerDay, daysPerWeek, footage, baseRate, totalBoost, digWorkFt) {
     const targetDays = parseFloat(document.getElementById('prepTargetDays').value) || 0;
     const laborBudget = parseFloat(document.getElementById('prepLaborBudget').value) || 0;
     const laborOverage = parseFloat(document.getElementById('prepLaborOverage').value) || 10;
@@ -1727,27 +1753,41 @@ function generatePrepRecommendations(workDays, calendarDays, laborHours, crews, 
         const overrun = calendarDays - targetDays;
         const ratio = calendarDays / targetDays;
 
-        // Generate multiple configuration options
-        configurations.push(`<strong>Option A - Add Crews:</strong> Deploy ${Math.ceil(crews * ratio)} total crews (add ${Math.ceil(crews * ratio) - crews}) → ${targetDays} days`);
-        configurations.push(`<strong>Option B - Extended Hours:</strong> Increase to ${Math.min(16, Math.ceil(hoursPerDay * ratio))} hrs/day (${crews} crews) → ~${Math.ceil(calendarDays / ratio)} days`);
-        configurations.push(`<strong>Option C - 6-Day Week:</strong> Work ${Math.min(7, daysPerWeek + 1)} days/week → ~${Math.ceil(calendarDays * daysPerWeek / Math.min(7, daysPerWeek + 1))} days`);
-        configurations.push(`<strong>Option D - Hybrid:</strong> Add 1 crew + ${Math.min(12, hoursPerDay + 2)} hrs/day → ~${Math.ceil(calendarDays / 1.5)} days`);
-        configurations.push(`<strong>Option E - Optimize Boosts:</strong> Enable all efficiency boosts (+${((0.80 - totalBoost) * 100).toFixed(0)}% potential) → ~${Math.ceil(calendarDays / (1 + (0.80 - totalBoost)))} days`);
+        // Generate multiple configuration options as bullet points
+        configurations.push(`<li><strong>Add Crews:</strong> Deploy ${Math.ceil(crews * ratio)} total crews (add ${Math.ceil(crews * ratio) - crews}) to complete in ${targetDays} calendar days</li>`);
+        configurations.push(`<li><strong>Extended Hours:</strong> Increase to ${Math.min(16, Math.ceil(hoursPerDay * ratio))} hours/day with ${crews} crew(s) to finish in ~${Math.ceil(calendarDays / ratio)} calendar days</li>`);
+        configurations.push(`<li><strong>6-Day Work Week:</strong> Work ${Math.min(7, daysPerWeek + 1)} days/week to complete in ~${Math.ceil(calendarDays * daysPerWeek / Math.min(7, daysPerWeek + 1))} calendar days</li>`);
+        configurations.push(`<li><strong>Hybrid Approach:</strong> Add 1 crew + increase to ${Math.min(12, hoursPerDay + 2)} hours/day to complete in ~${Math.ceil(calendarDays / 1.5)} calendar days</li>`);
+        configurations.push(`<li><strong>Optimize Efficiency:</strong> Enable all available boosts (+${((0.80 - totalBoost) * 100).toFixed(0)}% potential improvement) to complete in ~${Math.ceil(calendarDays / (1 + (0.80 - totalBoost)))} calendar days</li>`);
 
-        recommendations.push(`<strong>Schedule Overrun: ${overrun} days beyond ${targetDays}-day target.</strong><br>Multiple pathways to meet deadline:<br>` + configurations.join('<br>'));
+        recommendations.push(`<strong>Schedule Overrun: ${overrun} days beyond ${targetDays}-day target.</strong><br>Options to meet deadline:<ul style="margin: 10px 0 0 20px;">` + configurations.join('') + '</ul>');
     }
 
     if (laborBudget && laborHours > maxLaborAllowed) {
         const overrun = Math.round(laborHours - maxLaborAllowed);
-        warnings.push(`Labor hours exceed budget by ${overrun} hrs. Consider reducing crew count to ${Math.max(1, crews - 1)} (extends timeline), limiting overtime, or negotiating ${Math.ceil((laborHours / laborBudget - 1) * 100)}% overage allowance.`);
+        const laborOptions = [];
+        laborOptions.push(`<li><strong>Reduce Crews:</strong> Scale down to ${Math.max(1, crews - 1)} crew(s) (extends timeline by ~${Math.ceil((crews / Math.max(1, crews - 1)) * 100 - 100)}%)</li>`);
+        laborOptions.push(`<li><strong>Reduce Hours:</strong> Limit to ${Math.max(6, hoursPerDay - 2)} hours/day (reduces labor but extends timeline)</li>`);
+        laborOptions.push(`<li><strong>Negotiate Overage:</strong> Request ${Math.ceil((laborHours / laborBudget - 1) * 100)}% budget increase (${overrun} additional hours needed)</li>`);
+        warnings.push(`<strong>Labor hours exceed budget by ${overrun} hours.</strong><br>Options to address:<ul style="margin: 10px 0 0 20px;">` + laborOptions.join('') + '</ul>');
     }
 
     if (!targetDays && !laborBudget) {
-        recommendations.push(`Project estimated at ${calendarDays} calendar days with ${crews} crew(s) at ${hoursPerDay} hrs/day. Consider utilizing available efficiency boosts (recycler, modern equipment, experienced operators) to reduce timeline. Adjust penalty sliders based on actual site conditions for more accurate estimates.`);
+        const generalOptions = [];
+        generalOptions.push(`<li><strong>Current Estimate:</strong> ${calendarDays} calendar days with ${crews} crew(s) at ${hoursPerDay} hours/day</li>`);
+        generalOptions.push(`<li><strong>Utilize Boosts:</strong> Enable recycler equipment, pre-inspection, and regular maintenance boosts for faster completion</li>`);
+        generalOptions.push(`<li><strong>Adjust Conditions:</strong> Fine-tune penalty sliders based on actual site conditions for more accurate estimates</li>`);
+        recommendations.push(`<strong>Project Overview:</strong><ul style="margin: 10px 0 0 20px;">` + generalOptions.join('') + '</ul>');
     }
 
     const recBox = document.getElementById('prepRecommendation');
     const warnBox = document.getElementById('prepWarning');
+
+    // Add dig work disclaimer if applicable
+    if (digWorkFt > 0) {
+        const digWorkDisclaimer = `<div class="warning-box" style="border-color: #f59e0b; background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1));"><h4 style="color: #b45309;">📋 Dig/Other Work Disclaimer</h4><p><strong>${Math.round(digWorkFt)} ft of pipe remains</strong> after the ${calendarDays}-day timeline shown above. This footage requires dig/other work to be completed before prep/lining can proceed. Schedule this work concurrently to avoid project delays.</p></div>`;
+        warnings.unshift(digWorkDisclaimer);
+    }
 
     if (recommendations.length > 0) {
         recBox.innerHTML = `<div class="recommendation-box"><h4>💡 Recommendations</h4><p>${recommendations.join(' ')}</p></div>`;
@@ -1756,7 +1796,7 @@ function generatePrepRecommendations(workDays, calendarDays, laborHours, crews, 
     }
 
     if (warnings.length > 0) {
-        warnBox.innerHTML = `<div class="warning-box"><h4>⚠️ Warnings</h4><p>${warnings.join(' ')}</p></div>`;
+        warnBox.innerHTML = warnings.join('');
     } else {
         warnBox.innerHTML = '';
     }
@@ -1936,14 +1976,22 @@ function gatherProjectData(phase) {
         const laborBudget = parseFloat(document.getElementById('prepLaborBudget').value) || 0;
         const calendarDays = parseInt(document.getElementById('prepCalendarDays').textContent) || 0;
         const laborHours = parseInt(document.getElementById('prepLaborHours').textContent.replace(/,/g, '')) || 0;
+        const digWorkFt = parseFloat(document.getElementById('prepDigWorkFt').value) || 0;
 
         constraints += `\nPREP PHASE:\n`;
         constraints += `- Total Footage: ${footage.toLocaleString()} ft\n`;
+        if (digWorkFt > 0) {
+            constraints += `- Footage Requiring Dig/Other Work Prior: ${Math.round(digWorkFt).toLocaleString()} ft (${Math.round((digWorkFt/footage)*100)}% of project)\n`;
+            constraints += `- Available Footage for Immediate Prep: ${Math.round(footage - digWorkFt).toLocaleString()} ft\n`;
+        }
         constraints += `- Current Crews: ${crews}\n`;
         if (targetDays) constraints += `- Target Completion: ${targetDays} days\n`;
         if (laborBudget) constraints += `- Labor Budget: ${laborBudget.toLocaleString()} hours\n`;
 
-        timeline += `\nPREP PHASE: ${calendarDays} calendar days, ${laborHours.toLocaleString()} labor hours\n`;
+        timeline += `\nPREP PHASE: ${calendarDays} calendar days for ${Math.round(footage - digWorkFt).toLocaleString()} ft available, ${laborHours.toLocaleString()} labor hours\n`;
+        if (digWorkFt > 0) {
+            timeline += `NOTE: ${Math.round(digWorkFt).toLocaleString()} ft remains awaiting dig/other work completion. Schedule this work concurrently to avoid project delays.\n`;
+        }
 
         // Get selected pipe sizes
         const pipeSizes = [];
