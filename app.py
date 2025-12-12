@@ -1109,6 +1109,101 @@ def progress_estimator():
 
 
 # ============================================================================
+# OPENAI API PROXY (for Progress Estimator AI Insights)
+# ============================================================================
+
+@app.route('/api/openai/chat', methods=['POST'])
+def openai_chat_proxy():
+    """
+    Proxy endpoint for OpenAI API calls
+    Securely uses server-side OPENAI_API_KEY from environment
+    """
+    import requests
+
+    # Get API key from environment
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        logger.error("OPENAI_API_KEY not configured in environment")
+        return jsonify({
+            'success': False,
+            'error': 'OpenAI API key not configured on server. Contact administrator.'
+        }), 500
+
+    try:
+        # Get request data from frontend
+        data = request.get_json()
+
+        # Validate required fields
+        if 'messages' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: messages'
+            }), 400
+
+        # Prepare OpenAI API request
+        openai_request = {
+            'model': data.get('model', 'gpt-4'),
+            'messages': data['messages'],
+            'temperature': data.get('temperature', 0.7),
+            'max_tokens': data.get('max_tokens', 600)
+        }
+
+        logger.info(f"Proxying OpenAI request: model={openai_request['model']}, messages={len(openai_request['messages'])}")
+
+        # Call OpenAI API
+        response = requests.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {api_key}'
+            },
+            json=openai_request,
+            timeout=30
+        )
+
+        # Check response status
+        if response.status_code != 200:
+            logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
+            return jsonify({
+                'success': False,
+                'error': f'OpenAI API returned {response.status_code}',
+                'details': response.text
+            }), response.status_code
+
+        # Return successful response
+        result = response.json()
+        logger.info(f"OpenAI response received: {result['choices'][0]['finish_reason']}")
+
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+
+    except requests.exceptions.Timeout:
+        logger.error("OpenAI API request timed out")
+        return jsonify({
+            'success': False,
+            'error': 'Request timed out. Please try again.'
+        }), 504
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"OpenAI API request failed: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to connect to OpenAI API',
+            'details': str(e)
+        }), 503
+
+    except Exception as e:
+        logger.error(f"Unexpected error in OpenAI proxy: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
+
+# ============================================================================
 # VISUAL PROJECT SUMMARY (DASH APP INTEGRATION)
 # ============================================================================
 

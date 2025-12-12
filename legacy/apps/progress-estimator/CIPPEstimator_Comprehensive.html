@@ -1868,12 +1868,11 @@ Using all of this information, produce a **200–400 word briefing** that:
 
 Assume your audience is a project manager who prefers **detailed, practical, implementation-focused guidance**.`;
 
-        // Call OpenAI API
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        // Call Flask proxy endpoint (uses server-side OPENAI_API_KEY from Render env)
+        const response = await fetch('/api/openai/chat', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + (window.OPENAI_API_KEY || 'YOUR_API_KEY_HERE')
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 model: 'gpt-4',
@@ -1893,11 +1892,16 @@ Assume your audience is a project manager who prefers **detailed, practical, imp
         });
 
         if (!response.ok) {
-            throw new Error(`API Error: ${response.status} - ${response.statusText}`);
+            const errorData = await response.json();
+            throw new Error(errorData.error || `API Error: ${response.status}`);
         }
 
-        const data = await response.json();
-        const insights = data.choices[0].message.content;
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.error || 'Unknown error from API');
+        }
+
+        const insights = result.data.choices[0].message.content;
 
         insightsDiv.innerHTML = `
             <div class="recommendation-box" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.1)); border-color: #3b82f6; border-left-color: #3b82f6;">
@@ -1913,9 +1917,8 @@ Assume your audience is a project manager who prefers **detailed, practical, imp
             <div class="warning-box">
                 <h4>⚠️ Unable to Generate AI Insights</h4>
                 <p><strong>Error:</strong> ${error.message}</p>
-                <p><strong>Note:</strong> Ensure your OpenAI API key is configured. Set <code>window.OPENAI_API_KEY</code> in your environment or update the code with your key.</p>
-                <p><strong>To configure:</strong> Add this before the closing &lt;/body&gt; tag:<br>
-                <code>&lt;script&gt;window.OPENAI_API_KEY = 'your-api-key-here';&lt;/script&gt;</code></p>
+                <p><strong>Note:</strong> This feature requires the OPENAI_API_KEY environment variable to be configured on the server (Render).</p>
+                <p>If you're an administrator, add the OPENAI_API_KEY to your Render environment variables.</p>
             </div>
         `;
     }
