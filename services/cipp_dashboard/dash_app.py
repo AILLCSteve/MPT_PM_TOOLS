@@ -131,13 +131,15 @@ def create_dash_app(flask_app):
                     ], className='shadow-sm h-100')
                 ], xs=12, sm=6, lg=2),
                 dbc.Col([
-                    dbc.Card([
-                        dbc.CardBody([
-                            html.I(className="fas fa-clipboard-check fa-2x text-info mb-2"),
-                            html.H3(id='kpi-ready-to-line', className='fw-bold'),
-                            html.P('Ready to Line', className='text-muted mb-0')
-                        ], className='text-center')
-                    ], className='shadow-sm h-100')
+                    html.Div([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.I(className="fas fa-clipboard-check fa-2x text-info mb-2"),
+                                html.H3(id='kpi-ready-to-line', className='fw-bold'),
+                                html.P('Ready to Line', className='text-muted mb-0')
+                            ], className='text-center')
+                        ], className='shadow-sm h-100')
+                    ], id='kpi-ready-to-line-card', style={'cursor': 'pointer', 'height': '100%'})
                 ], xs=12, sm=6, lg=2),
                 dbc.Col([
                     dbc.Card([
@@ -161,29 +163,30 @@ def create_dash_app(flask_app):
                     html.Div([
                         dbc.Card([
                             dbc.CardBody([
-                                html.I(className="fas fa-hard-hat fa-2x text-secondary mb-2"),
-                                html.H3(id='kpi-prep-complete', className='fw-bold'),
-                                html.P('% Prep Complete', className='text-muted mb-0')
+                                html.I(className="fas fa-road fa-2x text-secondary mb-2"),
+                                html.H3(id='kpi-easement', className='fw-bold'),
+                                html.P('Easement', className='text-muted mb-0')
                             ], className='text-center')
                         ], className='shadow-sm h-100')
-                    ], id='kpi-prep-complete-card', style={'cursor': 'pointer', 'height': '100%'})
+                    ], id='kpi-easement-card', style={'cursor': 'pointer', 'height': '100%'})
                 ], xs=12, sm=6, lg=2),
                 dbc.Col([
                     html.Div([
                         dbc.Card([
                             dbc.CardBody([
                                 html.I(className="fas fa-tasks fa-2x text-danger mb-2"),
-                                html.H3(id='kpi-completion', className='fw-bold'),
-                                html.P('% CIPP Install Completion', className='text-muted mb-0')
+                                html.H3(id='kpi-cipp-installation', className='fw-bold'),
+                                html.P('CIPP Installation', className='text-muted mb-0')
                             ], className='text-center')
                         ], className='shadow-sm h-100')
-                    ], id='kpi-completion-card', style={'cursor': 'pointer', 'height': '100%'})
+                    ], id='kpi-cipp-installation-card', style={'cursor': 'pointer', 'height': '100%'})
                 ], xs=12, sm=6, lg=2)
             ], className='mb-4'),
 
             # Hidden stores for toggle state
-            dcc.Store(id='prep-toggle-state', data={'show_fraction': False}),
-            dcc.Store(id='completion-toggle-state', data={'show_fraction': False}),
+            dcc.Store(id='ready-toggle-state', data={'show_fraction': False}),
+            dcc.Store(id='easement-toggle-state', data={'show_fraction': False}),
+            dcc.Store(id='cipp-installation-toggle-state', data={'show_fraction': False}),
 
             # Download Buttons
             dbc.Row([
@@ -391,14 +394,9 @@ def create_dash_app(flask_app):
             processor = CIPPDataProcessor(str(filepath))
             processor.load_data()
 
-            # Get Ready to Line count for KPI
-            tables = processor.get_all_tables()
-            stage_summary = tables['stage_footage_summary']
-
-            ready_to_line_count = sum(
-                r['Segment_Count'] for r in stage_summary
-                if r['Stage'] == 'Ready to Line'
-            )
+            # Get Ready to Line count for KPI (ready_to_line=true AND no lining_date)
+            ready_to_line_segments = processor.get_segments_ready_to_line()
+            ready_to_line_count = len(ready_to_line_segments)
 
             # Create session data payload with filepath (stateless - works across workers)
             session_id = timestamp
@@ -1255,41 +1253,54 @@ def create_dash_app(flask_app):
         return dcc.send_file(str(output_path))
 
 
-    # Callback to toggle prep complete state
+    # Callback to toggle ready to line state
     @dash_app.callback(
-        Output('prep-toggle-state', 'data'),
-        Input('kpi-prep-complete-card', 'n_clicks'),
-        State('prep-toggle-state', 'data'),
+        Output('ready-toggle-state', 'data'),
+        Input('kpi-ready-to-line-card', 'n_clicks'),
+        State('ready-toggle-state', 'data'),
         prevent_initial_call=True
     )
-    def toggle_prep_state(n_clicks, current_state):
+    def toggle_ready_state(n_clicks, current_state):
         if n_clicks is None:
             raise PreventUpdate
         return {'show_fraction': not current_state['show_fraction']}
 
 
-    # Callback to toggle completion state
+    # Callback to toggle easement state
     @dash_app.callback(
-        Output('completion-toggle-state', 'data'),
-        Input('kpi-completion-card', 'n_clicks'),
-        State('completion-toggle-state', 'data'),
+        Output('easement-toggle-state', 'data'),
+        Input('kpi-easement-card', 'n_clicks'),
+        State('easement-toggle-state', 'data'),
         prevent_initial_call=True
     )
-    def toggle_completion_state(n_clicks, current_state):
+    def toggle_easement_state(n_clicks, current_state):
         if n_clicks is None:
             raise PreventUpdate
         return {'show_fraction': not current_state['show_fraction']}
 
 
-    # Callback to update prep complete display
+    # Callback to toggle CIPP installation state
     @dash_app.callback(
-        Output('kpi-prep-complete', 'children'),
-        [Input('prep-toggle-state', 'data'),
+        Output('cipp-installation-toggle-state', 'data'),
+        Input('kpi-cipp-installation-card', 'n_clicks'),
+        State('cipp-installation-toggle-state', 'data'),
+        prevent_initial_call=True
+    )
+    def toggle_cipp_installation_state(n_clicks, current_state):
+        if n_clicks is None:
+            raise PreventUpdate
+        return {'show_fraction': not current_state['show_fraction']}
+
+
+    # Callback to update ready to line display
+    @dash_app.callback(
+        Output('kpi-ready-to-line', 'children'),
+        [Input('ready-toggle-state', 'data'),
          Input('session-data', 'data'),
          Input('data-ready-signal', 'children')],
         prevent_initial_call=True
     )
-    def update_prep_complete_display(toggle_state, session_data, ready_signal):
+    def update_ready_to_line_display(toggle_state, session_data, ready_signal):
         if not session_data or not ready_signal:
             raise PreventUpdate
 
@@ -1298,31 +1309,27 @@ def create_dash_app(flask_app):
         if not processor:
             raise PreventUpdate
 
-        tables = processor.get_all_tables()
-        stage_summary = tables['stage_footage_summary']
-
-        ready_to_line_count = sum(
-            r['Segment_Count'] for r in stage_summary
-            if r['Stage'] == 'Ready to Line'
-        )
+        # Get segments with ready_to_line=true AND no lining_date
+        ready_segments = processor.get_segments_ready_to_line()
+        ready_count = len(ready_segments)
         total_segments = len(processor.segments)
 
         if toggle_state.get('show_fraction', False):
-            return f"{ready_to_line_count}/{total_segments}"
+            return f"{ready_count}/{total_segments}"
         else:
-            prep_complete_pct = (ready_to_line_count / total_segments * 100) if total_segments > 0 else 0
-            return f"{prep_complete_pct:.1f}%"
+            ready_pct = (ready_count / total_segments * 100) if total_segments > 0 else 0
+            return f"{ready_pct:.1f}%"
 
 
-    # Callback to update completion display
+    # Callback to update easement display
     @dash_app.callback(
-        Output('kpi-completion', 'children'),
-        [Input('completion-toggle-state', 'data'),
+        Output('kpi-easement', 'children'),
+        [Input('easement-toggle-state', 'data'),
          Input('session-data', 'data'),
          Input('data-ready-signal', 'children')],
         prevent_initial_call=True
     )
-    def update_completion_display(toggle_state, session_data, ready_signal):
+    def update_easement_display(toggle_state, session_data, ready_signal):
         if not session_data or not ready_signal:
             raise PreventUpdate
 
@@ -1331,24 +1338,45 @@ def create_dash_app(flask_app):
         if not processor:
             raise PreventUpdate
 
-        tables = processor.get_all_tables()
-        stage_summary = tables['stage_footage_summary']
-
-        completed_count = sum(
-            r['Segment_Count'] for r in stage_summary
-            if r['Stage'] in ['Lined', 'Post TV Complete', 'Grouted/Done']
-        )
+        # Get segments with easement=true
+        easement_segments = processor.get_segments_by_easement(True)
+        easement_count = len(easement_segments)
         total_segments = len(processor.segments)
 
         if toggle_state.get('show_fraction', False):
-            return f"{completed_count}/{total_segments}"
+            return f"{easement_count}/{total_segments}"
         else:
-            completed_footage = sum(
-                r['Total_Feet'] for r in stage_summary
-                if r['Stage'] in ['Lined', 'Post TV Complete', 'Grouted/Done']
-            )
-            completion_pct = (completed_footage / processor.total_footage * 100) if processor.total_footage > 0 else 0
-            return f"{completion_pct:.1f}%"
+            easement_pct = (easement_count / total_segments * 100) if total_segments > 0 else 0
+            return f"{easement_pct:.1f}%"
+
+
+    # Callback to update CIPP installation display
+    @dash_app.callback(
+        Output('kpi-cipp-installation', 'children'),
+        [Input('cipp-installation-toggle-state', 'data'),
+         Input('session-data', 'data'),
+         Input('data-ready-signal', 'children')],
+        prevent_initial_call=True
+    )
+    def update_cipp_installation_display(toggle_state, session_data, ready_signal):
+        if not session_data or not ready_signal:
+            raise PreventUpdate
+
+        filepath = session_data.get('filepath')
+        processor = get_processor(filepath)
+        if not processor:
+            raise PreventUpdate
+
+        # Get segments that have a lining_date (CIPP installation occurred)
+        installed_segments = [s for s in processor.segments if s.get("lining_date") is not None]
+        installed_count = len(installed_segments)
+        total_segments = len(processor.segments)
+
+        if toggle_state.get('show_fraction', False):
+            return f"{installed_count}/{total_segments}"
+        else:
+            installed_pct = (installed_count / total_segments * 100) if total_segments > 0 else 0
+            return f"{installed_pct:.1f}%"
 
     # ============================================================================
     # BREAKOUT TABLES - Interactive Filtered Segment Views
