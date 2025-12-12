@@ -1137,7 +1137,7 @@ const PREP_PIPE_SIZES = [
     { diameter: 6,  penalty: 0.35,  label: '6" (tight pipe - access difficulty)' },
     { diameter: 8,  penalty: 0.00,  label: '8" (no size penalty)' },
     { diameter: 10, penalty: 0.00,  label: '10" (no size penalty)' },
-    { diameter: 12, penalty: 0.00,  label: '12" (baseline)' },
+    { diameter: 12, penalty: 0.05,  label: '12" (slight footage-sensitive)' },
     { diameter: 15, penalty: 0.08,  label: '15" (footage-sensitive)' },
     { diameter: 18, penalty: 0.18,  label: '18" (footage-sensitive)' },
     { diameter: 21, penalty: 0.18,  label: '21" (footage-sensitive)' },
@@ -1155,7 +1155,7 @@ const LINING_PIPE_SIZES = [
     { diameter: 6,  penalty: 0.35,  label: '6" (tight pipe - liner difficulty)' },
     { diameter: 8,  penalty: 0.00,  label: '8" (no size penalty)' },
     { diameter: 10, penalty: 0.00,  label: '10" (no size penalty)' },
-    { diameter: 12, penalty: 0.00,  label: '12" (baseline)' },
+    { diameter: 12, penalty: 0.05,  label: '12" (slight footage-sensitive)' },
     { diameter: 15, penalty: 0.08,  label: '15" (footage-sensitive)' },
     { diameter: 18, penalty: 0.18,  label: '18" (footage-sensitive)' },
     { diameter: 21, penalty: 0.18,  label: '21" (footage-sensitive)' },
@@ -1322,40 +1322,83 @@ function combinedProbability(pFt, pDays) {
     return 1 - (1 - pf) * (1 - pd);
 }
 
-// NUANCED pipe size penalty probability with AGGRESSIVE footage scaling
-// Key insight: More footage = higher mathematical likelihood of encountering penalty conditions
+// OCCURRENCE FREQUENCY MODEL
+// Models probability of encountering the penalty condition at least once
+// Uses exponential decay: p = base + (max - base) × (1 - e^(-k × footage/1000))
+//
+// Key insights:
+// - Small pipes (6"): Condition OCCURS based on FOOTAGE (more footage = more chances)
+// - Large pipes (24"+): Condition OCCURS based on SIZE (inherent, happens even at 100 ft)
+// - Medium pipes (12", 15", 18", 21"): Gradual transition from footage-dependent to size-dependent
+//
+// Not linear, not dramatic - just NOTICEABLE with diminishing returns
+
 function pipeProbability(diameter, footageFt, calendarDays) {
     const L = Math.max(0, footageFt || 0);
     const d = Math.max(0, calendarDays || 0);
+    const footageKm = L / 1000; // Convert to thousands for cleaner math
     let pFt;
 
-    // 6" TIGHT PIPE: VERY footage-sensitive (equipment access issues scale with length)
+    // 6" TIGHT PIPE: Low base, moderate growth (footage-dependent)
+    // 300 ft → ~15%, 1000 ft → ~33%, 3000 ft → ~59%, 5000 ft → ~69%
     if (diameter === 6) {
-        // 100 ft → 0.15, 500 ft → 0.35, 1000 ft → 0.55, 3000 ft → 0.85, 5000+ ft → 0.95
-        pFt = Math.min(0.95, 0.10 + 0.00025 * L);
+        const base = 0.05;
+        const max = 0.75;
+        const k = 0.5;
+        pFt = base + (max - base) * (1 - Math.exp(-k * footageKm));
     }
-    // 8"-12" STANDARD: No penalty (baseline operations)
-    else if (diameter <= 12) {
-        pFt = 0.00; // No footage-based penalty
+    // 8"-10" STANDARD: No penalty (baseline operations)
+    else if (diameter <= 10) {
+        pFt = 0.00;
     }
-    // 15", 18", 21" FOOTAGE-SENSITIVE MEDIUM: Penalty scales significantly with footage
-    else if (diameter === 15 || diameter === 18 || diameter === 21) {
-        // 500 ft → 0.20, 2000 ft → 0.50, 5000 ft → 0.80, 10000 ft → 0.95
-        pFt = Math.min(0.95, 0.05 + 0.00018 * L);
+    // 12" SLIGHT PENALTY: Very low base, gentle growth (beginning of medium range)
+    // 500 ft → ~20%, 2000 ft → ~45%, 5000 ft → ~62%
+    else if (diameter === 12) {
+        const base = 0.03;
+        const max = 0.65;
+        const k = 0.6;
+        pFt = base + (max - base) * (1 - Math.exp(-k * footageKm));
     }
-    // 24"-60" LARGE PIPE: High penalty REGARDLESS of footage (always challenging)
+    // 15" TRANSITION: Starting to become size-dependent
+    // 500 ft → ~34%, 2000 ft → ~64%, 5000 ft → ~79%
+    else if (diameter === 15) {
+        const base = 0.15;
+        const max = 0.80;
+        const k = 0.7;
+        pFt = base + (max - base) * (1 - Math.exp(-k * footageKm));
+    }
+    // 18" TRANSITION: More size-dependent
+    // 500 ft → ~43%, 2000 ft → ~72%, 5000 ft → ~84%
+    else if (diameter === 18) {
+        const base = 0.25;
+        const max = 0.85;
+        const k = 0.9;
+        pFt = base + (max - base) * (1 - Math.exp(-k * footageKm));
+    }
+    // 21" TRANSITION: Heavily size-dependent
+    // 500 ft → ~52%, 2000 ft → ~77%, 5000 ft → ~87%
+    else if (diameter === 21) {
+        const base = 0.35;
+        const max = 0.85;
+        const k = 1.1;
+        pFt = base + (max - base) * (1 - Math.exp(-k * footageKm));
+    }
+    // 24"-60" LARGE PIPE: Very high base (SIZE-dependent, occurs even at 100 ft)
+    // 100 ft → ~71%, 1000 ft → ~76%, 5000 ft → ~86%
     else if (diameter > 21) {
-        // Base high probability, slight footage influence
-        // 300 ft → 0.75, 3000 ft → 0.85, 10000 ft → 0.92
-        pFt = Math.min(0.95, 0.70 + 0.000025 * L);
+        const base = 0.70; // High base - condition occurs due to SIZE
+        const max = 0.90;
+        const k = 0.3; // Minimal growth - footage doesn't matter much
+        pFt = base + (max - base) * (1 - Math.exp(-k * footageKm));
     }
     // Fallback
     else {
         pFt = 0.10;
     }
 
-    // Day-based component: longer projects = more exposure to penalty conditions
-    const pDays = Math.min(0.40, 0.015 * d); // 10 days → 0.15, 30 days → 0.40
+    // Day-based component: longer projects = more exposure
+    // Moderate influence, not dramatic
+    const pDays = Math.min(0.30, 0.01 * d); // 10 days → 0.10, 30 days → 0.30
 
     return combinedProbability(pFt, pDays);
 }
