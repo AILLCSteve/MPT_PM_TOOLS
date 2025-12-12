@@ -179,6 +179,66 @@ def create_dash_app(flask_app):
                     margin: 20px auto;
                     max-width: 1400px;
                 }
+
+                /* Upload container - almost completely transparent to show background */
+                .upload-container {
+                    background: rgba(255, 255, 255, 0.05) !important;
+                    backdrop-filter: blur(1px) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+                }
+
+                .upload-container .card-header {
+                    background: rgba(255, 255, 255, 0.08) !important;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+                    color: white !important;
+                }
+
+                .upload-container .card-body {
+                    background: transparent !important;
+                }
+
+                .upload-container .border-dashed {
+                    border-color: rgba(255, 255, 255, 0.3) !important;
+                    background: rgba(255, 255, 255, 0.03) !important;
+                }
+
+                .upload-container h5,
+                .upload-container p {
+                    color: white !important;
+                    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+                }
+
+                /* Data visualization containers - moderate transparency */
+                .data-viz-container {
+                    background: rgba(255, 255, 255, 0.25) !important;
+                    backdrop-filter: blur(3px) !important;
+                }
+
+                /* Tables - NO transparency, full white background for readability */
+                .dash-table-container {
+                    background: white !important;
+                    border-radius: 8px;
+                    padding: 15px;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                }
+
+                .dash-table-container table {
+                    background: white !important;
+                }
+
+                .dash-table-container .dash-spreadsheet,
+                .dash-table-container .dash-spreadsheet-container {
+                    background: white !important;
+                }
+
+                /* Ensure data cells have solid backgrounds */
+                .dash-table-container .dash-cell {
+                    background-color: white !important;
+                }
+
+                .dash-table-container div.dash-cell.dash-cell-value {
+                    background-color: white !important;
+                }
             </style>
         </head>
         <body>
@@ -215,16 +275,16 @@ def create_dash_app(flask_app):
                         dcc.Upload(
                             id='upload-data',
                             children=html.Div([
-                                html.I(className="fas fa-file-excel fa-3x mb-3 text-success"),
+                                html.I(className="fas fa-file-excel fa-3x mb-3", style={'color': 'white'}),
                                 html.H5('Drag and Drop or Click to Select Excel File'),
-                                html.P('.xlsx files only', className='text-muted')
+                                html.P('.xlsx files only')
                             ], className='text-center p-5 border border-2 border-dashed rounded'),
                             multiple=False,
                             accept='.xlsx'
                         ),
                         html.Div(id='upload-status', className='mt-3')
                     ])
-                ], className='shadow')
+                ], className='shadow upload-container')
             ], width=12)
         ], className='mb-4', id='upload-section'),
 
@@ -239,7 +299,7 @@ def create_dash_app(flask_app):
                             html.H3(id='kpi-segments', className='fw-bold'),
                             html.P('Total Segments', className='text-muted mb-0')
                         ], className='text-center')
-                    ], className='shadow-sm h-100')
+                    ], className='shadow-sm h-100 data-viz-container')
                 ], xs=12, sm=6, lg=2),
                 dbc.Col([
                     html.Div([
@@ -249,7 +309,7 @@ def create_dash_app(flask_app):
                                 html.H3(id='kpi-ready-to-line', className='fw-bold'),
                                 html.P('Awaiting CIPP Install', className='text-muted mb-0')
                             ], className='text-center')
-                        ], className='shadow-sm h-100')
+                        ], className='shadow-sm h-100 data-viz-container')
                     ], id='kpi-ready-to-line-card', style={'cursor': 'pointer', 'height': '100%'})
                 ], xs=12, sm=6, lg=2),
                 dbc.Col([
@@ -259,7 +319,7 @@ def create_dash_app(flask_app):
                             html.H3(id='kpi-footage', className='fw-bold'),
                             html.P('Total Footage', className='text-muted mb-0')
                         ], className='text-center')
-                    ], className='shadow-sm h-100')
+                    ], className='shadow-sm h-100 data-viz-container')
                 ], xs=12, sm=6, lg=2),
                 dbc.Col([
                     dbc.Card([
@@ -268,7 +328,7 @@ def create_dash_app(flask_app):
                             html.H3(id='kpi-avg-length', className='fw-bold'),
                             html.P('Avg Length (ft)', className='text-muted mb-0')
                         ], className='text-center')
-                    ], className='shadow-sm h-100')
+                    ], className='shadow-sm h-100 data-viz-container')
                 ], xs=12, sm=6, lg=2),
                 dbc.Col([
                     html.Div([
@@ -278,7 +338,7 @@ def create_dash_app(flask_app):
                                 html.H3(id='kpi-easement', className='fw-bold'),
                                 html.P('Easement', className='text-muted mb-0')
                             ], className='text-center')
-                        ], className='shadow-sm h-100')
+                        ], className='shadow-sm h-100 data-viz-container')
                     ], id='kpi-easement-card', style={'cursor': 'pointer', 'height': '100%'})
                 ], xs=12, sm=6, lg=2),
                 dbc.Col([
@@ -289,7 +349,7 @@ def create_dash_app(flask_app):
                                 html.H3(id='kpi-cipp-installation', className='fw-bold'),
                                 html.P('CIPP Complete', className='text-muted mb-0')
                             ], className='text-center')
-                        ], className='shadow-sm h-100')
+                        ], className='shadow-sm h-100 data-viz-container')
                     ], id='kpi-cipp-installation-card', style={'cursor': 'pointer', 'height': '100%'})
                 ], xs=12, sm=6, lg=2)
             ], className='mb-4'),
@@ -315,7 +375,7 @@ def create_dash_app(flask_app):
                             ], className='w-100 flex-column flex-md-row'),
                             dcc.Download(id="download-file")
                         ])
-                    ], className='shadow-sm')
+                    ], className='shadow-sm data-viz-container')
                 ], width=12)
             ], className='mb-4'),
 
@@ -328,7 +388,7 @@ def create_dash_app(flask_app):
                         dbc.CardBody([
                             dcc.Graph(id='overall-progress-chart', config={'displayModeBar': False, 'responsive': True})
                         ])
-                    ], className='shadow-sm')
+                    ], className='shadow-sm data-viz-container')
                 ], width=12)
             ], className='mb-4'),
 
@@ -357,7 +417,7 @@ def create_dash_app(flask_app):
                             ], id="breakout-tabs", active_tab="breakout-awaiting"),
                             html.Div(id='breakout-table-content', className='mt-3')
                         ])
-                    ], className='shadow-sm')
+                    ], className='shadow-sm data-viz-container')
                 ], width=12)
             ], className='mb-4'),
 
@@ -369,7 +429,7 @@ def create_dash_app(flask_app):
                         dbc.CardBody([
                             dcc.Graph(id='progress-bar-chart', config={'displayModeBar': False, 'responsive': True})
                         ])
-                    ], className='shadow-sm')
+                    ], className='shadow-sm data-viz-container')
                 ], width=12)
             ], className='mb-4'),
 
@@ -381,7 +441,7 @@ def create_dash_app(flask_app):
                         dbc.CardBody([
                             dcc.Graph(id='radar-chart', config={'displayModeBar': False, 'responsive': True})
                         ])
-                    ], className='shadow-sm')
+                    ], className='shadow-sm data-viz-container')
                 ], width=12)
             ], className='mb-4'),
 
@@ -392,7 +452,7 @@ def create_dash_app(flask_app):
                         dbc.CardBody([
                             dcc.Graph(id='pipe-progress-chart')
                         ])
-                    ], className='shadow-sm h-100')
+                    ], className='shadow-sm h-100 data-viz-container')
                 ], md=6),
                 dbc.Col([
                     dbc.Card([
@@ -400,7 +460,7 @@ def create_dash_app(flask_app):
                         dbc.CardBody([
                             dcc.Graph(id='pipe-size-chart')
                         ])
-                    ], className='shadow-sm h-100')
+                    ], className='shadow-sm h-100 data-viz-container')
                 ], md=6)
             ], className='mb-4'),
 
@@ -411,7 +471,7 @@ def create_dash_app(flask_app):
                         dbc.CardBody([
                             dcc.Graph(id='length-distribution-chart')
                         ])
-                    ], className='shadow-sm h-100')
+                    ], className='shadow-sm h-100 data-viz-container')
                 ], md=6),
                 dbc.Col([
                     dbc.Card([
@@ -419,7 +479,7 @@ def create_dash_app(flask_app):
                         dbc.CardBody([
                             dcc.Graph(id='easement-traffic-chart')
                         ])
-                    ], className='shadow-sm h-100')
+                    ], className='shadow-sm h-100 data-viz-container')
                 ], md=6)
             ], className='mb-4'),
 
@@ -438,7 +498,7 @@ def create_dash_app(flask_app):
                             ], id="table-tabs", active_tab="tab-1"),
                             html.Div(id='table-content', className='mt-3')
                         ])
-                    ], className='shadow-sm')
+                    ], className='shadow-sm data-viz-container')
                 ], width=12)
             ], className='mb-4'),
 
@@ -450,7 +510,7 @@ def create_dash_app(flask_app):
                         dbc.CardBody([
                             html.Div(id='excel-table-container')
                         ])
-                    ], className='shadow-sm')
+                    ], className='shadow-sm data-viz-container')
                 ], width=12)
             ], className='mb-5'),
 
@@ -1115,26 +1175,28 @@ def create_dash_app(flask_app):
             elif df[col].dtype in ['float64', 'int64'] and col not in ['Pipe Size', 'Min_Length_ft', 'Max_Length_ft']:
                 df[col] = df[col].apply(lambda x: f"{x:,.2f}" if pd.notna(x) else "")
 
-        return dash_table.DataTable(
-            data=df.to_dict('records'),
-            columns=[{'name': i, 'id': i} for i in df.columns],
-            style_cell={
-                'textAlign': 'left',
-                'padding': '10px',
-                'fontFamily': 'Arial'
-            },
-            style_header={
-                'backgroundColor': 'rgb(68, 114, 196)',
-                'color': 'white',
-                'fontWeight': 'bold'
-            },
-            style_data_conditional=[
-                {
-                    'if': {'row_index': 'odd'},
-                    'backgroundColor': 'rgb(248, 248, 248)'
-                }
-            ]
-        )
+        return html.Div([
+            dash_table.DataTable(
+                data=df.to_dict('records'),
+                columns=[{'name': i, 'id': i} for i in df.columns],
+                style_cell={
+                    'textAlign': 'left',
+                    'padding': '10px',
+                    'fontFamily': 'Arial'
+                },
+                style_header={
+                    'backgroundColor': 'rgb(68, 114, 196)',
+                    'color': 'white',
+                    'fontWeight': 'bold'
+                },
+                style_data_conditional=[
+                    {
+                        'if': {'row_index': 'odd'},
+                        'backgroundColor': 'rgb(248, 248, 248)'
+                    }
+                ]
+            )
+        ], className='dash-table-container')
 
 
     # Callback for original Excel table
@@ -1256,56 +1318,58 @@ def create_dash_app(flask_app):
                     'fontWeight': 'bold'
                 })
 
-        return dash_table.DataTable(
-            data=df.to_dict('records'),
-            columns=[{'name': str(i), 'id': str(i)} for i in df.columns],
-            style_cell={
-                'textAlign': 'left',
-                'padding': '10px 12px',
-                'fontSize': '12px',
-                'fontFamily': 'Arial, sans-serif',
-                'whiteSpace': 'normal',
-                'height': 'auto',
-            },
-            style_cell_conditional=style_cell_conditional,
-            style_header={
-                'backgroundColor': '#4472C4',
-                'color': 'white',
-                'fontWeight': 'bold',
-                'textAlign': 'center',
-                'padding': '12px',
-                'fontSize': '13px',
-                'border': '1px solid #2c5aa0',
-                'whiteSpace': 'normal',
-                'height': 'auto',
-            },
-            style_data={
-                'border': '1px solid #dee2e6',
-                'whiteSpace': 'normal',
-                'height': 'auto',
-            },
-            style_data_conditional=style_data_conditional,
-            style_table={
-                'overflowX': 'auto',
-                'maxHeight': '650px',
-                'overflowY': 'auto',
-                'border': '2px solid #4472C4',
-                'boxShadow': '0 2px 8px rgba(0,0,0,0.1)'
-            },
-            fixed_rows={'headers': True},
-            page_size=50,
-            tooltip_data=[
-                {
-                    column: {'value': str(value), 'type': 'markdown'}
-                    for column, value in row.items()
-                } for row in df.to_dict('records')
-            ],
-            tooltip_duration=None,
-            css=[{
-                'selector': '.dash-table-tooltip',
-                'rule': 'background-color: #333; color: white; padding: 8px; border-radius: 4px; font-size: 12px;'
-            }]
-        )
+        return html.Div([
+            dash_table.DataTable(
+                data=df.to_dict('records'),
+                columns=[{'name': str(i), 'id': str(i)} for i in df.columns],
+                style_cell={
+                    'textAlign': 'left',
+                    'padding': '10px 12px',
+                    'fontSize': '12px',
+                    'fontFamily': 'Arial, sans-serif',
+                    'whiteSpace': 'normal',
+                    'height': 'auto',
+                },
+                style_cell_conditional=style_cell_conditional,
+                style_header={
+                    'backgroundColor': '#4472C4',
+                    'color': 'white',
+                    'fontWeight': 'bold',
+                    'textAlign': 'center',
+                    'padding': '12px',
+                    'fontSize': '13px',
+                    'border': '1px solid #2c5aa0',
+                    'whiteSpace': 'normal',
+                    'height': 'auto',
+                },
+                style_data={
+                    'border': '1px solid #dee2e6',
+                    'whiteSpace': 'normal',
+                    'height': 'auto',
+                },
+                style_data_conditional=style_data_conditional,
+                style_table={
+                    'overflowX': 'auto',
+                    'maxHeight': '650px',
+                    'overflowY': 'auto',
+                    'border': '2px solid #4472C4',
+                    'boxShadow': '0 2px 8px rgba(0,0,0,0.1)'
+                },
+                fixed_rows={'headers': True},
+                page_size=50,
+                tooltip_data=[
+                    {
+                        column: {'value': str(value), 'type': 'markdown'}
+                        for column, value in row.items()
+                    } for row in df.to_dict('records')
+                ],
+                tooltip_duration=None,
+                css=[{
+                    'selector': '.dash-table-tooltip',
+                    'rule': 'background-color: #333; color: white; padding: 8px; border-radius: 4px; font-size: 12px;'
+                }]
+            )
+        ], className='dash-table-container')
 
 
     # Callback for downloads
@@ -1642,40 +1706,42 @@ def create_dash_app(flask_app):
         return html.Div([
             html.H5(title, className='mb-1'),
             html.P(subtitle, className='text-muted mb-3'),
-            dash_table.DataTable(
-                data=df.to_dict('records'),
-                columns=[{"name": i, "id": i} for i in df.columns],
-                style_table={'overflowX': 'auto'},
-                style_cell={
-                    'textAlign': 'left',
-                    'padding': '10px',
-                    'minWidth': '100px',
-                    'fontSize': '14px'
-                },
-                style_header={
-                    'backgroundColor': '#1E3A8A',
-                    'color': 'white',
-                    'fontWeight': 'bold',
-                    'textAlign': 'left'
-                },
-                style_data_conditional=[
-                    {
-                        'if': {'row_index': 'odd'},
-                        'backgroundColor': 'rgb(248, 248, 248)'
+            html.Div([
+                dash_table.DataTable(
+                    data=df.to_dict('records'),
+                    columns=[{"name": i, "id": i} for i in df.columns],
+                    style_table={'overflowX': 'auto'},
+                    style_cell={
+                        'textAlign': 'left',
+                        'padding': '10px',
+                        'minWidth': '100px',
+                        'fontSize': '14px'
                     },
-                    {
-                        'if': {'column_id': 'Flagged Issues', 'filter_query': '{Flagged Issues} ne "-"'},
-                        'backgroundColor': 'rgba(239, 68, 68, 0.1)',
-                        'color': '#991b1b'
-                    }
-                ],
-                page_size=25,
-                page_action='native',
-                sort_action='native',
-                filter_action='native',
-                export_format='xlsx',
-                export_headers='display'
-            ),
+                    style_header={
+                        'backgroundColor': '#1E3A8A',
+                        'color': 'white',
+                        'fontWeight': 'bold',
+                        'textAlign': 'left'
+                    },
+                    style_data_conditional=[
+                        {
+                            'if': {'row_index': 'odd'},
+                            'backgroundColor': 'rgb(248, 248, 248)'
+                        },
+                        {
+                            'if': {'column_id': 'Flagged Issues', 'filter_query': '{Flagged Issues} ne "-"'},
+                            'backgroundColor': 'rgba(239, 68, 68, 0.1)',
+                            'color': '#991b1b'
+                        }
+                    ],
+                    page_size=25,
+                    page_action='native',
+                    sort_action='native',
+                    filter_action='native',
+                    export_format='xlsx',
+                    export_headers='display'
+                )
+            ], className='dash-table-container'),
             stats_footer
         ])
 
