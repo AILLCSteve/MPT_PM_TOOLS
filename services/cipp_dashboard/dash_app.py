@@ -77,23 +77,110 @@ def create_dash_app(flask_app):
         return processor_cache[filepath]
 
     # Layout
-    dash_app.layout = dbc.Container(fluid=True, className="px-2 px-md-4", children=[
-        # Header
-        dbc.Navbar(
-            dbc.Container([
-                html.A(
-                    dbc.Row([
-                        dbc.Col(html.I(className="fas fa-chart-line fa-2x me-3")),
-                        dbc.Col(dbc.NavbarBrand("Visual Project Summary", className="fs-3 fw-bold")),
-                    ], align="center"),
-                    href="/",
-                    style={"textDecoration": "none"}
-                )
+    dash_app.layout = html.Div([
+        # Custom CSS for background and styling
+        html.Style("""
+            body {
+                margin: 0;
+                padding: 0;
+                position: relative;
+                min-height: 100vh;
+            }
+
+            body::before {
+                content: '';
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-image: url('/shared/assets/images/vspbg.jpeg');
+                background-size: cover;
+                background-position: center center;
+                background-repeat: no-repeat;
+                background-attachment: fixed;
+                filter: brightness(0.75);
+                z-index: -2;
+            }
+
+            body::after {
+                content: '';
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(135deg, rgba(91, 127, 204, 0.4) 0%, rgba(30, 58, 138, 0.5) 100%);
+                z-index: -1;
+            }
+
+            .mpt-navbar {
+                background: linear-gradient(135deg, #1E3A8A, #5B7FCC);
+                padding: 15px 30px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                position: sticky;
+                top: 0;
+                z-index: 1000;
+                margin-bottom: 0;
+            }
+
+            .mpt-navbar .logo-container {
+                display: flex;
+                align-items: center;
+                gap: 15px;
+            }
+
+            .mpt-navbar img {
+                height: 40px;
+                width: auto;
+            }
+
+            .mpt-navbar .app-title {
+                color: white;
+                font-size: 1.2rem;
+                font-weight: 600;
+            }
+
+            .mpt-navbar .home-link {
+                color: white;
+                text-decoration: none;
+                padding: 8px 20px;
+                border: 2px solid white;
+                border-radius: 5px;
+                transition: all 0.3s;
+                font-weight: 500;
+            }
+
+            .mpt-navbar .home-link:hover {
+                background-color: white;
+                color: #1E3A8A;
+            }
+
+            .dashboard-container {
+                background: rgba(255, 255, 255, 0.15);
+                backdrop-filter: blur(2.5px);
+                border-radius: 15px;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                padding: 30px;
+                margin: 20px auto;
+                max-width: 1400px;
+            }
+        """),
+
+        # MPT Navbar
+        html.Nav(className="mpt-navbar", children=[
+            html.Div(className="logo-container", children=[
+                html.Img(src="/shared/assets/images/logo.png", alt="Municipal Pipe Tool"),
+                html.Span("Visual Project Summary", className="app-title")
             ]),
-            color="primary",
-            dark=True,
-            className="mb-4"
-        ),
+            html.A("← Home", href="/", className="home-link")
+        ]),
+
+        # Main dashboard container
+        dbc.Container(fluid=True, className="dashboard-container px-2 px-md-4", children=[
 
         # Upload Section
         dbc.Row([
@@ -354,7 +441,8 @@ def create_dash_app(flask_app):
         # Hidden signal that fires ONLY when data is fully uploaded and ready
         html.Div(id='data-ready-signal', style={'display': 'none'}),
 
-    ])
+        ])  # Close dbc.Container
+    ])  # Close html.Div
 
 
     # ============================================================================
