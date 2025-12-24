@@ -652,6 +652,15 @@ function handleEvent(data) {
             // Use result from polling instead of fetching
             if (currentAnalysisResult && currentAnalysisResult.result) {
                 displayResults(currentAnalysisResult);
+
+                // CRITICAL: Update UI button states (fetchResults does this, but displayResults doesn't)
+                // Without this, Stop button stays enabled and Export button stays disabled
+                document.getElementById('exportBtn').disabled = false;
+                document.getElementById('analyzeBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                ProgressTracker.hide();
+
+                Logger.success('✅ Results displayed and UI updated');
             } else {
                 // Fallback: fetch if results weren't in polling events
                 fetchResults();

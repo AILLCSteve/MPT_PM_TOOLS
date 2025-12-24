@@ -185,6 +185,117 @@
             white-space: nowrap;
             font-size: 12px;
         }
+
+        .action-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-right: 5px;
+            transition: background 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #5568d3;
+        }
+
+        .action-btn.export {
+            background: #22c55e;
+        }
+
+        .action-btn.export:hover {
+            background: #16a34a;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            overflow-y: auto;
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 1200px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .modal-header h2 {
+            color: #333;
+            margin: 0;
+        }
+
+        .close-btn {
+            font-size: 28px;
+            font-weight: bold;
+            color: #6b7280;
+            cursor: pointer;
+            background: none;
+            border: none;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 13px;
+        }
+
+        .results-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+
+        .results-table td {
+            padding: 10px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .results-table tr:nth-child(even) {
+            background: #f9fafb;
+        }
+
+        .modal-loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+
+        .modal-error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 20px;
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
@@ -245,6 +356,19 @@
         </div>
     </div>
 
+    <!-- Analysis Results Modal -->
+    <div id="resultsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Analysis Results</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modalBody">
+                <div class="modal-loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
     <script>
         function formatDateTime(isoString) {
             if (!isoString) return 'N/A';
@@ -273,6 +397,7 @@
             html += '<th>Tokens</th>';
             html += '<th>Time</th>';
             html += '<th>Timestamp</th>';
+            html += '<th>Actions</th>';
             html += '</tr></thead><tbody>';
 
             sessions.forEach(session => {
@@ -285,6 +410,10 @@
                 html += `<td>${session.total_tokens ? session.total_tokens.toLocaleString() : 'N/A'}</td>`;
                 html += `<td>${formatDuration(session.processing_time)}</td>`;
                 html += `<td>${formatDateTime(session.completed_at || session.stopped_at || session.started_at)}</td>`;
+                html += `<td>
+                    <button class="action-btn" onclick="viewAnalysis('${session.session_id}')">👁️ View</button>
+                    <button class="action-btn export" onclick="exportAnalysis('${session.session_id}')">📥 Export</button>
+                </td>`;
                 html += '</tr>';
             });
 
@@ -358,6 +487,87 @@
                 console.error('Failed to load sessions:', error);
                 document.getElementById('error-container').innerHTML =
                     `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function viewAnalysis(sessionId) {
+            const modal = document.getElementById('resultsModal');
+            const modalBody = document.getElementById('modalBody');
+            const modalTitle = document.getElementById('modalTitle');
+
+            // Show modal with loading state
+            modal.style.display = 'block';
+            modalTitle.textContent = `Analysis Results - ${sessionId}`;
+            modalBody.innerHTML = '<div class="modal-loading">⏳ Loading analysis results...</div>';
+
+            try {
+                const response = await fetch(`/api/results/${sessionId}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load results');
+                }
+
+                // Build results table
+                let html = '<div style="margin-bottom: 20px;">';
+                html += '<h3>Statistics</h3>';
+                html += `<p>Questions Answered: ${data.statistics.questions_answered || 'N/A'}</p>`;
+                html += `<p>Processing Time: ${data.statistics.processing_time || 'N/A'}s</p>`;
+                html += `<p>Total Tokens: ${data.statistics.total_tokens || 'N/A'}</p>`;
+                html += `<p>Estimated Cost: ${data.statistics.estimated_cost || 'N/A'}</p>`;
+                html += '</div>';
+
+                html += '<table class="results-table">';
+                html += '<thead><tr>';
+                html += '<th>Section</th>';
+                html += '<th>#</th>';
+                html += '<th>Question</th>';
+                html += '<th>Answer</th>';
+                html += '<th>Pages</th>';
+                html += '</tr></thead><tbody>';
+
+                let questionNum = 1;
+                data.result.sections.forEach(section => {
+                    section.questions.forEach(q => {
+                        const hasAnswer = q.answer && q.answer !== 'Not found in document';
+                        html += '<tr>';
+                        html += `<td>${section.section_name}</td>`;
+                        html += `<td>${questionNum}</td>`;
+                        html += `<td>${q.question}</td>`;
+                        html += `<td style="${hasAnswer ? '' : 'color: #999;'}">${q.answer || 'No answer'}</td>`;
+                        html += `<td>${q.page_citations && q.page_citations.length > 0 ? q.page_citations.join(', ') : 'N/A'}</td>`;
+                        html += '</tr>';
+                        questionNum++;
+                    });
+                });
+
+                html += '</tbody></table>';
+                modalBody.innerHTML = html;
+
+            } catch (error) {
+                console.error('Failed to view analysis:', error);
+                modalBody.innerHTML = `<div class="modal-error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function exportAnalysis(sessionId) {
+            try {
+                // Open Excel export in new window
+                window.open(`/api/export/excel-dashboard/${sessionId}`, '_blank');
+            } catch (error) {
+                alert('Failed to export analysis: ' + error.message);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('resultsModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('resultsModal');
+            if (event.target === modal) {
+                closeModal();
             }
         }
 
