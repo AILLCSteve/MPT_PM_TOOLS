@@ -391,7 +391,7 @@
             let html = '<table><thead><tr>';
             html += '<th>Session ID</th>';
             html += '<th>Status</th>';
-            html += '<th>PDF Path</th>';
+            html += '<th>PDF File</th>';
             html += '<th>Questions</th>';
             html += '<th>Pages</th>';
             html += '<th>Tokens</th>';
@@ -404,14 +404,14 @@
                 html += '<tr>';
                 html += `<td class="session-id">${session.session_id}</td>`;
                 html += `<td><span class="status-badge status-${statusClass}">${session.status}</span></td>`;
-                html += `<td class="path-cell" title="${session.pdf_path}">${session.pdf_path}</td>`;
+                html += `<td class="path-cell" title="${session.pdf_path || 'N/A'}">${session.pdf_filename || 'Unknown.pdf'}</td>`;
                 html += `<td>${session.questions_answered || 'N/A'}</td>`;
                 html += `<td>${session.total_pages || 'N/A'}</td>`;
                 html += `<td>${session.total_tokens ? session.total_tokens.toLocaleString() : 'N/A'}</td>`;
                 html += `<td>${formatDuration(session.processing_time)}</td>`;
                 html += `<td>${formatDateTime(session.completed_at || session.stopped_at || session.started_at)}</td>`;
                 html += `<td>
-                    <button class="action-btn" onclick="viewAnalysis('${session.session_id}')">👁️ View</button>
+                    <button class="action-btn" onclick="viewAnalysis('${session.session_id}', '${session.pdf_filename || 'Unknown.pdf'}')">👁️ View</button>
                     <button class="action-btn export" onclick="exportAnalysis('${session.session_id}')">📥 Export</button>
                 </td>`;
                 html += '</tr>';

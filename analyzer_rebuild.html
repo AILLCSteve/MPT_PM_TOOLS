@@ -636,7 +636,8 @@ function handleEvent(data) {
         }
         else if (data.event === 'results_ready') {
             // Store the complete result from polling (no need for separate fetch)
-            currentAnalysisResult = data;
+            // CRITICAL: Store just the result object, not the whole event wrapper
+            currentAnalysisResult = data.result;
             Logger.info(`✅ Results received via polling (${data.result.sections?.length || 0} sections)`);
         }
         else if (data.event === 'analysis_complete' || data.event === 'done') {
@@ -650,7 +651,7 @@ function handleEvent(data) {
             stopPolling();
 
             // Use result from polling instead of fetching
-            if (currentAnalysisResult && currentAnalysisResult.result) {
+            if (currentAnalysisResult && currentAnalysisResult.sections) {
                 displayResults(currentAnalysisResult);
 
                 // CRITICAL: Update UI button states (fetchResults does this, but displayResults doesn't)
@@ -826,8 +827,9 @@ async function startAnalysis() {
 
         const uploadData = await uploadResp.json();
         const pdfPath = uploadData.filepath;
+        const pdfFilename = uploadData.filename || currentFile.name;
 
-        Logger.success(`✅ File uploaded: ${pdfPath}`);
+        Logger.success(`✅ File uploaded: ${pdfFilename}`);
         ProgressTracker.update(20, 'Connecting to HOTDOG AI...');
 
         // Generate session ID
@@ -850,6 +852,7 @@ async function startAnalysis() {
             body: JSON.stringify({
                 session_id: currentSessionId,
                 pdf_path: pdfPath,
+                pdf_filename: pdfFilename,  // NEW: Include original filename
                 context_guardrails: contextGuardrails || undefined,
                 enabled_sections: enabledSectionIds  // NEW: Only analyze enabled sections
             })

@@ -510,6 +510,7 @@ def analyze_document():
     # Get request data
     data = request.json
     pdf_path = data.get('pdf_path')
+    pdf_filename = data.get('pdf_filename', 'Unknown.pdf')  # Get original filename
     context_guardrails = data.get('context_guardrails', '')
     enabled_sections = data.get('enabled_sections', None)  # NEW: Optional list of enabled section IDs
     session_id = data.get('session_id', f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
@@ -568,7 +569,8 @@ def analyze_document():
             active_analyses[session_id] = {
                 'orchestrator': orchestrator,
                 'config_path': config_path,
-                'pdf_path': pdf_path
+                'pdf_path': pdf_path,
+                'pdf_filename': pdf_filename
             }
             logger.info(f"Orchestrator stored in active_analyses: {session_id}")
 
@@ -614,6 +616,7 @@ def analyze_document():
                         'orchestrator': orchestrator,
                         'config_path': config_path,
                         'pdf_path': pdf_path,
+                        'pdf_filename': pdf_filename,
                         'completed_at': datetime.now(),
                         'status': 'completed'
                     }
@@ -641,6 +644,7 @@ def analyze_document():
                         'orchestrator': active_analyses[session_id]['orchestrator'],
                         'config_path': active_analyses[session_id]['config_path'],
                         'pdf_path': active_analyses[session_id].get('pdf_path', ''),
+                        'pdf_filename': active_analyses[session_id].get('pdf_filename', 'Unknown.pdf'),
                         'stopped_at': datetime.now(),
                         'status': 'stopped',
                         'error': error_msg
@@ -1008,6 +1012,7 @@ def get_all_sessions():
                 'session_id': session_id,
                 'status': status,
                 'pdf_path': session_data.get('pdf_path', 'N/A'),
+                'pdf_filename': session_data.get('pdf_filename', 'Unknown.pdf'),
                 'config_path': session_data.get('config_path', 'N/A'),
             }
 
