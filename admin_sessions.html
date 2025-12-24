@@ -389,27 +389,27 @@
             }
 
             let html = '<table><thead><tr>';
-            html += '<th>Session ID</th>';
-            html += '<th>Status</th>';
             html += '<th>PDF File</th>';
+            html += '<th>Status</th>';
             html += '<th>Questions</th>';
             html += '<th>Pages</th>';
             html += '<th>Tokens</th>';
             html += '<th>Time</th>';
-            html += '<th>Timestamp</th>';
+            html += '<th>Completed</th>';
+            html += '<th>Session ID</th>';
             html += '<th>Actions</th>';
             html += '</tr></thead><tbody>';
 
             sessions.forEach(session => {
                 html += '<tr>';
-                html += `<td class="session-id">${session.session_id}</td>`;
+                html += `<td style="font-weight: 600; color: #1E3A8A;" title="${session.pdf_path || 'N/A'}">${session.pdf_filename || 'Unknown.pdf'}</td>`;
                 html += `<td><span class="status-badge status-${statusClass}">${session.status}</span></td>`;
-                html += `<td class="path-cell" title="${session.pdf_path || 'N/A'}">${session.pdf_filename || 'Unknown.pdf'}</td>`;
                 html += `<td>${session.questions_answered || 'N/A'}</td>`;
                 html += `<td>${session.total_pages || 'N/A'}</td>`;
                 html += `<td>${session.total_tokens ? session.total_tokens.toLocaleString() : 'N/A'}</td>`;
                 html += `<td>${formatDuration(session.processing_time)}</td>`;
                 html += `<td>${formatDateTime(session.completed_at || session.stopped_at || session.started_at)}</td>`;
+                html += `<td class="session-id" style="font-size: 10px;">${session.session_id}</td>`;
                 html += `<td>
                     <button class="action-btn" onclick="viewAnalysis('${session.session_id}', '${session.pdf_filename || 'Unknown.pdf'}')">👁️ View</button>
                     <button class="action-btn export" onclick="exportAnalysis('${session.session_id}')">📥 Export</button>
@@ -490,14 +490,14 @@
             }
         }
 
-        async function viewAnalysis(sessionId) {
+        async function viewAnalysis(sessionId, pdfFilename) {
             const modal = document.getElementById('resultsModal');
             const modalBody = document.getElementById('modalBody');
             const modalTitle = document.getElementById('modalTitle');
 
             // Show modal with loading state
             modal.style.display = 'block';
-            modalTitle.textContent = `Analysis Results - ${sessionId}`;
+            modalTitle.textContent = `📄 ${pdfFilename || 'Analysis Results'}`;
             modalBody.innerHTML = '<div class="modal-loading">⏳ Loading analysis results...</div>';
 
             try {
@@ -509,33 +509,37 @@
                 }
 
                 // Build results table
-                let html = '<div style="margin-bottom: 20px;">';
-                html += '<h3>Statistics</h3>';
-                html += `<p>Questions Answered: ${data.statistics.questions_answered || 'N/A'}</p>`;
-                html += `<p>Processing Time: ${data.statistics.processing_time || 'N/A'}s</p>`;
-                html += `<p>Total Tokens: ${data.statistics.total_tokens || 'N/A'}</p>`;
-                html += `<p>Estimated Cost: ${data.statistics.estimated_cost || 'N/A'}</p>`;
+                let html = '<div style="margin-bottom: 20px; padding: 15px; background: #f9fafb; border-radius: 8px;">';
+                html += `<p style="font-size: 11px; color: #6b7280; margin-bottom: 10px;">Session ID: ${sessionId}</p>`;
+                html += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">';
+                html += `<div><strong>Questions Answered:</strong> ${data.statistics.questions_answered || 'N/A'}</div>`;
+                html += `<div><strong>Processing Time:</strong> ${data.statistics.processing_time || 'N/A'}s</div>`;
+                html += `<div><strong>Total Tokens:</strong> ${data.statistics.total_tokens || 'N/A'}</div>`;
+                html += `<div><strong>Estimated Cost:</strong> ${data.statistics.estimated_cost || 'N/A'}</div>`;
+                html += '</div>';
                 html += '</div>';
 
+                html += '<h3 style="margin: 20px 0 10px 0; color: #1E3A8A;">📋 Unitary Analysis Table</h3>';
                 html += '<table class="results-table">';
                 html += '<thead><tr>';
-                html += '<th>Section</th>';
-                html += '<th>#</th>';
-                html += '<th>Question</th>';
-                html += '<th>Answer</th>';
-                html += '<th>Pages</th>';
+                html += '<th style="min-width: 150px;">Section</th>';
+                html += '<th style="width: 40px; text-align: center;">#</th>';
+                html += '<th style="min-width: 250px;">Question</th>';
+                html += '<th style="min-width: 300px;">Answer</th>';
+                html += '<th style="width: 100px; text-align: center;">PDF Pages</th>';
                 html += '</tr></thead><tbody>';
 
                 let questionNum = 1;
                 data.result.sections.forEach(section => {
                     section.questions.forEach(q => {
                         const hasAnswer = q.answer && q.answer !== 'Not found in document';
-                        html += '<tr>';
-                        html += `<td>${section.section_name}</td>`;
-                        html += `<td>${questionNum}</td>`;
+                        const rowColor = hasAnswer ? '#ffffff' : '#f9fafb';
+                        html += `<tr style="background: ${rowColor};">`;
+                        html += `<td style="font-weight: 500;">${section.section_name}</td>`;
+                        html += `<td style="text-align: center; color: #6b7280;">${questionNum}</td>`;
                         html += `<td>${q.question}</td>`;
-                        html += `<td style="${hasAnswer ? '' : 'color: #999;'}">${q.answer || 'No answer'}</td>`;
-                        html += `<td>${q.page_citations && q.page_citations.length > 0 ? q.page_citations.join(', ') : 'N/A'}</td>`;
+                        html += `<td style="${hasAnswer ? 'color: #1f2937;' : 'color: #9ca3af; font-style: italic;'}">${q.answer || 'Not found in document'}</td>`;
+                        html += `<td style="text-align: center; font-family: monospace;">${q.page_citations && q.page_citations.length > 0 ? q.page_citations.join(', ') : '—'}</td>`;
                         html += '</tr>';
                         questionNum++;
                     });
