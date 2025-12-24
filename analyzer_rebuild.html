@@ -798,15 +798,23 @@ async function startAnalysis() {
             Logger.info(`📋 Context Guardrails: ${contextGuardrails}`);
         }
 
-        // Reset live answers
+        // Clear previous analysis state
+        // NOTE: This only clears the UI. Previous analysis results remain stored
+        // server-side in completed_analyses and can be accessed via admin panel.
+        // Each session is fully isolated on the backend.
+        currentSessionId = null;
+        currentAnalysisResult = null;
         liveAnswers = {};
+        lastEventIndex = 0;
 
-        // Hide live summary
+        // Clear previous results UI
+        document.getElementById('resultsContent').innerHTML = '';
         document.getElementById('liveResults').style.display = 'none';
 
         // Disable/enable buttons
         document.getElementById('analyzeBtn').disabled = true;
         document.getElementById('stopBtn').disabled = false;
+        document.getElementById('exportBtn').disabled = true;
 
         // Show progress
         ProgressTracker.show();
