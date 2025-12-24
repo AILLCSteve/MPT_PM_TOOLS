@@ -17,8 +17,10 @@ worker_class = 'sync'  # Sync worker + threading in Flask app
 threads = 10  # Allow 10 concurrent threads per worker
 
 # Worker lifecycle settings
-max_requests = 1000  # Restart worker after N requests (prevent memory leaks)
-max_requests_jitter = 50  # Add randomness to prevent thundering herd
+# TEMPORARILY DISABLED: Restarts clear in-memory session dicts
+# TODO: Re-enable after Neon DB migration (see PERSISTENT_STORAGE_MIGRATION_PLAN.md)
+max_requests = 0  # 0 = never restart (was 1000)
+max_requests_jitter = 0  # Disabled (was 50)
 
 # Timeout settings - CRITICAL for long-running AI analysis
 # HOTDOG analysis can take 10-15 minutes for large documents

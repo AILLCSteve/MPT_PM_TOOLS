@@ -991,32 +991,54 @@ def get_all_sessions():
     """Admin endpoint: Get all active, completed, and partial analyses"""
     from datetime import datetime
 
+    # DIAGNOSTIC LOGGING
+    logger.info("="*60)
+    logger.info("ADMIN SESSIONS REQUEST")
+    logger.info(f"Active analyses keys: {list(active_analyses.keys())}")
+    logger.info(f"Completed analyses keys: {list(completed_analyses.keys())}")
+    logger.info(f"Partial analyses keys: {list(partial_analyses.keys())}")
+    logger.info(f"Legacy results keys: {list(analysis_results.keys())}")
+    logger.info(f"Session timestamps keys: {list(session_timestamps.keys())}")
+    logger.info("="*60)
+
     def format_session_info(session_id, session_data, status):
         """Helper to format session data for admin view"""
-        info = {
-            'session_id': session_id,
-            'status': status,
-            'pdf_path': session_data.get('pdf_path', 'N/A'),
-            'config_path': session_data.get('config_path', 'N/A'),
-        }
+        try:
+            info = {
+                'session_id': session_id,
+                'status': status,
+                'pdf_path': session_data.get('pdf_path', 'N/A'),
+                'config_path': session_data.get('config_path', 'N/A'),
+            }
 
-        # Add timestamp if available
-        if 'completed_at' in session_data:
-            info['completed_at'] = session_data['completed_at'].isoformat()
-        if 'stopped_at' in session_data:
-            info['stopped_at'] = session_data['stopped_at'].isoformat()
-        if 'started_at' in session_data:
-            info['started_at'] = session_data['started_at'].isoformat()
+            # Add timestamp if available
+            if 'completed_at' in session_data:
+                info['completed_at'] = session_data['completed_at'].isoformat()
+            if 'stopped_at' in session_data:
+                info['stopped_at'] = session_data['stopped_at'].isoformat()
+            if 'started_at' in session_data:
+                info['started_at'] = session_data['started_at'].isoformat()
 
-        # Add result statistics if available
-        if 'result' in session_data:
-            result = session_data['result']
-            info['questions_answered'] = result.questions_answered
-            info['total_pages'] = result.total_pages
-            info['total_tokens'] = result.total_tokens
-            info['processing_time'] = result.processing_time_seconds
+            # Add result statistics if available (with error handling)
+            if 'result' in session_data:
+                result = session_data['result']
+                # Check if result has the expected attributes (it's a dataclass)
+                info['questions_answered'] = getattr(result, 'questions_answered', 'N/A')
+                info['total_pages'] = getattr(result, 'total_pages', 'N/A')
+                info['total_tokens'] = getattr(result, 'total_tokens', 'N/A')
+                info['processing_time'] = getattr(result, 'processing_time_seconds', 'N/A')
 
-        return info
+            return info
+        except Exception as e:
+            # Log the error but still return basic info
+            logger.error(f"Error formatting session {session_id}: {e}", exc_info=True)
+            return {
+                'session_id': session_id,
+                'status': f'error_{status}',
+                'pdf_path': 'Error formatting',
+                'config_path': 'Error formatting',
+                'error': str(e)
+            }
 
     # Gather all sessions
     sessions = {

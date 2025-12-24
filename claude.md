@@ -12,6 +12,8 @@ Read these instructions as **binding** in this project.
 Whenever you are asked to **refactor, debug, extend, or test** existing code:
 
 1. **ALWAYS search for and read `digestsynopsisSUMMARY.md` first.**
+    - whenever a file is too large to read, break it into portions **BUT ALWAYS READ IT, NEVER FOREGO IT FOR ANY
+      REASON**
    - If present, treat it as the **canonical map** of:
      - Project purpose and architecture
      - Module and file layout
