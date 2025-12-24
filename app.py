@@ -129,12 +129,12 @@ logger.info("="*60)
 
 def cleanup_expired_sessions():
     """
-    Remove TEMPORARY session data older than 1 hour.
-    KEEPS completed/partial analyses indefinitely (until worker restart).
+    Remove TEMPORARY session data older than 30 days.
+    KEEPS completed/partial analyses for 30 days.
     Reschedules itself every 15 minutes using threading.Timer.
     """
     try:
-        cutoff = datetime.now() - timedelta(hours=1)
+        cutoff = datetime.now() - timedelta(days=30)
         expired = [
             sid for sid, ts in session_timestamps.items()
             if ts < cutoff
