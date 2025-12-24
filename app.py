@@ -129,7 +129,8 @@ logger.info("="*60)
 
 def cleanup_expired_sessions():
     """
-    Remove sessions older than 1 hour to prevent memory exhaustion.
+    Remove TEMPORARY session data older than 1 hour.
+    KEEPS completed/partial analyses indefinitely (until worker restart).
     Reschedules itself every 15 minutes using threading.Timer.
     """
     try:
@@ -140,15 +141,19 @@ def cleanup_expired_sessions():
         ]
 
         for sid in expired:
+            # Clean up temporary/transient data (safe to delete)
             progress_queues.pop(sid, None)
             session_events.pop(sid, None)
             analysis_threads.pop(sid, None)
-            analysis_results.pop(sid, None)
-            active_analyses.pop(sid, None)
-            completed_analyses.pop(sid, None)  # NEW: Clean up completed
-            partial_analyses.pop(sid, None)  # NEW: Clean up partial
-            session_timestamps.pop(sid, None)
-            logger.info(f"✅ Cleaned up expired session: {sid}")
+
+            # ONLY delete if not in completed/partial (preserve valuable analysis results)
+            if sid not in completed_analyses and sid not in partial_analyses:
+                analysis_results.pop(sid, None)
+                active_analyses.pop(sid, None)
+                session_timestamps.pop(sid, None)
+                logger.info(f"✅ Cleaned up expired session: {sid}")
+            else:
+                logger.info(f"⏳ Keeping completed/partial session: {sid}")
 
         if expired:
             logger.info(f"🧹 Cleaned up {len(expired)} expired sessions")
@@ -621,6 +626,8 @@ def analyze_document():
                         'status': 'completed'
                     }
                     del active_analyses[session_id]
+                    # Update timestamp so cleanup doesn't delete recently completed analyses
+                    session_timestamps[session_id] = datetime.now()
                     logger.info(f"✅ Session moved to completed_analyses: {session_id}")
 
                 # Signal done
@@ -650,6 +657,8 @@ def analyze_document():
                         'error': error_msg
                     }
                     del active_analyses[session_id]
+                    # Update timestamp so cleanup doesn't delete stopped analyses
+                    session_timestamps[session_id] = datetime.now()
                     logger.info(f"✅ Session moved to partial_analyses: {session_id}")
             else:
                 # Clean up failed analysis on actual errors
@@ -682,6 +691,9 @@ def get_results(session_id):
 
     # Check completed_analyses first (NEW - primary storage)
     if session_id in completed_analyses:
+        # Touch timestamp to keep session alive
+        session_timestamps[session_id] = datetime.now()
+
         session_data = completed_analyses[session_id]
         result = session_data['result']
         orchestrator = session_data['orchestrator']
@@ -741,6 +753,9 @@ def get_results(session_id):
 
     # Check partial_analyses (stopped by user)
     elif session_id in partial_analyses:
+        # Touch timestamp to keep session alive
+        session_timestamps[session_id] = datetime.now()
+
         logger.info(f"Fetching results for partial analysis: {session_id}")
         session_data = partial_analyses[session_id]
         orchestrator = session_data['orchestrator']
@@ -1044,6 +1059,16 @@ def get_all_sessions():
                 'config_path': 'Error formatting',
                 'error': str(e)
             }
+
+    # Touch all session timestamps to keep them alive when admin views them
+    all_session_ids = (
+        list(active_analyses.keys()) +
+        list(completed_analyses.keys()) +
+        list(partial_analyses.keys()) +
+        list(analysis_results.keys())
+    )
+    for sid in all_session_ids:
+        session_timestamps[sid] = datetime.now()
 
     # Gather all sessions
     sessions = {
