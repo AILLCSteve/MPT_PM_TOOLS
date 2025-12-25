@@ -1150,6 +1150,17 @@ def get_all_sessions():
         for sid in all_session_ids:
             session_timestamps[sid] = datetime.now()
 
+        # ENHANCED DIAGNOSTIC: Log what we see INSIDE the lock
+        logger.info("🔍 INSIDE LOCK:")
+        logger.info(f"🔍   Active keys: {list(active_analyses.keys())}")
+        logger.info(f"🔍   Completed keys: {list(completed_analyses.keys())}")
+        logger.info(f"🔍   Partial keys: {list(partial_analyses.keys())}")
+        logger.info(f"🔍   Legacy keys: {list(analysis_results.keys())}")
+        logger.info(f"🔍   Timestamps keys: {list(session_timestamps.keys())}")
+        logger.info(f"🔍   Dict memory IDs - completed={id(completed_analyses)}, partial={id(partial_analyses)}")
+        logger.info(f"🔍   Thread: {threading.current_thread().name}")
+        logger.info(f"🔍   Total session IDs collected: {len(all_session_ids)}")
+
         # Gather all sessions (single atomic snapshot)
         sessions = {
             'active': [
@@ -1178,6 +1189,12 @@ def get_all_sessions():
         'partial_count': len(sessions['partial']),
         'legacy_count': len(sessions['legacy'])
     }
+
+    # ENHANCED DIAGNOSTIC: Log what we're returning
+    logger.info(f"📤 RETURNING: {summary}")
+    logger.info(f"📤   Active sessions count: {len(sessions['active'])}")
+    logger.info(f"📤   Completed sessions count: {len(sessions['completed'])}")
+    logger.info(f"📤   Partial sessions count: {len(sessions['partial'])}")
 
     return jsonify({
         'success': True,
