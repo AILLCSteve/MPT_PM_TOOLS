@@ -24,6 +24,7 @@ import json
 import tempfile
 import hashlib
 import secrets
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -80,6 +81,14 @@ completed_analyses = {}  # session_id -> {'orchestrator': ..., 'result': ..., 'c
 partial_analyses = {}  # session_id -> {'orchestrator': ..., 'config_path': ..., 'stopped_at': datetime, 'status': 'stopped'}
 session_timestamps = {}  # session_id -> last_access_time (for cleanup)
 
+# ============================================================================
+# THREAD SAFETY
+# ============================================================================
+# Global lock for all session dict access to prevent race conditions
+# See: ADMIN_SESSION_FLICKERING_DIAGNOSIS.md and STOP_ANALYSIS_RACE_CONDITION.md
+session_lock = threading.Lock()
+logger.info("🔒 Session lock initialized for thread-safe dict access")
+
 # Authentication - Load from environment variables
 def load_authorized_users():
     """Load authorized users from environment variables for security."""
@@ -132,29 +141,36 @@ def cleanup_expired_sessions():
     Remove TEMPORARY session data older than 30 days.
     KEEPS completed/partial analyses for 30 days.
     Reschedules itself every 15 minutes using threading.Timer.
+
+    THREAD SAFETY: Uses session_lock to prevent race conditions with
+    concurrent admin requests and analysis completion.
     """
     try:
-        cutoff = datetime.now() - timedelta(days=30)
-        expired = [
-            sid for sid, ts in session_timestamps.items()
-            if ts < cutoff
-        ]
+        # CRITICAL: Atomic cleanup with lock
+        # Prevents race with admin endpoint and analysis threads
+        with session_lock:
+            cutoff = datetime.now() - timedelta(days=30)
+            expired = [
+                sid for sid, ts in session_timestamps.items()
+                if ts < cutoff
+            ]
 
-        for sid in expired:
-            # Clean up temporary/transient data (safe to delete)
-            progress_queues.pop(sid, None)
-            session_events.pop(sid, None)
-            analysis_threads.pop(sid, None)
+            for sid in expired:
+                # Clean up temporary/transient data (safe to delete)
+                progress_queues.pop(sid, None)
+                session_events.pop(sid, None)
+                analysis_threads.pop(sid, None)
 
-            # ONLY delete if not in completed/partial (preserve valuable analysis results)
-            if sid not in completed_analyses and sid not in partial_analyses:
-                analysis_results.pop(sid, None)
-                active_analyses.pop(sid, None)
-                session_timestamps.pop(sid, None)
-                logger.info(f"✅ Cleaned up expired session: {sid}")
-            else:
-                logger.info(f"⏳ Keeping completed/partial session: {sid}")
+                # ONLY delete if not in completed/partial (preserve valuable analysis results)
+                if sid not in completed_analyses and sid not in partial_analyses:
+                    analysis_results.pop(sid, None)
+                    active_analyses.pop(sid, None)
+                    session_timestamps.pop(sid, None)
+                    logger.info(f"✅ Cleaned up expired session: {sid}")
+                else:
+                    logger.info(f"⏳ Keeping completed/partial session: {sid}")
 
+        # Log outside lock
         if expired:
             logger.info(f"🧹 Cleaned up {len(expired)} expired sessions")
 
@@ -614,21 +630,24 @@ def analyze_document():
                     }
                 })
 
-                # Move from active to completed (preserve session data)
-                if session_id in active_analyses:
-                    completed_analyses[session_id] = {
-                        'result': result,
-                        'orchestrator': orchestrator,
-                        'config_path': config_path,
-                        'pdf_path': pdf_path,
-                        'pdf_filename': pdf_filename,
-                        'completed_at': datetime.now(),
-                        'status': 'completed'
-                    }
-                    del active_analyses[session_id]
-                    # Update timestamp so cleanup doesn't delete recently completed analyses
-                    session_timestamps[session_id] = datetime.now()
-                    logger.info(f"✅ Session moved to completed_analyses: {session_id}")
+                # CRITICAL: Atomic session movement with lock
+                # Prevents admin panel from seeing mid-transition state
+                with session_lock:
+                    # Move from active to completed (preserve session data)
+                    if session_id in active_analyses:
+                        completed_analyses[session_id] = {
+                            'result': result,
+                            'orchestrator': orchestrator,
+                            'config_path': config_path,
+                            'pdf_path': pdf_path,
+                            'pdf_filename': pdf_filename,
+                            'completed_at': datetime.now(),
+                            'status': 'completed'
+                        }
+                        del active_analyses[session_id]
+                        # Update timestamp so cleanup doesn't delete recently completed analyses
+                        session_timestamps[session_id] = datetime.now()
+                        logger.info(f"✅ Session moved to completed_analyses: {session_id}")
 
                 # Signal done
                 progress_q.put(('done', {}))
@@ -645,21 +664,24 @@ def analyze_document():
 
             # Handle stopped vs failed analyses differently
             if 'stopped by user' in error_msg.lower():
-                # Move stopped analysis to partial_analyses (preserve partial data)
-                if session_id in active_analyses:
-                    partial_analyses[session_id] = {
-                        'orchestrator': active_analyses[session_id]['orchestrator'],
-                        'config_path': active_analyses[session_id]['config_path'],
-                        'pdf_path': active_analyses[session_id].get('pdf_path', ''),
-                        'pdf_filename': active_analyses[session_id].get('pdf_filename', 'Unknown.pdf'),
-                        'stopped_at': datetime.now(),
-                        'status': 'stopped',
-                        'error': error_msg
-                    }
-                    del active_analyses[session_id]
-                    # Update timestamp so cleanup doesn't delete stopped analyses
-                    session_timestamps[session_id] = datetime.now()
-                    logger.info(f"✅ Session moved to partial_analyses: {session_id}")
+                # CRITICAL: Atomic session movement with lock
+                # Prevents /api/results from getting 404 before session moves to partial_analyses
+                with session_lock:
+                    # Move stopped analysis to partial_analyses (preserve partial data)
+                    if session_id in active_analyses:
+                        partial_analyses[session_id] = {
+                            'orchestrator': active_analyses[session_id]['orchestrator'],
+                            'config_path': active_analyses[session_id]['config_path'],
+                            'pdf_path': active_analyses[session_id].get('pdf_path', ''),
+                            'pdf_filename': active_analyses[session_id].get('pdf_filename', 'Unknown.pdf'),
+                            'stopped_at': datetime.now(),
+                            'status': 'stopped',
+                            'error': error_msg
+                        }
+                        del active_analyses[session_id]
+                        # Update timestamp so cleanup doesn't delete stopped analyses
+                        session_timestamps[session_id] = datetime.now()
+                        logger.info(f"✅ Session moved to partial_analyses: {session_id}")
             else:
                 # Clean up failed analysis on actual errors
                 if session_id in active_analyses:
@@ -687,22 +709,54 @@ def analyze_document():
 
 @app.route('/api/results/<session_id>', methods=['GET'])
 def get_results(session_id):
-    """Get analysis results (supports completed, partial, and in-progress analyses)"""
+    """
+    Get analysis results (supports completed, partial, and in-progress analyses).
 
-    # Check completed_analyses first (NEW - primary storage)
-    if session_id in completed_analyses:
-        # Touch timestamp to keep session alive
-        session_timestamps[session_id] = datetime.now()
+    THREAD SAFETY: Uses session_lock to prevent race conditions when checking
+    which dict contains the session (completed vs partial vs active).
+    """
 
-        session_data = completed_analyses[session_id]
+    # CRITICAL: Atomic session lookup with lock
+    # Prevents race where session moves between dicts during lookup
+    with session_lock:
+        # Check completed_analyses first (NEW - primary storage)
+        if session_id in completed_analyses:
+            # Touch timestamp to keep session alive
+            session_timestamps[session_id] = datetime.now()
+            session_data = completed_analyses[session_id]
+            session_type = 'completed'
+        elif session_id in partial_analyses:
+            # Touch timestamp to keep session alive
+            session_timestamps[session_id] = datetime.now()
+            session_data = partial_analyses[session_id]
+            session_type = 'partial'
+        elif session_id in analysis_results:
+            session_data = analysis_results[session_id]
+            session_type = 'legacy'
+        elif session_id in active_analyses:
+            session_data = active_analyses[session_id]
+            session_type = 'active'
+        else:
+            # Session not found in any dict
+            logger.warning(f"Session not found: {session_id}")
+            logger.info(f"Active: {list(active_analyses.keys())}")
+            logger.info(f"Completed: {list(completed_analyses.keys())}")
+            logger.info(f"Partial: {list(partial_analyses.keys())}")
+            return jsonify({
+                'success': False,
+                'error': 'Session not found',
+                'message': 'Analysis session does not exist or has been cleaned up'
+            }), 404
+
+    # Process results based on session type (outside lock to avoid long hold)
+    from services.hotdog.layers import ConfigurationLoader
+    config_loader = ConfigurationLoader()
+
+    if session_type == 'completed':
         result = session_data['result']
         orchestrator = session_data['orchestrator']
 
-        # Get browser-formatted output
-        from services.hotdog.layers import ConfigurationLoader
-        config_loader = ConfigurationLoader()
         parsed_config = config_loader.load_from_json(session_data['config_path'])
-
         browser_output = orchestrator.get_browser_output(result, parsed_config)
         legacy_result = _transform_to_legacy_format(browser_output)
 
@@ -719,23 +773,12 @@ def get_results(session_id):
             }
         })
 
-    # Check legacy analysis_results (LEGACY - kept for backward compatibility)
-    elif session_id in analysis_results:
-        session_data = analysis_results[session_id]
+    elif session_type == 'legacy':
         result = session_data['result']
         orchestrator = session_data['orchestrator']
 
-        # Get browser-formatted output
-        from services.hotdog.layers import ConfigurationLoader
-        config_loader = ConfigurationLoader()
         parsed_config = config_loader.load_from_json(session_data['config_path'])
-
         browser_output = orchestrator.get_browser_output(result, parsed_config)
-
-        # ========================================================================
-        # BACKWARDS COMPATIBILITY LAYER
-        # Transform HOTDOG's modern structure to legacy frontend structure
-        # ========================================================================
         legacy_result = _transform_to_legacy_format(browser_output)
 
         return jsonify({
@@ -751,22 +794,14 @@ def get_results(session_id):
             }
         })
 
-    # Check partial_analyses (stopped by user)
-    elif session_id in partial_analyses:
-        # Touch timestamp to keep session alive
-        session_timestamps[session_id] = datetime.now()
-
+    elif session_type == 'partial':
         logger.info(f"Fetching results for partial analysis: {session_id}")
-        session_data = partial_analyses[session_id]
         orchestrator = session_data['orchestrator']
         config_path = session_data['config_path']
 
         # Get accumulated answers so far
         accumulated_answers = orchestrator.layer4_accumulator.get_accumulated_answers()
 
-        # Load config
-        from services.hotdog.layers import ConfigurationLoader
-        config_loader = ConfigurationLoader()
         parsed_config = config_loader.load_from_json(config_path)
 
         # Build partial browser output
@@ -792,20 +827,14 @@ def get_results(session_id):
             }
         })
 
-    # Check if analysis is active (in-progress - return partial results)
-    elif session_id in active_analyses:
+    elif session_type == 'active':
         logger.info(f"Fetching partial results for active analysis: {session_id}")
-
-        session_data = active_analyses[session_id]
         orchestrator = session_data['orchestrator']
         config_path = session_data['config_path']
 
         # Get accumulated answers so far
         accumulated_answers = orchestrator.layer4_accumulator.get_accumulated_answers()
 
-        # Load config
-        from services.hotdog.layers import ConfigurationLoader
-        config_loader = ConfigurationLoader()
         parsed_config = config_loader.load_from_json(config_path)
 
         # Build partial browser output
@@ -820,7 +849,7 @@ def get_results(session_id):
         return jsonify({
             'success': True,
             'result': legacy_result,
-            'partial': True,  # Flag indicating partial results
+            'partial': True,  # Flag indicating in-progress
             'statistics': {
                 'processing_time': 0,  # Not yet available
                 'total_tokens': orchestrator.layer5_token_manager.total_tokens_used,
@@ -831,8 +860,8 @@ def get_results(session_id):
             }
         })
 
-    else:
-        return jsonify({'success': False, 'error': 'Session not found'}), 404
+    # Should never reach here due to lock check above
+    return jsonify({'success': False, 'error': 'Internal error'}), 500
 
 
 # ============================================================================
@@ -952,53 +981,101 @@ def export_excel_dashboard(session_id):
 
 @app.route('/api/stop/<session_id>', methods=['POST'])
 def stop_analysis(session_id):
-    """Stop ongoing analysis"""
-    logger.info(f"Stop requested for: {session_id}")
+    """
+    Stop ongoing analysis and wait for session to move to partial_analyses.
 
-    # Check if analysis is active (check active_analyses AND analysis_threads)
-    found = False
+    CRITICAL FIX: This endpoint now WAITS for the analysis thread to move
+    the session from active_analyses to partial_analyses before returning.
+    This prevents race condition where frontend calls fetchResults() before
+    session is available.
 
-    if session_id in active_analyses:
+    See: STOP_ANALYSIS_RACE_CONDITION.md
+    """
+    logger.info(f"⏹️  Stop requested for: {session_id}")
+
+    # Check if session exists (with lock for thread safety)
+    with session_lock:
+        # Already completed or stopped?
+        if session_id in completed_analyses:
+            logger.info(f"Analysis already complete: {session_id}")
+            return jsonify({'success': True, 'message': 'Analysis already complete'})
+
+        if session_id in partial_analyses:
+            logger.info(f"Analysis already stopped: {session_id}")
+            return jsonify({'success': True, 'message': 'Analysis already stopped'})
+
+        if session_id in analysis_results:
+            logger.info(f"Analysis already complete (legacy): {session_id}")
+            return jsonify({'success': True, 'message': 'Analysis already complete'})
+
+        # Is it active?
+        if session_id not in active_analyses:
+            logger.warning(f"Session not found: {session_id}")
+            logger.info(f"Active: {list(active_analyses.keys())}")
+            return jsonify({'success': False, 'error': 'Session not found'}), 404
+
         # Set stop flag on orchestrator
         orchestrator = active_analyses[session_id]['orchestrator']
         orchestrator.stop_requested = True
-        logger.info(f"Stop flag set on orchestrator: {session_id}")
-        found = True
+        logger.info(f"✅ Stop flag set on orchestrator: {session_id}")
 
-    if session_id in analysis_threads:
-        logger.info(f"Found in analysis_threads: {session_id}")
-        found = True
+    # Send error event to progress queue
+    if session_id in progress_queues:
+        try:
+            progress_queues[session_id].put_nowait(('error', 'Analysis stopped by user'))
+            logger.info(f"Stop event queued: {session_id}")
+        except:
+            pass  # Queue might be full
 
-    if found:
-        # Send error event to close SSE gracefully
-        if session_id in progress_queues:
-            try:
-                progress_queues[session_id].put_nowait(('error', 'Analysis stopped by user'))
-                logger.info(f"Stop event queued for SSE: {session_id}")
-            except:
-                pass  # Queue might be full
+    # CRITICAL: Wait for session to move to partial_analyses
+    # The analysis thread will catch the exception and move the session
+    max_wait = 10.0  # 10 seconds timeout
+    start_time = time.time()
+    check_interval = 0.1  # Check every 100ms
 
-        return jsonify({'success': True, 'message': 'Stop signal sent'})
+    logger.info(f"⏳ Waiting for session to move to partial_analyses (max {max_wait}s)...")
 
-    # Check completed analyses (NEW - primary storage)
-    if session_id in completed_analyses:
-        logger.info(f"Analysis already complete: {session_id}")
-        return jsonify({'success': True, 'message': 'Analysis already complete'})
+    while time.time() - start_time < max_wait:
+        with session_lock:
+            # Check if session moved to partial_analyses or completed
+            if session_id in partial_analyses:
+                elapsed = time.time() - start_time
+                logger.info(f"✅ Session moved to partial_analyses ({elapsed:.2f}s): {session_id}")
+                return jsonify({
+                    'success': True,
+                    'message': 'Analysis stopped',
+                    'status': 'partial',
+                    'wait_time': f"{elapsed:.2f}s"
+                })
 
-    # Check legacy completed analyses
-    if session_id in analysis_results:
-        logger.info(f"Analysis already complete (legacy): {session_id}")
-        return jsonify({'success': True, 'message': 'Analysis already complete'})
+            if session_id in completed_analyses:
+                elapsed = time.time() - start_time
+                logger.info(f"✅ Session completed before stop ({elapsed:.2f}s): {session_id}")
+                return jsonify({
+                    'success': True,
+                    'message': 'Analysis completed',
+                    'status': 'completed',
+                    'wait_time': f"{elapsed:.2f}s"
+                })
 
-    # Check partial analyses
-    if session_id in partial_analyses:
-        logger.info(f"Analysis already stopped: {session_id}")
-        return jsonify({'success': True, 'message': 'Analysis already stopped'})
+            # Still in active_analyses - keep waiting
+            if session_id not in active_analyses:
+                # Session disappeared (unexpected)
+                logger.warning(f"⚠️ Session vanished during stop: {session_id}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Session disappeared during stop'
+                }), 500
 
-    logger.warning(f"Session not found: {session_id}")
-    logger.info(f"Active analyses: {list(active_analyses.keys())}")
-    logger.info(f"Analysis threads: {list(analysis_threads.keys())}")
-    return jsonify({'success': False, 'error': 'Session not found'}), 404
+        time.sleep(check_interval)
+
+    # Timeout - session still in active_analyses
+    logger.error(f"❌ Timeout waiting for session to stop ({max_wait}s): {session_id}")
+    return jsonify({
+        'success': False,
+        'error': f'Stop timeout - session still active after {max_wait}s',
+        'message': 'Try refreshing the page or check analysis logs'
+    }), 504
 
 
 # ============================================================================
@@ -1060,37 +1137,40 @@ def get_all_sessions():
                 'error': str(e)
             }
 
-    # Touch all session timestamps to keep them alive when admin views them
-    all_session_ids = (
-        list(active_analyses.keys()) +
-        list(completed_analyses.keys()) +
-        list(partial_analyses.keys()) +
-        list(analysis_results.keys())
-    )
-    for sid in all_session_ids:
-        session_timestamps[sid] = datetime.now()
+    # CRITICAL: Atomic snapshot of all session dicts with lock
+    # Prevents race conditions where sessions appear/disappear during iteration
+    with session_lock:
+        # Touch all session timestamps to keep them alive when admin views them
+        all_session_ids = (
+            list(active_analyses.keys()) +
+            list(completed_analyses.keys()) +
+            list(partial_analyses.keys()) +
+            list(analysis_results.keys())
+        )
+        for sid in all_session_ids:
+            session_timestamps[sid] = datetime.now()
 
-    # Gather all sessions
-    sessions = {
-        'active': [
-            format_session_info(sid, data, 'active')
-            for sid, data in active_analyses.items()
-        ],
-        'completed': [
-            format_session_info(sid, data, 'completed')
-            for sid, data in completed_analyses.items()
-        ],
-        'partial': [
-            format_session_info(sid, data, 'partial')
-            for sid, data in partial_analyses.items()
-        ],
-        'legacy': [
-            format_session_info(sid, data, 'legacy_completed')
-            for sid, data in analysis_results.items()
-        ]
-    }
+        # Gather all sessions (single atomic snapshot)
+        sessions = {
+            'active': [
+                format_session_info(sid, data, 'active')
+                for sid, data in active_analyses.items()
+            ],
+            'completed': [
+                format_session_info(sid, data, 'completed')
+                for sid, data in completed_analyses.items()
+            ],
+            'partial': [
+                format_session_info(sid, data, 'partial')
+                for sid, data in partial_analyses.items()
+            ],
+            'legacy': [
+                format_session_info(sid, data, 'legacy_completed')
+                for sid, data in analysis_results.items()
+            ]
+        }
 
-    # Summary counts
+    # Summary counts (can be done outside lock using snapshot)
     summary = {
         'total_sessions': sum(len(v) for v in sessions.values()),
         'active_count': len(sessions['active']),

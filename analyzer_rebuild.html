@@ -883,35 +883,69 @@ async function startAnalysis() {
 // FETCH RESULTS (Called when 'done' event received)
 // ============================================================================
 
-async function fetchResults() {
-    try {
-        const resp = await fetch(`/api/results/${currentSessionId}`);
-        const data = await resp.json();
+async function fetchResults(maxRetries = 5) {
+    /**
+     * Fetch analysis results with retry logic and exponential backoff.
+     *
+     * CRITICAL FIX: This function now retries with exponential backoff to handle
+     * race conditions where /api/stop returns before session moves to partial_analyses.
+     *
+     * Retry schedule:
+     * - Attempt 1: Immediate
+     * - Attempt 2: Wait 500ms
+     * - Attempt 3: Wait 1000ms
+     * - Attempt 4: Wait 1500ms
+     * - Attempt 5: Wait 2000ms
+     * Total max wait: ~5 seconds
+     *
+     * See: STOP_ANALYSIS_RACE_CONDITION.md
+     */
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const resp = await fetch(`/api/results/${currentSessionId}`);
+            const data = await resp.json();
 
-        if (!data.success) {
-            throw new Error(data.error);
+            if (!data.success) {
+                // Check if this is a "not found" error that we should retry
+                if (data.error && data.error.includes('not found') && attempt < maxRetries) {
+                    const waitMs = 500 * attempt;  // Exponential backoff
+                    Logger.info(`⏳ Results not ready yet, retrying in ${waitMs}ms (attempt ${attempt}/${maxRetries})...`);
+                    await new Promise(resolve => setTimeout(resolve, waitMs));
+                    continue;  // Retry
+                }
+                throw new Error(data.error);
+            }
+
+            // Success! Display results
+            currentAnalysisResult = data.result;
+            const isPartial = data.partial || false;
+
+            Logger.success(`✅ Results fetched successfully (attempt ${attempt})`);
+            Logger.success(`Questions answered: ${data.statistics.questions_answered}/${data.statistics.total_questions}`);
+            if (data.statistics.processing_time) {
+                Logger.success(`Processing time: ${data.statistics.processing_time.toFixed(2)}s`);
+            }
+
+            // Update unitary table with final results (instead of separate display)
+            updateUnitaryTableAsFinal(data.result, isPartial);
+
+            // Enable export
+            document.getElementById('exportBtn').disabled = false;
+
+            ProgressTracker.hide();
+            document.getElementById('analyzeBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+
+            return;  // Success - exit function
+
+        } catch (error) {
+            if (attempt === maxRetries) {
+                // Final attempt failed
+                Logger.error(`❌ Failed to fetch results after ${maxRetries} attempts: ${error.message}`);
+                Logger.error('Try refreshing the page or check analysis logs');
+            }
+            // Continue to next retry
         }
-
-        currentAnalysisResult = data.result;
-        const isPartial = data.partial || false;
-
-        Logger.success(`Questions answered: ${data.statistics.questions_answered}/${data.statistics.total_questions}`);
-        if (data.statistics.processing_time) {
-            Logger.success(`Processing time: ${data.statistics.processing_time.toFixed(2)}s`);
-        }
-
-        // Update unitary table with final results (instead of separate display)
-        updateUnitaryTableAsFinal(data.result, isPartial);
-
-        // Enable export
-        document.getElementById('exportBtn').disabled = false;
-
-        ProgressTracker.hide();
-        document.getElementById('analyzeBtn').disabled = false;
-        document.getElementById('stopBtn').disabled = true;
-
-    } catch (error) {
-        Logger.error('Failed to fetch results: ' + error.message);
     }
 }
 
