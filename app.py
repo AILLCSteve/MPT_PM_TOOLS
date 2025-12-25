@@ -71,6 +71,19 @@ app = Flask(__name__)
 app.config.from_object(Config)
 CORS(app)
 
+# ============================================================================
+# MODULE RELOAD DETECTION
+# ============================================================================
+# Track module reloads to diagnose session disappearance issue
+import uuid
+import time
+
+MODULE_LOAD_ID = str(uuid.uuid4())[:8]
+MODULE_LOAD_TIME = time.time()
+logger.info("="*80)
+logger.info(f"🔄 MODULE LOADED: ID={MODULE_LOAD_ID}, PID={os.getpid()}, TIME={datetime.now().isoformat()}")
+logger.info("="*80)
+
 # Global state
 progress_queues = {}  # session_id -> Queue for SSE progress (legacy)
 session_events = {}  # session_id -> [events] for polling (NEW)
@@ -80,6 +93,8 @@ active_analyses = {}  # session_id -> {'orchestrator': HotdogOrchestrator, 'conf
 completed_analyses = {}  # session_id -> {'orchestrator': ..., 'result': ..., 'config_path': ..., 'completed_at': datetime, 'status': 'completed'}
 partial_analyses = {}  # session_id -> {'orchestrator': ..., 'config_path': ..., 'stopped_at': datetime, 'status': 'stopped'}
 session_timestamps = {}  # session_id -> last_access_time (for cleanup)
+
+logger.info(f"📊 Session dicts initialized: module_id={MODULE_LOAD_ID}, pid={os.getpid()}")
 
 # ============================================================================
 # THREAD SAFETY
@@ -1087,9 +1102,9 @@ def get_all_sessions():
     """Admin endpoint: Get all active, completed, and partial analyses"""
     from datetime import datetime
 
-    # DIAGNOSTIC LOGGING
+    # DIAGNOSTIC LOGGING (with module reload detection)
     logger.info("="*60)
-    logger.info("ADMIN SESSIONS REQUEST")
+    logger.info(f"ADMIN SESSIONS REQUEST | Module: {MODULE_LOAD_ID} | PID: {os.getpid()}")
     logger.info(f"Active analyses keys: {list(active_analyses.keys())}")
     logger.info(f"Completed analyses keys: {list(completed_analyses.keys())}")
     logger.info(f"Partial analyses keys: {list(partial_analyses.keys())}")
@@ -1152,6 +1167,7 @@ def get_all_sessions():
 
         # ENHANCED DIAGNOSTIC: Log what we see INSIDE the lock
         logger.info("🔍 INSIDE LOCK:")
+        logger.info(f"🔍   Module ID: {MODULE_LOAD_ID} | PID: {os.getpid()} | Uptime: {time.time() - MODULE_LOAD_TIME:.1f}s")
         logger.info(f"🔍   Active keys: {list(active_analyses.keys())}")
         logger.info(f"🔍   Completed keys: {list(completed_analyses.keys())}")
         logger.info(f"🔍   Partial keys: {list(partial_analyses.keys())}")
@@ -1199,7 +1215,12 @@ def get_all_sessions():
     return jsonify({
         'success': True,
         'summary': summary,
-        'sessions': sessions
+        'sessions': sessions,
+        'diagnostics': {
+            'module_id': MODULE_LOAD_ID,
+            'pid': os.getpid(),
+            'module_uptime': round(time.time() - MODULE_LOAD_TIME, 2)
+        }
     })
 
 
