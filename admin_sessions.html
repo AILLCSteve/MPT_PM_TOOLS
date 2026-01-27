@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Session Admin Panel</title>
+    <title>Session Admin Panel - Municipal Pipe Tool</title>
     <style>
         * {
             margin: 0;
@@ -32,13 +32,16 @@
         }
 
         .header h1 {
-            color: #333;
+            color: #667eea;
             margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .summary {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 15px;
             margin-top: 20px;
         }
@@ -52,7 +55,7 @@
         }
 
         .stat-card h3 {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             margin-bottom: 10px;
             opacity: 0.9;
@@ -72,40 +75,25 @@
         }
 
         .section h2 {
-            color: #333;
+            color: #667eea;
             margin-bottom: 20px;
             padding-bottom: 10px;
-            border-bottom: 2px solid #667eea;
+            border-bottom: 2px solid #764ba2;
         }
 
         .status-badge {
             display: inline-block;
             padding: 5px 12px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
         }
 
-        .status-active {
-            background: #3b82f6;
-            color: white;
-        }
-
-        .status-completed {
-            background: #22c55e;
-            color: white;
-        }
-
-        .status-partial {
-            background: #f59e0b;
-            color: white;
-        }
-
-        .status-legacy {
-            background: #6b7280;
-            color: white;
-        }
+        .status-active { background: #3b82f6; color: white; }
+        .status-completed { background: #22c55e; color: white; }
+        .status-partial { background: #f59e0b; color: white; }
+        .status-legacy { background: #6b7280; color: white; }
 
         table {
             width: 100%;
@@ -120,23 +108,17 @@
             font-weight: 600;
             color: #374151;
             border-bottom: 2px solid #e5e7eb;
+            font-size: 13px;
         }
 
         td {
             padding: 12px;
             border-bottom: 1px solid #e5e7eb;
-            color: #6b7280;
+            color: #374151;
+            font-size: 13px;
         }
 
-        tr:hover {
-            background: #f9fafb;
-        }
-
-        .session-id {
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            color: #667eea;
-        }
+        tr:hover { background: #f9fafb; }
 
         .refresh-btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -150,24 +132,12 @@
             transition: transform 0.2s;
         }
 
-        .refresh-btn:hover {
-            transform: translateY(-2px);
-        }
-
-        .refresh-btn:active {
-            transform: translateY(0);
-        }
+        .refresh-btn:hover { transform: translateY(-2px); }
 
         .empty-state {
             text-align: center;
             padding: 40px;
             color: #9ca3af;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #667eea;
         }
 
         .error {
@@ -178,16 +148,8 @@
             margin: 20px 0;
         }
 
-        .path-cell {
-            max-width: 300px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-size: 12px;
-        }
-
         .action-btn {
-            background: #667eea;
+            background: #764ba2;
             color: white;
             border: none;
             padding: 6px 12px;
@@ -198,17 +160,9 @@
             transition: background 0.2s;
         }
 
-        .action-btn:hover {
-            background: #5568d3;
-        }
-
-        .action-btn.export {
-            background: #22c55e;
-        }
-
-        .action-btn.export:hover {
-            background: #16a34a;
-        }
+        .action-btn:hover { background: #667eea; }
+        .action-btn.export { background: #22c55e; }
+        .action-btn.export:hover { background: #16a34a; }
 
         /* Modal Styles */
         .modal {
@@ -225,84 +179,188 @@
 
         .modal-content {
             background-color: white;
-            margin: 50px auto;
-            padding: 30px;
+            margin: 30px auto;
             border-radius: 15px;
-            width: 90%;
-            max-width: 1200px;
+            width: 95%;
+            max-width: 1400px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
         }
 
         .modal-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #667eea;
+            padding: 20px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
         }
 
         .modal-header h2 {
-            color: #333;
             margin: 0;
+            font-size: 1.3em;
         }
 
         .close-btn {
-            font-size: 28px;
-            font-weight: bold;
-            color: #6b7280;
+            font-size: 24px;
+            color: white;
             cursor: pointer;
-            background: none;
+            background: rgba(255,255,255,0.2);
             border: none;
-            line-height: 1;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .close-btn:hover {
-            color: #333;
+        .close-btn:hover { background: rgba(255,255,255,0.3); }
+
+        /* Tab Styles */
+        .tab-container {
+            border-bottom: 2px solid #e5e7eb;
+            background: #f9fafb;
         }
 
+        .tab-buttons {
+            display: flex;
+            gap: 0;
+        }
+
+        .tab-btn {
+            padding: 15px 25px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: #6b7280;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            background: #f3f4f6;
+            color: #667eea;
+        }
+
+        .tab-btn.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: white;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 25px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .tab-content.active { display: block; }
+
+        /* Results Tables */
         .results-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
             font-size: 13px;
         }
 
         .results-table th {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #667eea;
             color: white;
-            padding: 12px;
+            padding: 12px 10px;
             text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
         }
 
         .results-table td {
             padding: 10px;
             border: 1px solid #e5e7eb;
+            vertical-align: top;
         }
 
-        .results-table tr:nth-child(even) {
-            background: #f9fafb;
+        .results-table tr:nth-child(even) { background: #f9fafb; }
+
+        .answer-cell {
+            max-width: 400px;
+            word-wrap: break-word;
         }
 
-        .modal-loading {
+        .pages-cell {
+            font-weight: 600;
+            color: #667eea;
             text-align: center;
-            padding: 40px;
+            white-space: nowrap;
+        }
+
+        .status-yes {
+            background: #d4edda;
+            color: #155724;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .status-no {
+            background: #f8d7da;
+            color: #721c24;
+            font-style: italic;
+            text-align: center;
+        }
+
+        /* Stats Box */
+        .stats-box {
+            background: #f0f4ff;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-item label {
+            display: block;
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+
+        .stat-item value {
+            display: block;
+            font-size: 18px;
+            font-weight: 600;
             color: #667eea;
         }
 
-        .modal-error {
-            background: #fee2e2;
-            color: #991b1b;
-            padding: 20px;
-            border-radius: 8px;
+        .back-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 6px;
+            font-size: 14px;
+            transition: background 0.2s;
         }
+
+        .back-link:hover { background: rgba(255,255,255,0.3); }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Session Admin Panel</h1>
-            <p style="color: #6b7280; margin-top: 10px;">Monitor all analysis sessions across your system</p>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h1>Session Admin Panel</h1>
+                <a href="/" class="back-link">← Back to Home</a>
+            </div>
+            <p style="color: #6b7280; margin-top: 10px;">Monitor and manage all analysis sessions</p>
 
             <div class="summary" id="summary">
                 <div class="stat-card">
@@ -321,14 +379,10 @@
                     <h3>Partial</h3>
                     <div class="number" id="partial-count">0</div>
                 </div>
-                <div class="stat-card">
-                    <h3>Legacy</h3>
-                    <div class="number" id="legacy-count">0</div>
-                </div>
             </div>
 
             <div style="margin-top: 20px;">
-                <button class="refresh-btn" onclick="loadSessions()">🔄 Refresh</button>
+                <button class="refresh-btn" onclick="loadSessions()">Refresh</button>
                 <span id="last-updated" style="margin-left: 15px; color: #6b7280; font-size: 14px;"></span>
             </div>
         </div>
@@ -336,44 +390,57 @@
         <div id="error-container"></div>
 
         <div class="section" id="active-section" style="display: none;">
-            <h2>🔵 Active Analyses</h2>
+            <h2>Active Analyses</h2>
             <div id="active-content"></div>
         </div>
 
         <div class="section" id="completed-section" style="display: none;">
-            <h2>✅ Completed Analyses</h2>
+            <h2>Completed Analyses</h2>
             <div id="completed-content"></div>
         </div>
 
         <div class="section" id="partial-section" style="display: none;">
-            <h2>⚠️ Partial/Stopped Analyses</h2>
+            <h2>Partial/Stopped Analyses</h2>
             <div id="partial-content"></div>
-        </div>
-
-        <div class="section" id="legacy-section" style="display: none;">
-            <h2>📦 Legacy Analyses</h2>
-            <div id="legacy-content"></div>
         </div>
     </div>
 
-    <!-- Analysis Results Modal -->
+    <!-- Analysis Results Modal with 3 Tabs -->
     <div id="resultsModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 id="modalTitle">Analysis Results</h2>
                 <button class="close-btn" onclick="closeModal()">&times;</button>
             </div>
-            <div id="modalBody">
-                <div class="modal-loading">Loading...</div>
+
+            <!-- Tab Navigation -->
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" onclick="switchTab('summary')">Summary</button>
+                    <button class="tab-btn" onclick="switchTab('detailed')">Detailed Results</button>
+                    <button class="tab-btn" onclick="switchTab('bySection')">By Section</button>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            <div id="tab-summary" class="tab-content active">
+                <div id="summaryContent"></div>
+            </div>
+            <div id="tab-detailed" class="tab-content">
+                <div id="detailedContent"></div>
+            </div>
+            <div id="tab-bySection" class="tab-content">
+                <div id="bySectionContent"></div>
             </div>
         </div>
     </div>
 
     <script>
+        let currentResults = null;
+
         function formatDateTime(isoString) {
             if (!isoString) return 'N/A';
-            const date = new Date(isoString);
-            return date.toLocaleString();
+            return new Date(isoString).toLocaleString();
         }
 
         function formatDuration(seconds) {
@@ -396,23 +463,21 @@
             html += '<th>Tokens</th>';
             html += '<th>Time</th>';
             html += '<th>Completed</th>';
-            html += '<th>Session ID</th>';
             html += '<th>Actions</th>';
             html += '</tr></thead><tbody>';
 
             sessions.forEach(session => {
                 html += '<tr>';
-                html += `<td style="font-weight: 600; color: #1E3A8A;" title="${session.pdf_path || 'N/A'}">${session.pdf_filename || 'Unknown.pdf'}</td>`;
+                html += `<td style="font-weight: 600; color: #667eea;" title="${session.pdf_path || 'N/A'}">${session.pdf_filename || 'Unknown.pdf'}</td>`;
                 html += `<td><span class="status-badge status-${statusClass}">${session.status}</span></td>`;
                 html += `<td>${session.questions_answered || 'N/A'}</td>`;
                 html += `<td>${session.total_pages || 'N/A'}</td>`;
                 html += `<td>${session.total_tokens ? session.total_tokens.toLocaleString() : 'N/A'}</td>`;
                 html += `<td>${formatDuration(session.processing_time)}</td>`;
-                html += `<td>${formatDateTime(session.completed_at || session.stopped_at || session.started_at)}</td>`;
-                html += `<td class="session-id" style="font-size: 10px;">${session.session_id}</td>`;
+                html += `<td>${formatDateTime(session.completed_at || session.stopped_at)}</td>`;
                 html += `<td>
-                    <button class="action-btn" onclick="viewAnalysis('${session.session_id}', '${session.pdf_filename || 'Unknown.pdf'}')">👁️ View</button>
-                    <button class="action-btn export" onclick="exportAnalysis('${session.session_id}')">📥 Export</button>
+                    <button class="action-btn" onclick="viewAnalysis('${session.session_id}', '${session.pdf_filename || 'Unknown.pdf'}')">View</button>
+                    <button class="action-btn export" onclick="exportAnalysis('${session.session_id}')">Export</button>
                 </td>`;
                 html += '</tr>';
             });
@@ -426,160 +491,282 @@
                 const response = await fetch('/api/admin/sessions');
                 const data = await response.json();
 
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to load sessions');
-                }
+                if (!data.success) throw new Error(data.error || 'Failed to load sessions');
 
-                // Update summary
                 document.getElementById('total').textContent = data.summary.total_sessions;
                 document.getElementById('active-count').textContent = data.summary.active_count;
                 document.getElementById('completed-count').textContent = data.summary.completed_count;
                 document.getElementById('partial-count').textContent = data.summary.partial_count;
-                document.getElementById('legacy-count').textContent = data.summary.legacy_count;
 
-                // Update active sessions
                 const activeSection = document.getElementById('active-section');
-                const activeContent = document.getElementById('active-content');
                 if (data.sessions.active.length > 0) {
                     activeSection.style.display = 'block';
-                    activeContent.innerHTML = createSessionTable(data.sessions.active, 'active');
+                    document.getElementById('active-content').innerHTML = createSessionTable(data.sessions.active, 'active');
                 } else {
                     activeSection.style.display = 'none';
                 }
 
-                // Update completed sessions
                 const completedSection = document.getElementById('completed-section');
-                const completedContent = document.getElementById('completed-content');
                 if (data.sessions.completed.length > 0) {
                     completedSection.style.display = 'block';
-                    completedContent.innerHTML = createSessionTable(data.sessions.completed, 'completed');
+                    document.getElementById('completed-content').innerHTML = createSessionTable(data.sessions.completed, 'completed');
                 } else {
                     completedSection.style.display = 'none';
                 }
 
-                // Update partial sessions
                 const partialSection = document.getElementById('partial-section');
-                const partialContent = document.getElementById('partial-content');
                 if (data.sessions.partial.length > 0) {
                     partialSection.style.display = 'block';
-                    partialContent.innerHTML = createSessionTable(data.sessions.partial, 'partial');
+                    document.getElementById('partial-content').innerHTML = createSessionTable(data.sessions.partial, 'partial');
                 } else {
                     partialSection.style.display = 'none';
                 }
 
-                // Update legacy sessions
-                const legacySection = document.getElementById('legacy-section');
-                const legacyContent = document.getElementById('legacy-content');
-                if (data.sessions.legacy.length > 0) {
-                    legacySection.style.display = 'block';
-                    legacyContent.innerHTML = createSessionTable(data.sessions.legacy, 'legacy');
-                } else {
-                    legacySection.style.display = 'none';
-                }
-
-                // Update timestamp
                 document.getElementById('last-updated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
-
-                // Clear errors
                 document.getElementById('error-container').innerHTML = '';
 
             } catch (error) {
                 console.error('Failed to load sessions:', error);
-                document.getElementById('error-container').innerHTML =
-                    `<div class="error">❌ Error: ${error.message}</div>`;
+                document.getElementById('error-container').innerHTML = `<div class="error">Error: ${error.message}</div>`;
             }
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
         }
 
         async function viewAnalysis(sessionId, pdfFilename) {
             const modal = document.getElementById('resultsModal');
-            const modalBody = document.getElementById('modalBody');
             const modalTitle = document.getElementById('modalTitle');
 
-            // Show modal with loading state
             modal.style.display = 'block';
-            modalTitle.textContent = `📄 ${pdfFilename || 'Analysis Results'}`;
-            modalBody.innerHTML = '<div class="modal-loading">⏳ Loading analysis results...</div>';
+            modalTitle.textContent = pdfFilename || 'Analysis Results';
+
+            // Show loading state
+            document.getElementById('summaryContent').innerHTML = '<div style="text-align: center; padding: 40px; color: #667eea;">Loading...</div>';
+            document.getElementById('detailedContent').innerHTML = '';
+            document.getElementById('bySectionContent').innerHTML = '';
+
+            // Reset to first tab
+            switchTab('summary');
 
             try {
                 const response = await fetch(`/api/results/${sessionId}`);
                 const data = await response.json();
 
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to load results');
-                }
+                if (!data.success) throw new Error(data.error || 'Failed to load results');
 
-                // Build results table
-                let html = '<div style="margin-bottom: 20px; padding: 15px; background: #f9fafb; border-radius: 8px;">';
-                html += `<p style="font-size: 11px; color: #6b7280; margin-bottom: 10px;">Session ID: ${sessionId}</p>`;
-                html += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">';
-                html += `<div><strong>Questions Answered:</strong> ${data.statistics.questions_answered || 'N/A'}</div>`;
-                html += `<div><strong>Processing Time:</strong> ${data.statistics.processing_time || 'N/A'}s</div>`;
-                html += `<div><strong>Total Tokens:</strong> ${data.statistics.total_tokens || 'N/A'}</div>`;
-                html += `<div><strong>Estimated Cost:</strong> ${data.statistics.estimated_cost || 'N/A'}</div>`;
-                html += '</div>';
-                html += '</div>';
-
-                html += '<h3 style="margin: 20px 0 10px 0; color: #1E3A8A;">📋 Unitary Analysis Table</h3>';
-                html += '<table class="results-table">';
-                html += '<thead><tr>';
-                html += '<th style="min-width: 150px;">Section</th>';
-                html += '<th style="width: 40px; text-align: center;">#</th>';
-                html += '<th style="min-width: 250px;">Question</th>';
-                html += '<th style="min-width: 300px;">Answer</th>';
-                html += '<th style="width: 100px; text-align: center;">PDF Pages</th>';
-                html += '</tr></thead><tbody>';
-
-                let questionNum = 1;
-                data.result.sections.forEach(section => {
-                    section.questions.forEach(q => {
-                        const hasAnswer = q.answer && q.answer !== 'Not found in document';
-                        const rowColor = hasAnswer ? '#ffffff' : '#f9fafb';
-                        html += `<tr style="background: ${rowColor};">`;
-                        html += `<td style="font-weight: 500;">${section.section_name}</td>`;
-                        html += `<td style="text-align: center; color: #6b7280;">${questionNum}</td>`;
-                        html += `<td>${q.question}</td>`;
-                        html += `<td style="${hasAnswer ? 'color: #1f2937;' : 'color: #9ca3af; font-style: italic;'}">${q.answer || 'Not found in document'}</td>`;
-                        html += `<td style="text-align: center; font-family: monospace;">${q.page_citations && q.page_citations.length > 0 ? q.page_citations.join(', ') : '—'}</td>`;
-                        html += '</tr>';
-                        questionNum++;
-                    });
-                });
-
-                html += '</tbody></table>';
-                modalBody.innerHTML = html;
+                currentResults = data;
+                renderAllTabs(data, sessionId);
 
             } catch (error) {
                 console.error('Failed to view analysis:', error);
-                modalBody.innerHTML = `<div class="modal-error">❌ Error: ${error.message}</div>`;
+                document.getElementById('summaryContent').innerHTML = `<div class="error">Error: ${error.message}</div>`;
             }
         }
 
+        function renderAllTabs(data, sessionId) {
+            renderSummaryTab(data, sessionId);
+            renderDetailedTab(data);
+            renderBySectionTab(data);
+        }
+
+        function renderSummaryTab(data, sessionId) {
+            const stats = data.statistics || {};
+            const sections = data.result?.sections || [];
+
+            let totalQuestions = 0;
+            let answeredQuestions = 0;
+            const sectionStats = [];
+
+            sections.forEach(section => {
+                const questions = section.questions || [];
+                const sectionTotal = questions.length;
+                const sectionAnswered = questions.filter(q => q.answer && q.answer.trim()).length;
+                totalQuestions += sectionTotal;
+                answeredQuestions += sectionAnswered;
+                sectionStats.push({
+                    name: section.section_name,
+                    answered: sectionAnswered,
+                    total: sectionTotal,
+                    rate: sectionTotal > 0 ? Math.round((sectionAnswered / sectionTotal) * 100) : 0
+                });
+            });
+
+            const answerRate = totalQuestions > 0 ? Math.round((answeredQuestions / totalQuestions) * 100) : 0;
+
+            let html = `
+                <div class="stats-box">
+                    <div class="stat-item">
+                        <label>Total Questions</label>
+                        <value>${totalQuestions}</value>
+                    </div>
+                    <div class="stat-item">
+                        <label>Answered</label>
+                        <value style="color: #22c55e;">${answeredQuestions}</value>
+                    </div>
+                    <div class="stat-item">
+                        <label>Not Found</label>
+                        <value style="color: #ef4444;">${totalQuestions - answeredQuestions}</value>
+                    </div>
+                    <div class="stat-item">
+                        <label>Answer Rate</label>
+                        <value>${answerRate}%</value>
+                    </div>
+                    <div class="stat-item">
+                        <label>Processing Time</label>
+                        <value>${stats.processing_time ? stats.processing_time.toFixed(1) + 's' : 'N/A'}</value>
+                    </div>
+                    <div class="stat-item">
+                        <label>Est. Cost</label>
+                        <value>${stats.estimated_cost || 'N/A'}</value>
+                    </div>
+                </div>
+
+                <h3 style="margin: 20px 0 15px 0; color: #667eea;">Breakdown by Section</h3>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Section</th>
+                            <th style="text-align: center;">Answered</th>
+                            <th style="text-align: center;">Total</th>
+                            <th style="text-align: center;">Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            sectionStats.forEach(s => {
+                const rateColor = s.rate === 100 ? '#22c55e' : s.rate >= 50 ? '#f59e0b' : '#ef4444';
+                html += `
+                    <tr>
+                        <td>${s.name}</td>
+                        <td style="text-align: center;">${s.answered}</td>
+                        <td style="text-align: center;">${s.total}</td>
+                        <td style="text-align: center; font-weight: 600; color: ${rateColor};">${s.rate}%</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            html += `<p style="margin-top: 20px; color: #6b7280; font-size: 12px;">Session ID: ${sessionId}</p>`;
+
+            document.getElementById('summaryContent').innerHTML = html;
+        }
+
+        function renderDetailedTab(data) {
+            const sections = data.result?.sections || [];
+
+            let html = `
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">#</th>
+                            <th style="width: 180px;">Section</th>
+                            <th style="width: 250px;">Question</th>
+                            <th>Answer</th>
+                            <th style="width: 80px;">Pages</th>
+                            <th style="width: 70px;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            let num = 1;
+            sections.forEach(section => {
+                (section.questions || []).forEach(q => {
+                    const hasAnswer = q.answer && q.answer.trim();
+                    const pages = (q.page_citations || []).join(', ') || '-';
+
+                    html += `
+                        <tr>
+                            <td style="text-align: center;">${num}</td>
+                            <td>${section.section_name}</td>
+                            <td>${q.question}</td>
+                            <td class="answer-cell">${hasAnswer ? q.answer : '<em style="color: #999;">Not found in document</em>'}</td>
+                            <td class="pages-cell">${pages}</td>
+                            <td class="${hasAnswer ? 'status-yes' : 'status-no'}">${hasAnswer ? 'Yes' : 'No'}</td>
+                        </tr>
+                    `;
+                    num++;
+                });
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('detailedContent').innerHTML = html;
+        }
+
+        function renderBySectionTab(data) {
+            const sections = data.result?.sections || [];
+            let html = '';
+
+            sections.forEach(section => {
+                const questions = section.questions || [];
+                const answered = questions.filter(q => q.answer && q.answer.trim()).length;
+
+                html += `
+                    <div style="margin-bottom: 30px;">
+                        <h3 style="color: #667eea; margin-bottom: 15px; padding: 10px 15px; background: #f0f4ff; border-radius: 6px;">
+                            ${section.section_name}
+                            <span style="float: right; font-size: 14px; color: #764ba2;">${answered}/${questions.length} answered</span>
+                        </h3>
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">#</th>
+                                    <th>Question</th>
+                                    <th>Answer</th>
+                                    <th style="width: 80px;">Pages</th>
+                                    <th style="width: 60px;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                questions.forEach((q, idx) => {
+                    const hasAnswer = q.answer && q.answer.trim();
+                    const pages = (q.page_citations || []).join(', ') || '-';
+
+                    html += `
+                        <tr>
+                            <td style="text-align: center;">${idx + 1}</td>
+                            <td>${q.question}</td>
+                            <td class="answer-cell">${hasAnswer ? q.answer : '<em style="color: #999;">Not found</em>'}</td>
+                            <td class="pages-cell">${pages}</td>
+                            <td class="${hasAnswer ? 'status-yes' : 'status-no'}">${hasAnswer ? 'Yes' : 'No'}</td>
+                        </tr>
+                    `;
+                });
+
+                html += '</tbody></table></div>';
+            });
+
+            document.getElementById('bySectionContent').innerHTML = html;
+        }
+
         async function exportAnalysis(sessionId) {
-            try {
-                // Open Excel export in new window
-                window.open(`/api/export/excel-dashboard/${sessionId}`, '_blank');
-            } catch (error) {
-                alert('Failed to export analysis: ' + error.message);
-            }
+            window.open(`/api/export/excel-dashboard/${sessionId}`, '_blank');
         }
 
         function closeModal() {
             document.getElementById('resultsModal').style.display = 'none';
+            currentResults = null;
         }
 
-        // Close modal when clicking outside
         window.onclick = function(event) {
             const modal = document.getElementById('resultsModal');
-            if (event.target === modal) {
-                closeModal();
-            }
+            if (event.target === modal) closeModal();
         }
 
         // Load on page load
         loadSessions();
 
-        // Auto-refresh every 10 seconds
-        setInterval(loadSessions, 10000);
+        // Auto-refresh every 15 seconds
+        setInterval(loadSessions, 15000);
     </script>
 </body>
 </html>

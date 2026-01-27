@@ -109,7 +109,7 @@ def load_authorized_users():
     """Load authorized users from environment variables for security."""
     users = {}
 
-    # User 1
+    # User 1 (Admin - full access including admin panel)
     user1_email = os.getenv('AUTH_USER1_EMAIL')
     user1_password = os.getenv('AUTH_USER1_PASSWORD')
     user1_name = os.getenv('AUTH_USER1_NAME', 'User 1')
@@ -117,10 +117,11 @@ def load_authorized_users():
     if user1_email and user1_password:
         users[user1_email.lower()] = {  # Lowercase for case-insensitive matching
             'password_hash': hashlib.sha256(user1_password.encode()).hexdigest(),
-            'name': user1_name
+            'name': user1_name,
+            'role': 'admin'  # Full admin access
         }
 
-    # User 2
+    # User 2 (Basic User - app access only, no admin panel)
     user2_email = os.getenv('AUTH_USER2_EMAIL')
     user2_password = os.getenv('AUTH_USER2_PASSWORD')
     user2_name = os.getenv('AUTH_USER2_NAME', 'User 2')
@@ -128,7 +129,8 @@ def load_authorized_users():
     if user2_email and user2_password:
         users[user2_email.lower()] = {  # Lowercase for case-insensitive matching
             'password_hash': hashlib.sha256(user2_password.encode()).hexdigest(),
-            'name': user2_name
+            'name': user2_name,
+            'role': 'user'  # Basic user access only
         }
 
     if not users:
@@ -143,8 +145,46 @@ active_sessions = {}
 logger.info("="*60)
 logger.info("AUTHORIZED USERS LOADED:")
 for email, data in AUTHORIZED_USERS.items():
-    logger.info(f"  User: {email} | Name: {data.get('name', 'N/A')}")
+    logger.info(f"  User: {email} | Name: {data.get('name', 'N/A')} | Role: {data.get('role', 'N/A')}")
 logger.info("="*60)
+
+
+def check_auth_cookie():
+    """Check if user has valid auth cookie/session token."""
+    from flask import request
+    token = request.cookies.get('auth_token') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token or token not in active_sessions:
+        return None
+    session = active_sessions[token]
+    if datetime.now() > session['expires_at']:
+        del active_sessions[token]
+        return None
+    return session
+
+
+def require_admin(f):
+    """Decorator to require admin role for route access."""
+    from functools import wraps
+    from flask import redirect, request
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        session = check_auth_cookie()
+        if not session:
+            # Check for token in request body (for API endpoints)
+            if request.is_json:
+                data = request.get_json(silent=True)
+                if data and 'token' in data:
+                    token = data['token']
+                    if token in active_sessions:
+                        session = active_sessions[token]
+        if not session:
+            return redirect('/')
+        if session.get('role') != 'admin':
+            logger.warning(f"Non-admin user {session.get('username')} attempted to access admin route")
+            return redirect('/')
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 # ============================================================================
@@ -330,17 +370,19 @@ def authenticate():
 
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now() + timedelta(hours=24)
+    user_role = AUTHORIZED_USERS[username].get('role', 'user')
 
     active_sessions[token] = {
         'username': username,
         'name': AUTHORIZED_USERS[username]['name'],
+        'role': user_role,
         'expires_at': expires_at
     }
 
     return jsonify({
         'success': True,
         'token': token,
-        'user': {'email': username, 'name': AUTHORIZED_USERS[username]['name']}
+        'user': {'email': username, 'name': AUTHORIZED_USERS[username]['name'], 'role': user_role}
     })
 
 @app.route('/api/verify-session', methods=['POST'])
@@ -356,7 +398,11 @@ def verify_session():
         del active_sessions[token]
         return jsonify({'valid': False}), 401
 
-    return jsonify({'valid': True, 'user': {'email': session['username'], 'name': session['name']}})
+    return jsonify({'valid': True, 'user': {
+        'email': session['username'],
+        'name': session['name'],
+        'role': session.get('role', 'user')
+    }})
 
 
 # ============================================================================
@@ -971,8 +1017,13 @@ def export_excel_dashboard(session_id):
         # Lazy import to prevent app crash if openpyxl not installed
         from services.excel_dashboard import ExcelDashboardGenerator
 
+        # CRITICAL: Transform HOTDOG format to legacy format for Excel generator
+        # browser_output uses: question_text, primary_answer.text, primary_answer.pages
+        # Excel generator expects: question, answer, page_citations
+        legacy_result = _transform_to_legacy_format(browser_output)
+
         # Generate Excel dashboard (now works with both complete and partial)
-        generator = ExcelDashboardGenerator(browser_output, is_partial=is_partial)
+        generator = ExcelDashboardGenerator(legacy_result, is_partial=is_partial)
         excel_file = generator.generate()
 
         # Use different filename for partial exports
@@ -1098,6 +1149,7 @@ def stop_analysis(session_id):
 # ============================================================================
 
 @app.route('/api/admin/sessions', methods=['GET'])
+@require_admin
 def get_all_sessions():
     """Admin endpoint: Get all active, completed, and partial analyses"""
     from datetime import datetime
@@ -1234,6 +1286,7 @@ def cipp_analyzer():
     return send_from_directory(Config.BASE_DIR, 'analyzer_rebuild.html')
 
 @app.route('/admin/sessions')
+@require_admin
 def admin_sessions():
     """Serve admin session monitoring page"""
     return send_from_directory(Config.BASE_DIR, 'admin_sessions.html')

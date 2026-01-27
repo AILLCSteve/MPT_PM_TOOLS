@@ -108,7 +108,8 @@ class HotdogOrchestrator:
             openai_client=self.openai_client,
             max_parallel_experts=max_parallel_experts,
             model=self.model,
-            max_completion_tokens=model_limits.recommended_completion_tokens
+            max_completion_tokens=model_limits.recommended_completion_tokens,
+            context_guardrails=self.context_guardrails
         )
         self.layer3_5_second_pass = SecondPassProcessor(
             openai_client=self.openai_client,

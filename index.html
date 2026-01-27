@@ -703,10 +703,32 @@
 
     <!-- About Modal -->
     <div id="aboutModal" class="modal" onclick="closeModalOnOutsideClick(event)">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 650px; text-align: center;">
             <button class="modal-close" onclick="closeAboutModal()">&times;</button>
-            <h2>About</h2>
-            <p style="text-align: left; line-height: 1.8;">A BidBoss tool suite by Additional Intelligence, LLC. Includes BidBrief AI Document Analysis for CIPP (patent pending 63/892,871; 371(c) date:10/3/2025 "System and Method for Automated Analysis of Construction Specification Documents in Various Domains Including CIPP Pipe Rehabilitation and Other Construction Using Large Language Models"), Production Estimator (patent pending 63/886,093; 371(c) date: 9/23/2025,"Software Applications and Methods for Estimating and Improving Productivity Predictions for Sewer Cleaning and CCTV Inspection Tasks Using Adjustable Operational Factors With or Without Adaptive Model Fitting") and other tools branded and deployed as a service for Municipal Pipe Tool, Co. LLC.</p>
+            <h2 style="color: #1E3A8A; margin-bottom: 1rem;">Municipal Pipe Tool</h2>
+            <p style="color: #5B7FCC; font-size: 1.1rem; margin-bottom: 1.5rem;">Professional Project Management Suite</p>
+
+            <div style="background: #f3f4f6; padding: 20px; border-radius: 10px; margin: 20px 0; text-align: left;">
+                <p style="font-size: 0.85rem; color: #4b5563; line-height: 1.7; margin-bottom: 15px;">
+                    <strong style="color: #1E3A8A;">BidBrief AI Document Analysis</strong><br>
+                    <span style="font-style: italic; color: #6b7280;">Patent Pending: 63/892,871 | 371(c) Date: 10/3/2025</span><br>
+                    "System and Method for Automated Analysis of Construction Specification Documents in Various Domains Including CIPP Pipe Rehabilitation and Other Construction Using Large Language Models"
+                </p>
+                <p style="font-size: 0.85rem; color: #4b5563; line-height: 1.7;">
+                    <strong style="color: #1E3A8A;">Production Estimator</strong><br>
+                    <span style="font-style: italic; color: #6b7280;">Patent Pending: 63/886,093 | 371(c) Date: 9/23/2025</span><br>
+                    "Software Applications and Methods for Estimating and Improving Productivity Predictions for Sewer Cleaning and CCTV Inspection Tasks Using Adjustable Operational Factors With or Without Adaptive Model Fitting"
+                </p>
+            </div>
+
+            <p style="font-size: 0.95rem; color: #374151; margin-bottom: 1rem;">
+                Developed by <a href="https://additionalintel.com" target="_blank" style="color: #5B7FCC; text-decoration: none; font-weight: 600;">Additional Intelligence, LLC</a>
+            </p>
+            <p style="font-size: 0.8rem; color: #9ca3af;">
+                Branded and deployed for Municipal Pipe Tool, Co. LLC
+            </p>
+
+            <button onclick="closeAboutModal()" style="background: linear-gradient(135deg, #1E3A8A 0%, #5B7FCC 100%); color: white; border: none; padding: 12px 30px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 20px; transition: transform 0.2s;">Close</button>
         </div>
     </div>
 

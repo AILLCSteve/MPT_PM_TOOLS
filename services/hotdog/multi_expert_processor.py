@@ -50,7 +50,8 @@ class MultiExpertProcessor:
         openai_client: AsyncOpenAI,
         max_parallel_experts: int = 5,
         model: str = "gpt-4o",
-        max_completion_tokens: int = 16384
+        max_completion_tokens: int = 16384,
+        context_guardrails: str = ""
     ):
         """
         Initialize the multi-expert processor.
@@ -60,16 +61,20 @@ class MultiExpertProcessor:
             max_parallel_experts: Maximum concurrent expert calls (rate limiting)
             model: OpenAI model to use (default: gpt-4o - most robust available)
             max_completion_tokens: Maximum tokens for completion (gpt-4o limit: 16,384)
+            context_guardrails: Global context rules to apply to all analysis
         """
         self.client = openai_client
         self.max_parallel = max_parallel_experts
         self.model = model
         self.max_completion_tokens = max_completion_tokens
+        self.context_guardrails = context_guardrails or ""
         self.total_api_calls = 0
         self.total_tokens = 0
 
         logger.info(f"🤖 Multi-Expert Processor initialized with model: {model}")
         logger.info(f"   Max completion tokens: {max_completion_tokens:,}")
+        if self.context_guardrails:
+            logger.info(f"📋 Context Guardrails applied to first pass")
 
     async def process_window(
         self,
@@ -196,13 +201,18 @@ class MultiExpertProcessor:
         logger.info(f"{prompt[:500]}..." if len(prompt) > 500 else prompt)
         logger.info(f"{'='*80}\n")
 
+        # Build system prompt with context guardrails (if any)
+        system_prompt = expert.system_prompt
+        if self.context_guardrails:
+            system_prompt += f"\n\n---\nCONTEXT GUARDRAILS (IMPORTANT):\n{self.context_guardrails}\n---"
+
         # Execute AI call with optimized token limits
         try:
             try:
                 response = await self.client.chat.completions.create(
                     model=self.model,
                     messages=[
-                        {"role": "system", "content": expert.system_prompt},
+                        {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.3,  # Lower temperature for factual extraction
