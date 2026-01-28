@@ -152,7 +152,8 @@ logger.info("="*60)
 def check_auth_cookie():
     """Check if user has valid auth cookie/session token."""
     from flask import request
-    token = request.cookies.get('auth_token') or request.headers.get('Authorization', '').replace('Bearer ', '')
+    # Check cookie (authToken - camelCase to match frontend), then Authorization header
+    token = request.cookies.get('authToken') or request.headers.get('Authorization', '').replace('Bearer ', '')
     if not token or token not in active_sessions:
         return None
     session = active_sessions[token]
