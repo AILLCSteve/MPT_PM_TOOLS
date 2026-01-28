@@ -419,6 +419,7 @@
                     <button class="tab-btn active" onclick="switchTab('summary')">Summary</button>
                     <button class="tab-btn" onclick="switchTab('detailed')">Detailed Results</button>
                     <button class="tab-btn" onclick="switchTab('bySection')">By Section</button>
+                    <button class="tab-btn" onclick="switchTab('footnotes')">Footnotes</button>
                 </div>
             </div>
 
@@ -431,6 +432,9 @@
             </div>
             <div id="tab-bySection" class="tab-content">
                 <div id="bySectionContent"></div>
+            </div>
+            <div id="tab-footnotes" class="tab-content">
+                <div id="footnotesContent"></div>
             </div>
         </div>
     </div>
@@ -573,6 +577,7 @@
             renderSummaryTab(data, sessionId);
             renderDetailedTab(data);
             renderBySectionTab(data);
+            renderFootnotesTab(data);
         }
 
         function renderSummaryTab(data, sessionId) {
@@ -746,6 +751,73 @@
             });
 
             document.getElementById('bySectionContent').innerHTML = html;
+        }
+
+        function renderFootnotesTab(data) {
+            const sections = data.result?.sections || [];
+            let footnotes = [];
+            let fnNum = 1;
+
+            // Collect all footnotes
+            sections.forEach(section => {
+                (section.questions || []).forEach(q => {
+                    if (q.footnote && q.footnote.trim()) {
+                        footnotes.push({
+                            number: fnNum++,
+                            section: section.section_name,
+                            question: q.question,
+                            footnote: q.footnote,
+                            pages: q.page_citations || []
+                        });
+                    }
+                });
+            });
+
+            if (footnotes.length === 0) {
+                document.getElementById('footnotesContent').innerHTML = `
+                    <div style="text-align: center; padding: 60px; color: #9ca3af;">
+                        <p style="font-size: 18px; margin-bottom: 10px;">No footnotes available</p>
+                        <p style="font-size: 14px;">Footnotes are generated when the AI provides additional context or citations.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <div style="margin-bottom: 20px; padding: 15px; background: #f0f4ff; border-radius: 8px;">
+                    <strong style="color: #667eea;">${footnotes.length} Footnotes</strong>
+                    <span style="color: #6b7280; margin-left: 10px;">Additional context and citations from the analysis</span>
+                </div>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">#</th>
+                            <th style="width: 150px;">Section</th>
+                            <th style="width: 200px;">Related Question</th>
+                            <th>Footnote/Citation</th>
+                            <th style="width: 80px;">Pages</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            footnotes.forEach(fn => {
+                const pages = fn.pages.join(', ') || '-';
+                const shortQuestion = fn.question.length > 80 ? fn.question.substring(0, 80) + '...' : fn.question;
+
+                html += `
+                    <tr>
+                        <td style="text-align: center; font-weight: 600; color: #667eea;">${fn.number}</td>
+                        <td>${fn.section}</td>
+                        <td title="${fn.question}">${shortQuestion}</td>
+                        <td>${fn.footnote}</td>
+                        <td class="pages-cell">${pages}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('footnotesContent').innerHTML = html;
         }
 
         async function exportAnalysis(sessionId) {
