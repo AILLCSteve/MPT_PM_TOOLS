@@ -481,7 +481,7 @@
                 html += `<td>${formatDateTime(session.completed_at || session.stopped_at)}</td>`;
                 html += `<td>
                     <button class="action-btn" onclick="viewAnalysis('${session.session_id}', '${session.pdf_filename || 'Unknown.pdf'}')">View</button>
-                    <button class="action-btn export" onclick="exportAnalysis('${session.session_id}')">Export</button>
+                    <button class="action-btn export" onclick="exportAnalysis('${session.session_id}')">Excel Report Package</button>
                 </td>`;
                 html += '</tr>';
             });
@@ -580,79 +580,131 @@
             renderFootnotesTab(data);
         }
 
+        // Key requirement patterns for extraction
+        const KEY_REQUIREMENT_PATTERNS = {
+            'Timeline': ['timeline', 'project duration', 'start date', 'completion date', 'schedule', 'substantial completion'],
+            'Scope': ['scope', 'linear feet', 'pipe diameter', 'total footage', 'project scope', 'lf of'],
+            'Bid Deadline': ['bid deadline', 'bid due', 'submission deadline', 'bid opening', 'bids due'],
+            'Payment': ['payment', 'progress payment', 'retention', 'payment terms'],
+            'Warranty': ['warranty', 'guarantee period', 'warranty period'],
+            'Liquidated Damages': ['liquidated damages', 'delay damages', 'penalty', 'per day'],
+            'Bonding': ['bond', 'bid bond', 'performance bond', 'payment bond'],
+            'Certifications': ['certification', 'nassco', 'pacp', 'required certifications'],
+            'Insurance': ['insurance', 'liability', 'coverage requirements'],
+            'Location': ['location', 'project location', 'city', 'municipality']
+        };
+
+        function extractKeyRequirements(sections) {
+            const requirements = {};
+            const allAnswers = [];
+
+            // Collect all question-answer pairs
+            sections.forEach(section => {
+                (section.questions || []).forEach(q => {
+                    if (q.answer && q.answer.trim()) {
+                        allAnswers.push({
+                            question: q.question.toLowerCase(),
+                            answer: q.answer
+                        });
+                    }
+                });
+            });
+
+            // Extract key requirements
+            for (const [reqName, patterns] of Object.entries(KEY_REQUIREMENT_PATTERNS)) {
+                for (const qa of allAnswers) {
+                    const matchesPattern = patterns.some(p =>
+                        qa.question.includes(p.toLowerCase()) ||
+                        qa.answer.toLowerCase().includes(p.toLowerCase())
+                    );
+                    if (matchesPattern && !requirements[reqName]) {
+                        // Truncate long answers
+                        let value = qa.answer;
+                        if (value.length > 150) {
+                            value = value.substring(0, 150) + '...';
+                        }
+                        requirements[reqName] = value;
+                        break;
+                    }
+                }
+            }
+
+            return requirements;
+        }
+
         function renderSummaryTab(data, sessionId) {
             const stats = data.statistics || {};
             const sections = data.result?.sections || [];
 
             let totalQuestions = 0;
             let answeredQuestions = 0;
-            const sectionStats = [];
+            let totalConfidence = 0;
+            let confidenceCount = 0;
 
             sections.forEach(section => {
                 const questions = section.questions || [];
-                const sectionTotal = questions.length;
-                const sectionAnswered = questions.filter(q => q.answer && q.answer.trim()).length;
-                totalQuestions += sectionTotal;
-                answeredQuestions += sectionAnswered;
-                sectionStats.push({
-                    name: section.section_name,
-                    answered: sectionAnswered,
-                    total: sectionTotal,
-                    rate: sectionTotal > 0 ? Math.round((sectionAnswered / sectionTotal) * 100) : 0
+                totalQuestions += questions.length;
+                questions.forEach(q => {
+                    if (q.answer && q.answer.trim()) {
+                        answeredQuestions++;
+                        if (q.confidence) {
+                            totalConfidence += q.confidence;
+                            confidenceCount++;
+                        }
+                    }
                 });
             });
 
             const answerRate = totalQuestions > 0 ? Math.round((answeredQuestions / totalQuestions) * 100) : 0;
+            const avgConfidence = confidenceCount > 0 ? Math.round(totalConfidence / confidenceCount) : 'N/A';
+
+            // Extract key project requirements
+            const keyReqs = extractKeyRequirements(sections);
 
             let html = `
-                <div class="stats-box">
-                    <div class="stat-item">
-                        <label>Total Questions</label>
-                        <value>${totalQuestions}</value>
-                    </div>
-                    <div class="stat-item">
-                        <label>Answered</label>
-                        <value style="color: #22c55e;">${answeredQuestions}</value>
-                    </div>
-                    <div class="stat-item">
-                        <label>Not Found</label>
-                        <value style="color: #ef4444;">${totalQuestions - answeredQuestions}</value>
-                    </div>
-                    <div class="stat-item">
-                        <label>Answer Rate</label>
-                        <value>${answerRate}%</value>
-                    </div>
-                    <div class="stat-item">
-                        <label>Processing Time</label>
-                        <value>${stats.processing_time ? stats.processing_time.toFixed(1) + 's' : 'N/A'}</value>
-                    </div>
-                    <div class="stat-item">
-                        <label>Est. Cost</label>
-                        <value>${stats.estimated_cost || 'N/A'}</value>
-                    </div>
-                </div>
-
-                <h3 style="margin: 20px 0 15px 0; color: #667eea;">Breakdown by Section</h3>
-                <table class="results-table">
-                    <thead>
+                <h3 style="margin: 0 0 15px 0; color: #667eea; font-size: 16px;">Analysis Statistics</h3>
+                <table class="results-table" style="margin-bottom: 25px;">
+                    <tbody>
                         <tr>
-                            <th>Section</th>
-                            <th style="text-align: center;">Answered</th>
-                            <th style="text-align: center;">Total</th>
-                            <th style="text-align: center;">Rate</th>
+                            <td style="width: 200px; font-weight: 600; background: #f9fafb;">Total Questions</td>
+                            <td>${totalQuestions}</td>
                         </tr>
-                    </thead>
+                        <tr>
+                            <td style="font-weight: 600; background: #f9fafb;">Questions Answered</td>
+                            <td style="color: #22c55e; font-weight: 600;">${answeredQuestions}</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: 600; background: #f9fafb;">Answer Rate</td>
+                            <td>${answerRate}%</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: 600; background: #f9fafb;">Average Confidence</td>
+                            <td>${typeof avgConfidence === 'number' ? avgConfidence + '%' : avgConfidence}</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: 600; background: #f9fafb;">Processing Time</td>
+                            <td>${stats.processing_time ? stats.processing_time.toFixed(1) + 's' : 'N/A'}</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: 600; background: #f9fafb;">Est. Cost</td>
+                            <td>${stats.estimated_cost || 'N/A'}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3 style="margin: 0 0 15px 0; color: #667eea; font-size: 16px;">Key Project Requirements</h3>
+                <table class="results-table">
                     <tbody>
             `;
 
-            sectionStats.forEach(s => {
-                const rateColor = s.rate === 100 ? '#22c55e' : s.rate >= 50 ? '#f59e0b' : '#ef4444';
+            // Add key requirements rows
+            const reqOrder = ['Timeline', 'Scope', 'Bid Deadline', 'Payment', 'Warranty', 'Liquidated Damages', 'Bonding', 'Certifications', 'Insurance', 'Location'];
+            reqOrder.forEach(reqName => {
+                const value = keyReqs[reqName] || '<em style="color: #999;">Not found in document</em>';
                 html += `
                     <tr>
-                        <td>${s.name}</td>
-                        <td style="text-align: center;">${s.answered}</td>
-                        <td style="text-align: center;">${s.total}</td>
-                        <td style="text-align: center; font-weight: 600; color: ${rateColor};">${s.rate}%</td>
+                        <td style="width: 200px; font-weight: 600; background: #f9fafb;">${reqName}</td>
+                        <td>${value}</td>
                     </tr>
                 `;
             });
