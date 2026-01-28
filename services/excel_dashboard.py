@@ -271,7 +271,12 @@ class ExcelDashboardGenerator:
                     if is_alt:
                         cell.fill = self.ALT_ROW_FILL
 
-                ws.row_dimensions[row].height = 35
+                # Calculate dynamic row height based on content length
+                # Columns B+C combined width is ~70 chars, each line ~15px height
+                chars_per_line = 60
+                num_lines = max(1, (len(value) // chars_per_line) + 1)
+                row_height = max(25, num_lines * 18)  # Minimum 25, 18px per line
+                ws.row_dimensions[row].height = row_height
                 row += 1
         else:
             row += 1
